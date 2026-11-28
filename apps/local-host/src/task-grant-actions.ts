@@ -70,28 +70,18 @@ export async function taskGrantDeclarations(
   });
   const home = host.homePlugins;
   const provides = (record: PluginInstanceRecord, providerId: string) => resolveActionProviderId(record) === providerId;
-  const manifestOf = (providerId: string, at: readonly InstalledPluginEntry[] = entries): { record: PluginInstanceRecord; manifest: PluginManifest | undefined } | undefined => {
-    const own = at.find(({ record }) => provides(record, providerId));
-    if (own) return own;
-    const record = home?.installations().find(entry => entry.state !== "uninstalled" && provides(entry, providerId));
-    return record && { record, manifest: home?.manifest(record.plugin_id) };
-  };
-  const homeEntries = (home?.installations() ?? []).map(record => ({ record, manifest: home?.manifest(record.plugin_id) }));
-  const original = (providerId: string) => entries.find(({ record }) => provides(record, providerId)) ?? homeEntries.find(({ record }) => provides(record, providerId));
+  const homeEntriesNow = () => (home?.installations() ?? []).filter(record => record.state !== "uninstalled")
+    .map(record => ({ record, manifest: home?.manifest(record.plugin_id) }));
+  const homeEntries = homeEntriesNow();
   const originalInstall = (id: string) => entries.find(({ record }) => record.install_id === id) ?? homeEntries.find(({ record }) => record.install_id === id);
-  const identity = (entry: ReturnType<typeof manifestOf>) => entry && JSON.stringify([entry.record.install_id, entry.record.installation_generation,
-    entry.record.manifest_digest, entry.record.state, entry.manifest?.read_groups?.map(group => [group.group_id, group.actions])]);
-  const declarations = new Map<string, ProviderDeclaration>();
-  const readerOf = (record: PluginInstanceRecord): PluginLocaleReader | null => {
-    if (projectReaders.has(record.install_id)) return projectReaders.get(record.install_id) ?? null;
-    return record.publisher_trust === "host"
-      ? registeredInstallationText(record)
-      : home?.packageStage(record.plugin_id)?.packaged?.localePacks ?? null;
-  };
-  const declaration = (manifest: PluginManifest, record: PluginInstanceRecord): ProviderDeclaration => {
-    const existing = declarations.get(record.install_id);
+  type Entry = typeof entries[number];
+  const identity = (entry?: Entry) => entry && [entry.record.install_id, entry.record.installation_generation, entry.record.manifest_digest, entry.record.state, entry.record.grants];
+  const declarations = new Map<PluginInstanceRecord, ProviderDeclaration>();
+  const declaration = (manifest: PluginManifest, record: PluginInstanceRecord, project: boolean): ProviderDeclaration => {
+    const existing = declarations.get(record);
     if (existing) return existing;
-    const reader = readerOf(record);
+    const reader = project ? projectReaders.get(record.install_id) ?? null : record.publisher_trust === "host"
+      ? registeredInstallationText(record) : home?.packageStage(record.plugin_id)?.packaged?.localePacks ?? null;
     const locale = requestedLocale ?? activeLocale();
     const resolve = manifestWordResolver(reader, locale);
     const hasPackKey = (key: string): boolean => {
@@ -101,6 +91,7 @@ export async function taskGrantDeclarations(
     };
     const owner = manifest.plugin_id;
     const result: ProviderDeclaration = {
+      ...(record.execution === "sandbox" ? { installation: JSON.stringify([project ? reference.project_id : null, record.install_id, record.installation_generation, record.manifest_digest]) } : {}),
       description: manifest.summary?.trim() ? manifest.summary : undefined,
       read_groups: manifest.read_groups,
       display: group => {
@@ -126,7 +117,7 @@ export async function taskGrantDeclarations(
       actionTitle: view => resolveManifestText(owner, view.action.title, view.action.title_text, resolve),
       separator: readWorkbenchText("common.list.separator", locale),
     };
-    declarations.set(record.install_id, result);
+    declarations.set(record, result);
     return result;
   };
   let latestProjectEntries: readonly InstalledPluginEntry[] = entries;
@@ -145,14 +136,22 @@ export async function taskGrantDeclarations(
     const task = latest.find(({ record }) => record.install_id === installId);
     const homeTask = home?.installation(installId);
     const live = task ?? (homeTask && { record: homeTask, manifest: home?.manifest(homeTask.plugin_id) }) ?? undefined;
-    if (identity(originalInstall(installId)) !== identity(live) || [...providers].some(id => identity(original(id)) !== identity(manifestOf(id, latest)))) {
+    const affected = (rows: readonly Entry[]) => rows.filter(({ record }) => providers.has(resolveActionProviderId(record))).map(identity);
+    if (JSON.stringify([identity(originalInstall(installId)), affected(entries), affected(homeEntries)])
+      !== JSON.stringify([identity(live), affected(latest), affected(homeEntriesNow())])) {
       throw new ActionError("actions.conflict", "任务安装或读取类别已变化，请刷新后再改");
     }
   };
   return {
     of: provider => {
-      const found = original(provider.provider_id);
-      if (found) return found.manifest ? declaration(found.manifest, found.record) : null;
+      const grant = provider.grant;
+      const project = grant ? grant.project_id !== null : Boolean(provider.project_id);
+      const candidates = (project ? entries : homeEntries).filter(({ record }) => provides(record, provider.provider_id));
+      const found = provider.plugin_install_id ? candidates.find(({ record }) => record.install_id === provider.plugin_install_id)
+        : grant ? candidates.find(({ manifest }) => manifest?.actions?.some(action => action.capability_id === grant.capability_id))
+          ?? candidates.find(({ record }) => record.execution !== "sandbox")
+        : candidates.find(({ record }) => record.execution !== "sandbox");
+      if (found) return found.manifest ? declaration(found.manifest, found.record, project) : null;
       return provider.kind === "plugin" ? null : {};
     },
     installed: installId => !!originalInstall(installId),

@@ -46,6 +46,29 @@ const WORKFLOW_TAP_TRACE = `
     window.removeEventListener(type, bubble); } return { before, events, after: snapshot() }; };
   }
 `;
+/** Follow the real tab order from outside the frame to a row that exposes its actions on keyboard focus. */
+async function tabToRow(browser: Page, frame: Awaited<ReturnType<typeof pluginFrameBrowser>>, outer: string, index: number) {
+  const outside = await browser.evaluate<boolean>(`(() => {
+    const frame = document.querySelector(${JSON.stringify(outer)});
+    const stops = [...document.querySelectorAll('button, a[href], input, select, textarea, [tabindex]')];
+    const previous = stops.filter(node => node.tabIndex >= 0 && !node.matches(':disabled') && !node.closest('[inert], [hidden]')
+      && node.checkVisibility() && (node.compareDocumentPosition(frame) & Node.DOCUMENT_POSITION_FOLLOWING)).at(-1);
+    previous?.focus({preventScroll:true});
+    return !!previous && document.hasFocus() && document.activeElement === previous;
+  })()`);
+  assert.ok(outside, "the Tab journey starts on an actual shell control outside the plugin");
+  for (let presses = 0; presses < 80; presses++) {
+    for (const type of ["rawKeyDown", "keyUp"]) await browser.command("Input.dispatchKeyEvent", { type, key: "Tab", code: "Tab", windowsVirtualKeyCode: 9 }, browser.sessionId);
+    const reached = await frame.evaluate<boolean>(`(() => {
+      const item = document.querySelector('[data-hover-audit="${index}"]');
+      const row = item?.closest('li, [role=listitem]');
+      return document.hasFocus() && !!row?.contains(document.activeElement);
+    })()`);
+    if (reached) return "row";
+  }
+  return "";
+}
+
 /** What a surface draws only with content: a Workflows chain of two stations, each with its tools. */
 async function prepare(name: string, { evaluate, waitFor }: Pick<Page,"evaluate"|"waitFor">) {
   if (name !== "workflows") return;
@@ -62,8 +85,8 @@ async function prepare(name: string, { evaluate, waitFor }: Pick<Page,"evaluate"
 test("VUX-06: actions hidden until hover on the board, the project page and every plugin show to keyboard focus and without hover", { timeout: 1_800_000 }, async (t) => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
   const { evaluate, waitFor, command, sessionId, navigate, origin, projectId } = browser;
-  const children = Object.fromEntries(await Promise.all(PLUGINS.map(async id => [id, await pluginFrameBrowser(t,browser,id,
-    id === "shelf" ? '[data-side-body="plugin:shelf/side"] iframe' : undefined)])));
+  const children: Record<string, Awaited<ReturnType<typeof pluginFrameBrowser>>> = Object.fromEntries(await Promise.all(PLUGINS.map(async id => [id, await pluginFrameBrowser(t,browser,id,
+    id === "shelf" ? '[data-side-body="plugin:shelf/side"] iframe' : undefined)] as const)));
   const childShown = (id: string) => evaluate<boolean>(`(()=>{const owner=${id === "shelf" ? `document.querySelector('[data-side-body="plugin:shelf/side"] iframe')` : "null"};
     return !!(owner?.contentDocument??document).querySelector('iframe[data-plugin-frame="${id}"]');})()`);
   const surfaces: [string, string][] = [["组件板", "/__ui/catalog"], ["项目页", `/projects/${projectId}/`],
@@ -91,7 +114,6 @@ test("VUX-06: actions hidden until hover on the board, the project page and ever
     await prepare(name, isolated ? children[name]! : browser);
     for (const page of isolated ? [browser,children[name]!] : [browser]) {
     const {evaluate} = page;
-    const focusFrame: Awaited<ReturnType<typeof pluginFrameBrowser>> | undefined = page === browser ? undefined : children[name];
     await command("Input.dispatchMouseEvent", { type: "mouseMoved", x: 1, y: 1 }, sessionId);
     const hidden = await evaluate<HoverHidden[]>(HOVER_HIDDEN);
     const seen = new Set<string>();
@@ -102,8 +124,10 @@ test("VUX-06: actions hidden until hover on the board, the project page and ever
       checked++;
       // A key press first, so the focus that follows is keyboard focus (:focus-visible).
       for (const type of ["rawKeyDown", "keyUp"] as const) await command("Input.dispatchKeyEvent", { type, key: "Shift", code: "ShiftLeft", windowsVirtualKeyCode: 16 }, sessionId);
-      const focus = hoverFocus(item.index);
-      const how = focusFrame ? await focusFrame.evaluate<string>(focus, undefined, "person") : await evaluate<string>(focus);
+      const rowFrame = page !== browser && (name === "workflows" || name === "shelf");
+      const how = rowFrame
+        ? await tabToRow(browser, children[name]!, name === "shelf" ? '[data-side-body="plugin:shelf/side"] iframe' : 'iframe[data-plugin-frame="workflows"]', item.index)
+        : page === browser ? await evaluate<string>(hoverFocus(item.index)) : await children[name]!.evaluate<string>(hoverFocus(item.index), undefined, "person");
       await pause(350);
       const alpha = await evaluate<number>(hoverShown(item.index));
       if (!how) found.push(`${name}: ${kind} "${item.name}" can't be reached by keyboard`);

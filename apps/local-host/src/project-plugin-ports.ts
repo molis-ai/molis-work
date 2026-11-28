@@ -302,7 +302,7 @@ export function observedHomePlugins(homePlugins: HomePluginHost, keptFor?: strin
     .map(record => ({ record, manifest: homePlugins.manifest(record.plugin_id), recoveryCode: homePlugins.packageError(record.plugin_id, "code") }));
 }
 
-async function reconcileOpenDualProjectHalves(source: ProjectPluginHost | undefined, pluginId: string, action: "regrant" | "disable" | "enable" | "uninstall", permission?: string): Promise<void> {
+export async function reconcileOpenDualProjectHalves(source: ProjectPluginHost | undefined, pluginId: string, action: "regrant" | "disable" | "enable" | "uninstall", permission?: string): Promise<void> {
   if (!source?.options.homeDirectory) return;
   for (const project of source.host.projects()) {
     await source.host.withExistingRuntime(project, async runtime => {
@@ -317,14 +317,12 @@ async function reconcileOpenDualProjectHalves(source: ProjectPluginHost | undefi
  * a signed package (a plugin of the Host's build or a fixture is not reached here). Answers the state it is in afterwards.
  */
 export async function controlHomePackage(homePlugins: HomePluginHost | undefined, pluginId: string, action: "disable" | "enable" | "uninstall",
-  input: { keep_data: boolean; target?: PluginUninstallTarget; assertCurrent?: () => void }, caller?: Partial<Pick<ActionExecutionContext, "beforeEffect" | "assert_authority_current" | "signal">>, source?: ProjectPluginHost): Promise<PackageControlOutcome> {
+  input: { keep_data: boolean; target?: PluginUninstallTarget; assertCurrent?: () => void }, caller?: Partial<Pick<ActionExecutionContext, "beforeEffect" | "assert_authority_current" | "signal">>): Promise<PackageControlOutcome> {
   if (!homePlugins) throw pluginErrors.state_invalid("这个宿主没有个人空间");
   await homePlugins.ready();
   // An uninstall finds and checks its row itself, a finished one named again included (BL-915).
   if (action !== "uninstall" && !homePlugins.hasPackage(pluginId)) throw pluginErrors.state_invalid("个人空间里没有从签名的包装进来的这个插件");
-  const wasDual = homePlugins.dualInstance(pluginId);
   const retained = await homePlugins.packageAction(pluginId, action, action === "uninstall" ? { keepData: input.keep_data, ...input.target ? { target: input.target } : {}, ...input.assertCurrent ? { assertCurrent: input.assertCurrent } : {} } : {}, caller);
-  if (wasDual || homePlugins.dualInstance(pluginId)) await reconcileOpenDualProjectHalves(source, pluginId, action);
   return controlOutcome(homePlugins.installation(pluginId)?.state ?? "uninstalled", retained);
 }
 

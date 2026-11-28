@@ -5,22 +5,35 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { pluginInstallActions } from "@molis-ai/molis-work-app-local-host";
+import type { AuthorizationDetail, AuthorizationList } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentTaskGrantActions, type TaskGrantListResult, type TaskGrantSubject } from "@molis-ai/molis-work-contracts/services/agent-task-grants";
+import { homeIntegrationRegistry, pluginInstallActions, readStudioDistribution, withFunctionsService, type LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
-import { effectsFromContract, parsePluginManifest, sandboxPluginManifest } from "@molis-ai/molis-work-plugin-sdk";
+import { effectsFromContract, parsePluginManifest, sandboxPackageBuildId, sandboxPluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { pluginComponentChoices, type PluginComponentPlan } from "@molis-ai/molis-work-design-system";
 import {
-  definePlacementRelationAction, defineResumeSummaryAction, defineWorkTerminalPromptAction,
+  defineArtifactPreviewAction, defineWorkflowContentActions, defineSubjectContextAction, definePlacementRelationAction, defineSearchEntriesAction, defineResumeSummaryAction, defineWorkTerminalPromptAction,
   intakeMaterial, isPlacementRelationPart, isResumeSummaryAction, isWorkTerminalPromptAction,
-  LOCAL_PERSON_ACTOR_ID, PLACEMENT_RELATION_ROLES, workTerminalActions, type ActionView,
+  LOCAL_PERSON_ACTOR_ID, PLACEMENT_RELATION_ROLES, workTerminalActions, type ActionView, type ActionSceneView,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SANDBOX_PACKAGE_FILES, type PluginDefinition, type PluginManifest, type PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { SandboxPluginContract } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
+import { characterRoleActions } from "@molis-ai/molis-work-contracts/modules/characters";
+import { functionContextActions } from "@molis-ai/molis-work-module-judgment-rules";
+import { searchActions, type SearchQueryResponse } from "@molis-ai/molis-work-contracts/services/search";
+import { connectorControl } from "./fixtures/connector-control.js";
+import { SANDBOX_INTEGRATION_CONTRACT, SANDBOX_INTEGRATION_OPERATIONS, type SandboxPluginContract } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import { SETTINGS_READ_INPUT_SCHEMA, SETTINGS_READ_OUTPUT_SCHEMA, SETTINGS_WRITE_INPUT_SCHEMA } from "@molis-ai/molis-work-contracts/platform/settings";
 import type { ReviewRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import { mac, person as sandboxPerson, ref } from "./fixtures/home-sandbox.js";
-import { PACKAGE_PLUGIN_ID, newPublisher, signedPackage, type PackageFiles } from "./fixtures/sandbox-package.js";
+import { fixturePublisher, newPublisher, packageMethod, signedPackage, type PackageFiles } from "./fixtures/sandbox-package.js";
+import { readyPublication } from "./fixtures/studio-publishing.js";
+import type { CharacterRoleCatalog, CharacterRoleVersionEntry, SignedCharacterTemplate } from "@molis-ai/molis-work-contracts/modules/characters";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
+import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
+import { exerciseReview } from "./fixtures/signed-tool-review.js";
+import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 import { openTestHome } from "./fixtures/test-home.js";
 
 // PEQ-05 (specs/plugin-equal-standing/contract-design.md §5): the repository's third-party sample uses only contracts and the plugin SDK, and
@@ -29,6 +42,17 @@ import { openTestHome } from "./fixtures/test-home.js";
 const SAMPLE = new URL("../examples/plugin-sample/", import.meta.url);
 const PLUGIN = "com.example.notes";
 const id = (name: string) => PLUGIN + "." + name;
+
+function settingsInstallation(html: string) {
+  const section = html.match(/<section[^>]+data-dynamic-plugin-settings="[^"]+"[^>]*>/u)?.[0];
+  assert.ok(section);
+  const read = (attribute: string) => {
+    const value = section.match(new RegExp(attribute + '="([^"]+)"'))?.[1];
+    assert.ok(value, attribute);
+    return value;
+  };
+  return { manifest_digest: read("data-manifest-digest"), plugin_install_id: read("data-plugin-install-id"), installation_generation: read("data-installation-generation"), scope: read("data-plugin-scope") };
+}
 
 test("PEQ-05: the sample imports only contracts and the plugin SDK, and its Manifest passes the SDK's checks with every declaration", () => {
   const source = readFileSync(new URL("index.mjs", SAMPLE), "utf8");
@@ -143,10 +167,11 @@ test("PEQ-05: in a project the sample's declarations are the person's to use, an
   assert.ok(appearanceHtml.includes(`/settings/${PLUGIN}`), "Workbench settings sidebar dynamically lists third-party settings_entries plugin");
   const sampleSettingsPage = await fetch(`${home.origin}/settings/${PLUGIN}?project=${encodeURIComponent(project.project_id)}`);
   assert.equal(sampleSettingsPage.status, 200);
-  assert.match(await sampleSettingsPage.text(), /Hello/);
+  const settingsHtml = await sampleSettingsPage.text();
+  assert.match(settingsHtml, /Hello/);
   const currentSetting = await call<{ values: Array<{ key: string; revision: string; value: unknown }> }>("settings.read", { keys: ["greeting"] });
   const writtenSetting = await home.web.post<{ values: Array<{ key: string; value: unknown }> }>("/api/settings/plugin-entries/write", {
-    plugin_id: PLUGIN, project_id: project.project_id,
+    ...settingsInstallation(settingsHtml), plugin_id: PLUGIN, project_id: project.project_id,
     key: "greeting", layer: "project", change: { set: "Workbench Greeting" },
     expected_revision: currentSetting.values[0]!.revision, request_id: "sample-wb-set-1",
   });
@@ -188,6 +213,16 @@ function attachedTo(state, key) {
   return { targets: state.items.filter(item => item.bindings.includes(key)).map(item => ({ kind: 'sandbox_card', id: item.id })) };
 }
 export const operations = {
+  'scene.choose': async (input, sdk) => { const result = await sdk.scenes.run('proofread', input); return { status: result.status, suggested_behavior_ids: result.suggested_behavior_ids }; },
+  'artifact.save': async (input, sdk) => {
+    const receipt = await sdk.artifacts.put({ artifact_id:'standing-card-'+input.word, version:1, artifact_type_id:'com.example.standing.note', schema_version:1,
+      title:'Notebook record', media_type:'application/json', subject:{kind:'sandbox_card',id:'card-1'}, revision:'1', payload:{special_topic:input.word} });
+    return receipt.artifact_id;
+  },
+  'artifact.preview': async input => ({subject:{kind:'artifact',id:input.artifact.artifact_id},revision:String(input.artifact.version),title:input.artifact.title,
+    media_type:'text/plain',encoding:'utf8',data:input.artifact.payload.special_topic,truncated:false}),
+  'integration.health': async () => ({ ok: true, status: 'connected', message: 'Ready' }),
+  'integration.poll': async (input, sdk) => ({ ok: true, items: [{ externalId: 'sample-' + input.source_id, title: sdk.t.text('sandbox-standing.source'), summary: 'From signed source' }], cursor: '1' }),
   'settings.read': async (_input, sdk) => settingValues(await readState(sdk)),
   'settings.write': async (input, sdk) => {
     const state = await readState(sdk);
@@ -196,6 +231,29 @@ export const operations = {
     await writeState(sdk, state);
     return settingValues(state);
   },
+  'cards.read': async (input, sdk) => {
+    const state = await readState(sdk), item = state.items.find(item => item.id === input.subject_id);
+    if (!item) throw Object.assign(new Error('No such card'), { code: 'actions.missing' });
+    return { subject: { kind: 'sandbox_card', id: item.id }, revision: String(state.revision),
+      title: item.title, content: item.body || item.title, truncated: false, open: { surface: '${SIGNED_SANDBOX_ID}', id: item.id } };
+  },
+  'cards.receive': async (input, sdk) => {
+    const state = await readState(sdk);
+    let item = state.items.find(item => item.request === input.request_id);
+    if (!item) {
+      item = { id: 'received-' + state.items.length, title: input.title, body: input.body, request: input.request_id, bindings: [] };
+      state.items.push(item);
+      await writeState(sdk, state);
+    }
+    return { subject: { kind: 'sandbox_card', id: item.id }, title: item.title };
+  },
+  'cards.search': async (_input, sdk) => {
+    const state = await readState(sdk);
+    return { collection_revision: String(state.revision), next_cursor: null, entries: state.items.map(item => ({
+      subject: { kind: 'sandbox_card', id: item.id }, revision: String(state.revision), title: item.title,
+      summary: item.title, updated_at: null, content: 'summary', open: { surface: '${SIGNED_SANDBOX_ID}', id: item.id },
+    })) };
+  },
   'resume.summary': async (_input, sdk) => {
     const state = await readState(sdk);
     const first = state.items[0];
@@ -203,6 +261,7 @@ export const operations = {
       title: 'Sandbox cards',
       focus: first ? { subject: { kind: 'sandbox_card', id: first.id }, title: first.title, next_hint: '', status_label: 'active', open: { surface: '${SIGNED_SANDBOX_ID}', id: first.id } } : null,
       next: [],
+      progress: { total: state.items.length, done: 0, items: state.items.map(item => ({ id: item.id, title: item.title, status: 'open', next_hint: 'Prepare sandbox card', pending_decision_count: 0, updated_at: '2026-11-20T12:00:00Z' })) },
     };
   },
   'work.prompt': async (input, sdk) => {
@@ -242,6 +301,11 @@ export const operations = {
 `;
 
 function signedStandingPackage(publisher = newPublisher()): PluginPackageBundle {
+  const kind = { kind: "sandbox_card", title: "Sandbox card", glyph: "bookmark" };
+  const previewArtifact = defineArtifactPreviewAction("preview", 1, "Notebook card", ["artifact:read"]);
+  const reader = defineSubjectContextAction("read", 1, kind.kind, kind.title, ["storage:private"]);
+  const { receive } = defineWorkflowContentActions({ id: "sample", title: "Card collection", icon: "bookmark", subject_kind: kind.kind, read_permissions: [], write_permissions: ["storage:private"] });
+  const search = defineSearchEntriesAction("s", 1, [{ ...kind, surface: SIGNED_SANDBOX_ID }], "Cards", ["storage:private"]);
   const resumeDef = defineResumeSummaryAction("r", 1, ["sandbox_card"], "r", ["storage:private"]);
   const wtDef = defineWorkTerminalPromptAction("w", 1, "sandbox_card", "w", ["storage:private"]);
   const rel = (role: (typeof PLACEMENT_RELATION_ROLES)[number]) => definePlacementRelationAction("card", role, "p", 1, {
@@ -253,6 +317,16 @@ function signedStandingPackage(publisher = newPublisher()): PluginPackageBundle 
       version: 1,
       pluginId: manifest.plugin_id,
       revision: "standing-v1",
+      scenes: [{ id: "proofread", title: "Notebook proofreading", description: "Choose an editorial next step", trigger: "When the writer requests a review",
+        instructions: "Choose revise if the note needs corrections", subject_kind: "sandbox_card", options: [{ key: "revise", description: "Revise the note" }, { key: "keep", description: "Keep the note" }] }],
+      agent_scenario: { id: "editing", title: "Notebook editing", instructions: "Present the proposed wording before saving the card.",
+        tools: [{ operation: "artifact.save", review: { kind: "accept-edit", title: "Accept the proposed wording", fields: [{ field: "word", label: "Proposed wording" }] } }] },
+      artifact_types: [{ artifact_type_id: "com.example.standing.note", schema_version: 1, title: "Notebook card", preview_operation: "artifact.preview", searchable_fields: ["special_topic"] }],
+      home_source: {
+        connection_services: [{ service_id: "sample-journal", title: { key: "sandbox-standing.source" }, group_id: "work", summary: "Personal updates", auth_kind: "none",
+          auth: { methods: [] }, capabilities: [{ label: "Read updates", fulfillment: "live" }], origins: ["https://example.org"] }],
+        integrations: [{ integration_id: "sample-journal", kind: "source", service_id: "sample-journal" }],
+      },
       ui: { locales: { default: "en", available: ["en"] } },
       entities: [],
       acceptance: [],
@@ -262,17 +336,41 @@ function signedStandingPackage(publisher = newPublisher()): PluginPackageBundle 
         write_operation: "settings.write",
       },
       operations: [
+        { id: "scene.choose", kind: "command", input: { type: "object", required: ["content"], properties: { content: { type: "string" } }, additionalProperties: false },
+          output: { type: "object", properties: { status: { type: "string" }, suggested_behavior_ids: { type: "array", items: { type: "string" } } }, required: ["status", "suggested_behavior_ids"], additionalProperties: false },
+          effects: { scenes: ["proofread"] }, errors: [], examples: [{ input: { content: "A draft" }, outputIncludes: { status: "ok" } }] },
+        { id: "artifact.save", kind: "command", ui_event: "card-saved", input: { type: "object", required: ["word"], properties: { word: { type: "string" } }, additionalProperties: false },
+          output: { type: "string" }, effects: { artifacts: ["write"] }, errors: [], examples: [{ input: { word: "example" }, output: "standing-card-example" }] },
+        { id: "artifact.preview", kind: "query", read_protocol: { kind: "artifact_preview" }, input: previewArtifact.action.input_schema, output: previewArtifact.action.output_schema!,
+          effects: { artifacts: ["read"] }, errors: [], examples: [{ input: { artifact: {} }, outputIncludes: {} }] },
+        ...(["health", "poll"] as const).map(name => ({ id: SANDBOX_INTEGRATION_OPERATIONS[name], ...structuredClone(SANDBOX_INTEGRATION_CONTRACT[name]), errors: [],
+          examples: [{ input: { source_id: "one", config_json: "{}", has_connection: false, ...(name === "poll" ? { rebuild: false } : {}) }, outputIncludes: {} }] })),
         {
-          id: "settings.read", kind: "query", action_protocol: { kind: "settings", role: "read" },
+          id: "settings.read", project_instance: true, kind: "query", action_protocol: { kind: "settings", role: "read" },
           input: SETTINGS_READ_INPUT_SCHEMA, output: SETTINGS_READ_OUTPUT_SCHEMA,
           errors: [], effects: { storage: ["read"] },
           examples: [{ input: { keys: ["greeting"] }, output: { values: [{ key: "greeting", revision: "1", state: "ok", value: "Welcome", source: "project" }] } }],
         },
         {
-          id: "settings.write", kind: "command", action_protocol: { kind: "settings", role: "write" },
+          id: "settings.write", project_instance: true, kind: "command", action_protocol: { kind: "settings", role: "write" },
           input: SETTINGS_WRITE_INPUT_SCHEMA, output: SETTINGS_READ_OUTPUT_SCHEMA,
           errors: [{ code: "actions.conflict", description: "revision changed" }], effects: { storage: ["read", "write"] },
           examples: [{ input: { key: "greeting", layer: "project", change: { set: "Hi" }, expected_revision: "1", request_id: "r1" }, output: { values: [{ key: "greeting", revision: "2", state: "ok", value: "Hi", source: "project" }] } }],
+        },
+        {
+          id: "cards.read", project_instance: true, kind: "query", read_protocol: { kind: "subject_context", subject_kind: kind.kind },
+          input: reader.action.input_schema, output: reader.action.output_schema!, errors: [{ code: "actions.missing", description: "Card missing" }], effects: { storage: ["read"] },
+          examples: [{ input: { subject_id: "card-1" }, output: { subject: { kind: kind.kind, id: "card-1" }, revision: "1", title: "Card", content: "Card", truncated: false } }],
+        },
+        {
+          id: "cards.receive", kind: "command", action_protocol: { kind: "workflow_receive", title: "Card collection", subject_kind: kind.kind, icon: "bookmark" },
+          input: receive.action.input_schema, output: receive.action.output_schema!, errors: [], effects: { storage: ["read", "write"] },
+          examples: [{ input: { title: "A", body: "Body", request_id: "one" }, output: { subject: { kind: kind.kind, id: "received-1" }, title: "A" } }],
+        },
+        {
+          id: "cards.search", project_instance: true, kind: "query", read_protocol: { kind: "search_entries", kinds: [kind] },
+          input: search.action.input_schema, output: search.action.output_schema!, errors: [], effects: { storage: ["read"] },
+          examples: [{ input: { cursor: null, limit: 10 }, output: { collection_revision: "1", next_cursor: null, entries: [] } }],
         },
         {
           id: "resume.summary", kind: "query", read_protocol: { kind: "resume_summary", subject_kinds: ["sandbox_card"] },
@@ -317,28 +415,36 @@ function signedStandingPackage(publisher = newPublisher()): PluginPackageBundle 
           examples: [{ input: { subject: { kind: "page", id: "p1" }, name: "New" }, output: { targets: [{ kind: "sandbox_card", id: "card-2" }] } }],
         },
       ],
-      pages: [{ id: "home", title: "沙箱样例", regions: [{ id: "main", title: "主区", operationIds: [] }] }],
+      pages: [{ id: "home", title: "沙箱样例", regions: [{ id: "main", title: "主区", operationIds: ["artifact.save"] }] }],
     };
     Object.assign(manifest, sandboxPluginManifest({
       pluginId: manifest.plugin_id, name: "Signed Sandbox Standing", version: manifest.version,
-      publisher: manifest.publisher, presentation: false, effects: effectsFromContract(contract), contract,
+      publisher: manifest.publisher, runtime: { scope: "home", dual_instance: true }, presentation: false, effects: effectsFromContract(contract), contract,
     }));
     const parts: PluginComponentPlan[] = [
       { id: "title", pageId: "home", regionId: "main", intent: "heading", purpose: "标题", props: { title: "沙箱样例" } },
+      { id: "save", pageId: "home", regionId: "main", intent: "input", purpose: "Save card", props: { submitLabel: "Save card" },
+        submit: { operationId: "artifact.save", input: { word: { source: "form", field: "word" } } } },
     ];
     const nodes = parts.map(part => ({ ...part, kind: pluginComponentChoices(part, contract)[0]!.kind }));
     files[SANDBOX_PACKAGE_FILES.contract] = JSON.stringify(contract);
+    Object.assign(manifest, { agent: [{ name: "Notebook reviewer", purpose: "Review notebook cards", body: "agent/reviewer.md" }], methods: [packageMethod("review-role", "Review notebook", "Review a fixed notebook card")] });
+    files["agent/reviewer.md"] = "Inspect the original notebook card before recommending an edit.";
+    files["skills/review-role/SKILL.md"] = "Compare the proposed wording with the original.";
     files[SANDBOX_PACKAGE_FILES.entrypoint] = SANDBOX_CODE;
     files[SANDBOX_PACKAGE_FILES.interface] = JSON.stringify({ parts, nodes });
     files["locales/en.json"] = JSON.stringify({
       format_version: 1, owner: manifest.plugin_id, locale: "en",
-      messages: { "sandbox-standing.greeting": "Greeting", "sandbox-standing.greeting-summary": "Signed sandbox greeting" },
+      messages: { "sandbox-standing.source": "My journal", "sandbox-standing.greeting": "Greeting", "sandbox-standing.greeting-summary": "Signed sandbox greeting" },
     });
   }, { pluginId: SIGNED_SANDBOX_ID });
 }
 
 test("P1-1 & P0-5: signed third-party sandbox package gets settings_entries (Workbench UI), resume_summary (MCP), placement_relation, and work_terminals (with revokePublisher live-PID kill)", { ...mac, timeout: 90_000 }, async t => {
-  const home = await openTestHome(t);
+  const sendTitle = "Notebook delivery", sendBody = "Content delivered from the open card";
+  const home = await openTestHome(t, { host: { functions: { env: { TYPESAFE_API_KEY: "fixture-only" }, provider: { async evaluate(_credential, record) {
+    return { primitive: record.primitive, choice: "revise", noul: null, score: null, legend: null, probabilities: {}, confidence: null, model: record.model };
+  } } } } });
   const project = await home.createProject("Signed Sandbox Standing");
   const folder = await realpath(await mkdtemp(join(tmpdir(), "signed-wt-ws-")));
   t.after(() => rm(folder, { recursive: true, force: true }));
@@ -350,24 +456,140 @@ test("P1-1 & P0-5: signed third-party sandbox package gets settings_entries (Wor
     })),
   );
 
-  const publisher = newPublisher();
+  const publisher = fixturePublisher("PSD-03");
   const projectClient = home.host.actionClient(project.reference);
   const installCaller = { ...sandboxPerson(), project_id: project.project_id };
   const preview = await projectClient.invoke(installCaller, ref(pluginInstallActions.preview), { bundle: signedStandingPackage(publisher) }) as { preview_id: string };
   await projectClient.invoke(installCaller, ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: "Sandbox Publisher" });
 
+  const homeInstall = home.host.homePlugins!.installation(SIGNED_SANDBOX_ID)!;
+  const overview = await home.web.get<{ plugins: { plugin_id: string; install_id: string }[] }>(`/projects/${project.project_id}/api/plugin-trust/overview`);
+  const projectInstall = overview.plugins.find(plugin => plugin.plugin_id === SIGNED_SANDBOX_ID)!;
+  for (const permission of ["artifact:read", "artifact:write", "scenes:use", "model:invoke"]) {
+    await home.web.post("/api/settings/plugin-permissions/set", { install_id: homeInstall.install_id, permission, granted: true });
+    await home.web.post(`/projects/${project.project_id}/api/plugin-trust/permissions/set`, { install_id: projectInstall.install_id, permission, granted: true });
+  }
   const person = await home.host.localPersonContext(project.reference);
   const views = (await projectClient.discover(person)).filter(item => item.provider.plugin_id === SIGNED_SANDBOX_ID);
   const byLocal = (localId: string) => views.find(item => item.action.local_id === localId)!;
+  assert.ok(home.host.homePlugins!.installation(SIGNED_SANDBOX_ID)?.install_id);
+  const registry = await homeIntegrationRegistry(home.home);
+  assert.equal(registry.integration("sample-journal")?.plugin_id, SIGNED_SANDBOX_ID);
+  assert.ok(!views.some((item: ActionView) => item.action.local_id?.startsWith("integration.")));
+  const pull = async () => (await registry.bind("sample-journal", "source", { source_id: "one", connection_id: null, credential_ref: null, config: {} })).connector_driver.poll({ cursor: null }, connectorControl());
+  const pulled = await pull();
+  assert.ok(pulled.ok);
+  assert.equal(pulled.events[0]?.provider_dedupe_id, "sample-one");
+  assert.equal(pulled.events[0]?.payload.title, "My journal");
+
+  const declared = (await home.host.sceneClient(project.reference).discoverScenes(person) as ActionSceneView[]).find(scene => scene.provider.plugin_install_id === projectInstall.install_id && scene.definition.title === "Notebook proofreading");
+  assert.ok(declared?.definition.default_rule);
+  assert.deepEqual(declared.definition.default_rule.options.map(option => option.key), ["revise", "keep"]);
+  const rule = withFunctionsService(home.home, service => service.list().find(item => item.function_key === declared.definition.default_rule!.function_key));
+  assert.ok(rule);
+  const sceneTargets = await projectClient.invoke(person, functionContextActions.targets, { id: rule.id }) as { targets: import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneTarget[] };
+  const target = sceneTargets.targets.find(item => item.scene_id === declared.definition.scene_id)!;
+  assert.ok(target && target.binding === null);
+  await projectClient.invoke(person, functionContextActions.configure, { id: rule.id, scene_id: target.scene_id, scene_version: target.scene_version,
+    provider_id: target.provider_id, binding_id: target.binding_id, expected_revision: target.revision, enabled: true });
+  const choose = byLocal("scene.choose");
+  const judged = await projectClient.invoke(person, { capability_id: choose.capability_id, version: choose.version, provider_id: choose.provider.provider_id }, { content: "Please proofread" });
+  assert.deepEqual((judged as { suggested_behavior_ids: string[] }).suggested_behavior_ids, ["revise"]);
+  const listed = await projectClient.invoke(person, characterRoleActions.signedTemplates, {}) as { templates: SignedCharacterTemplate[] };
+  const template = listed.templates.find(role => role.name === "Notebook reviewer" && role.install_id === projectInstall.install_id);
+  assert.ok(template);
+  await projectClient.invoke(person, characterRoleActions.adoptSigned, { install_id: template.install_id, generation: template.generation, role_id: template.role_id, request_id: "standing-reviewer" });
+  const rolesApi = "/projects/" + project.project_id + "/api/platform/characters/roles";
+  const rolePage = await home.web.get<CharacterRoleCatalog>(rolesApi);
+  const adopted = rolePage.members.find(member => member.title === "Notebook reviewer");
+  assert.ok(adopted);
+  const roleVersions = await home.web.post<{ versions: CharacterRoleVersionEntry[] }>(rolesApi + "/versions", {
+    role: { kind: "project", member_id: adopted.role.current.member_id },
+  });
+  assert.equal(roleVersions.versions.find(version => version.current)?.content.instructions, "Inspect the original notebook card before recommending an edit.");
+
+  const findRecord = () => projectClient.invoke(person, searchActions.query, { query: "mineralogyonereview" }) as Promise<SearchQueryResponse>;
+  assert.ok(!JSON.stringify(await findRecord()).includes("standing-card-mineralogyonereview"));
+  const writer = byLocal("artifact.save");
+  const chrome = locateTestChrome(); assert.ok(chrome, "dedicated test browser");
+  const browser = await ChromeHarness.start(home.home, { executable: chrome }); assert.ok(browser);
+  try {
+    await exerciseReview(t, home, project.reference, writer, { word: "mineralogyonereview" }, browser);
+    assert.ok(JSON.stringify(await findRecord()).includes("standing-card-mineralogyonereview"), "PSD-03 M12: system search found the immutable output by the producer's payload field");
+    const surface = "app-" + sandboxPackageBuildId(SIGNED_SANDBOX_ID, publisher.identity);
+    const page = await browser.page(), child = await pluginFrameBrowser(t, { sessionId: page.sessionId, command: browser.command.bind(browser),
+      on: browser.on.bind(browser), evaluate: page.evaluate.bind(page) }, surface);
+    await page.command("Page.navigate", { url: home.origin + `/projects/${project.project_id}/?openSurface=${encodeURIComponent(surface)}` });
+    await child.waitFor("globalThis.__molisPluginReady === true && document.querySelector('[data-field=word]')");
+    const eventName = "plugin:" + SIGNED_SANDBOX_ID + "/card-saved";
+    await page.evaluate(`(() => { const stage = document.querySelector('iframe[data-plugin-frame="${surface}"]').closest('[data-work-surface]');
+      const outside = document.createElement('div'); stage.after(outside); window.observed = { local: 0, outside: 0 };
+      stage.addEventListener(${JSON.stringify(eventName)}, () => window.observed.local++);
+      outside.addEventListener(${JSON.stringify(eventName)}, () => window.observed.outside++);
+      document.addEventListener(${JSON.stringify(eventName)}, () => window.observed.outside++); })()`);
+    await child.evaluate("(() => { const field = document.querySelector('[data-field=word]'); field.value = 'menureview'; field.dispatchEvent(new Event('input', {bubbles:true})); field.form.querySelector('[type=submit]').click(); })()");
+    await page.wait("window.observed.local === 1");
+    assert.deepEqual(await page.evaluate("window.observed"), { local: 1, outside: 0 });
+
+    const receive = "/projects/" + project.project_id + "/api/mainline/receive";
+    const targets = await home.web.post<{ targets: Array<{ station: string; title: string }> }>(receive + "/targets", {});
+    const station = targets.targets.find(target => target.title === "Card collection");
+    assert.ok(station);
+    await addProjectPlugin(home.web, project.project_id, "feed");
+    const feedItem = await home.host.withProject(project.reference, ({ store }: { store: LocalProjectDatabase }) => {
+      const source = createLocalFeedSourceService(store.db, project.project_id).register({ kind: "web_query", query: "Notebook" }).source;
+      return createLocalFeedApplication(store.db).ingestItem({ source, externalId: "notebook-delivery", title: sendTitle,
+        summary: sendBody, body: sendBody, occurredAt: new Date().toISOString(), attention: false }).item;
+    });
+    await page.viewport(1440, 960);
+    await page.command("Page.navigate", { url: home.origin + "/projects/" + project.project_id + "/" });
+    await page.wait("Number(document.querySelector('[data-work-list=done] [data-n]')?.textContent) > 0");
+    await page.click("[data-work-list=done]");
+    const event = '[data-work-list-rows=done] [data-work-event*="' + feedItem.item_id + '"]';
+    await page.wait("document.querySelector(" + JSON.stringify(event) + ")");
+    await page.click(event);
+    await page.click("[data-info-tab=info]");
+    const menuButton = "[data-assistant-event-card] [data-event-receive-more]";
+    await page.click(menuButton);
+    const receiver = '[data-assistant-event-card] [data-event-receive-menu] [data-event-receive="' + station.station + '"]';
+    await page.wait("document.querySelector(" + JSON.stringify(receiver) + ")?.textContent.includes('Card collection')");
+    await page.click(receiver);
+    await page.wait("document.querySelector(" + JSON.stringify(menuButton) + ")?.textContent.includes('Card collection')");
+    const search = byLocal("cards.search");
+    const directory = await projectClient.invoke(person, { capability_id: search.capability_id, version: search.version, provider_id: search.provider.provider_id }, { cursor: null, limit: 40 }) as { entries: Array<{ title: string; subject: { id: string } }> };
+    const delivered = directory.entries.find(item => item.title === sendTitle);
+    assert.ok(delivered);
+    const reader = byLocal("cards.read");
+    const persisted = await projectClient.invoke(person, { capability_id: reader.capability_id, version: reader.version, provider_id: reader.provider.provider_id }, { subject_id: delivered.subject.id }) as { content: string };
+    assert.deepEqual(persisted.content.split("\n").slice(0, 2), [sendTitle, sendBody], "PSD-03 M4: clicking the signed recipient delivers the content to its owner");
+  } finally { await browser.close(); }
+  const kinds = await home.web.get<{ kinds: Record<string, string>; glyphs: Record<string, string> }>(`/projects/${project.project_id}/api/assistant/surface-kinds`);
+  assert.equal(kinds.kinds[SIGNED_SANDBOX_ID], "sandbox_card");
+  assert.equal(kinds.glyphs.sandbox_card, "bookmark");
+  const brief = await home.web.get<{ html: string; summary: { progress_total: number; progress_done: number } }>(`/api/projects/${project.project_id}/brief`);
+  assert.ok(brief.summary.progress_total >= 1);
+  assert.equal(brief.summary.progress_done, 0);
+  assert.match(brief.html, /Sandbox card/, "PSD-03 M2: the project brief renders the signed package's progress item");
 
   // 1. placement_relation: all 5 roles projected & live inside sandbox.
   for (const role of PLACEMENT_RELATION_ROLES) {
     assert.ok(views.some(item => item.action.placement_relation?.relation === "card" && item.action.placement_relation.role === role), `sandbox placement_relation ${role}`);
   }
-  const bound = await projectClient.invoke(person, { capability_id: byLocal("attach.bind").capability_id, version: byLocal("attach.bind").version, provider_id: byLocal("attach.bind").provider.provider_id }, {
-    subject: { kind: "page", id: "doc-sbx" }, target: { kind: "sandbox_card", id: "card-1" },
-  });
-  assert.deepEqual(bound, { targets: [{ kind: "sandbox_card", id: "card-1" }] });
+  const relation = async (id: string, args: unknown) => { const view = byLocal(id); return projectClient.invoke(person, { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, args); };
+  const subject = { kind: "page", id: "doc-sbx" }, targetCard = { kind: "sandbox_card", id: "card-1" };
+  const targetCandidate = async () => {
+    const { targets } = await relation("attach.candidates", { subject }) as { targets: Array<{ subject: { kind: string; id: string }; current: boolean }> };
+    return targets.find(row => row.subject.kind === targetCard.kind && row.subject.id === targetCard.id);
+  };
+  assert.deepEqual(await targetCandidate(), { subject: targetCard, current: false });
+  assert.deepEqual(await relation("attach.list", { subject }), { targets: [] });
+  const bound = await relation("attach.bind", { subject, target: targetCard });
+  assert.deepEqual(bound, { targets: [targetCard] });
+  assert.deepEqual(await targetCandidate(), { subject: targetCard, current: true });
+  assert.deepEqual(await relation("attach.list", { subject }), bound);
+  assert.deepEqual(await relation("attach.release", { subject, target: targetCard }), { targets: [] });
+  assert.deepEqual(await relation("attach.list", { subject }), { targets: [] });
+  assert.deepEqual(await targetCandidate(), { subject: targetCard, current: false });
 
   // 2. settings_entries: discovered in Workbench sidebar, rendered on /settings/<plugin_id>, writable via /api/settings/plugin-entries/write.
   const navRes = await fetch(`${home.origin}/settings/appearance?project=${encodeURIComponent(project.project_id)}`);
@@ -375,14 +597,30 @@ test("P1-1 & P0-5: signed third-party sandbox package gets settings_entries (Wor
   assert.ok((await navRes.text()).includes(`/settings/${SIGNED_SANDBOX_ID}`), "signed sandbox plugin appears in Workbench settings nav");
   const settingsBefore = await fetch(`${home.origin}/settings/${SIGNED_SANDBOX_ID}?project=${encodeURIComponent(project.project_id)}`);
   assert.equal(settingsBefore.status, 200);
-  assert.match(await settingsBefore.text(), /Welcome/);
+  const settingsHtml = await settingsBefore.text();
+  assert.match(settingsHtml, /Welcome/);
+  const settingsReader = byLocal("settings.read");
+  const actual = await projectClient.invoke(person, { capability_id: settingsReader.capability_id, version: settingsReader.version, provider_id: settingsReader.provider.provider_id },
+    { keys: ["greeting"] }) as { values: { key: string; revision: string }[] };
+  const greeting = actual.values.find(entry => entry.key === "greeting");
+  assert.ok(greeting);
   const writeReply = await home.web.post<{ values: Array<{ key: string; value: unknown }> }>("/api/settings/plugin-entries/write", {
-    plugin_id: SIGNED_SANDBOX_ID, project_id: project.project_id,
-    key: "greeting", layer: "project", change: { set: "Updated from Workbench" }, expected_revision: "2", request_id: "sbx-set-1",
+    ...settingsInstallation(settingsHtml), plugin_id: SIGNED_SANDBOX_ID, project_id: project.project_id,
+    key: "greeting", layer: "project", change: { set: "Updated from Workbench" }, expected_revision: greeting.revision, request_id: "sbx-set-1",
   });
   assert.equal(writeReply.values[0]?.value, "Updated from Workbench");
   const settingsAfter = await fetch(`${home.origin}/settings/${SIGNED_SANDBOX_ID}?project=${encodeURIComponent(project.project_id)}`);
   assert.match(await settingsAfter.text(), /Updated from Workbench/);
+
+  // Use the actual card menu route and read back the receiver's persisted content through its own subject reader.
+  const menu = "/projects/" + project.project_id + "/api/mainline/receive";
+  const targets = await home.web.post<{ targets: Array<{ station: string; title: string }> }>(menu + "/targets", {});
+  const destination = targets.targets.find(target => target.title === "Card collection");
+  assert.ok(destination);
+  const receipt = await home.web.post<{ object: { id: string } }>(menu, { station: destination.station, source: { kind: "sandbox_card", id: "card-1" }, title: "Delivered", text: "Body from the Workbench" });
+  const ownerRead = byLocal("cards.read");
+  const delivered = await projectClient.invoke(person, { capability_id: ownerRead.capability_id, version: ownerRead.version, provider_id: ownerRead.provider.provider_id }, { subject_id: receipt.object.id }) as { content: string };
+  assert.equal(delivered.content, "Body from the Workbench");
 
   // 3. resume_summary: aggregated by real MolisWorkServer context_resolve.
   const runtimeContext = { runtime_id: "codex", stable_work_context_id: "sbx-standing-ctx", host_declares_stable: true };
@@ -399,6 +637,29 @@ test("P1-1 & P0-5: signed third-party sandbox package gets settings_entries (Wor
     resume: { sections: Array<{ plugin_id: string; focus: { subject: { id: string } } | null }> };
   };
   assert.equal(resolved.resume.sections.find(s => s.plugin_id === SIGNED_SANDBOX_ID)?.focus?.subject.id, "card-1");
+
+  const installed = "/projects/" + project.project_id + "/api/plugin-trust";
+  const projectActions = async () => {
+    const available: ActionView[] = await projectClient.discover(person);
+    return available.filter(item => item.provider.plugin_id === SIGNED_SANDBOX_ID);
+  };
+  await home.web.post(installed + "/installed/disable", { plugin_id: SIGNED_SANDBOX_ID });
+  assert.ok(!(await projectActions()).some(item => item.action.local_id === "artifact.save"));
+  assert.equal((await pull()).ok, true, "a project switch leaves the personal source available");
+  const disabled = (await home.web.get<{ plugins: import("@molis-ai/molis-work-contracts/platform/plugin-trust").ProjectPluginInstalledView[] }>(installed + "/overview")).plugins.find(row => row.plugin_id === SIGNED_SANDBOX_ID)!;
+  const { install_id, installation_generation, version, manifest_digest } = disabled;
+  await home.web.post(installed + "/installed/enable", { plugin_id: SIGNED_SANDBOX_ID,
+    expected_installation: { scope: "project", install_id, installation_generation, version, manifest_digest } });
+  assert.ok((await projectActions()).some(item => item.action.local_id === "artifact.save"));
+  await home.web.post("/api/plugins/" + SIGNED_SANDBOX_ID + "/disable", {});
+  assert.equal(registry.integration("sample-journal"), undefined);
+  await assert.rejects(pull);
+  assert.ok(!(await projectActions()).some(item => item.action.local_id === "artifact.save"));
+  await home.web.post("/api/plugins/" + SIGNED_SANDBOX_ID + "/enable", {});
+  const resumed = await pull();
+  assert.ok(resumed.ok);
+  assert.equal(resumed.events[0]?.payload.title, "My journal");
+  assert.ok((await projectActions()).some(item => item.action.local_id === "artifact.save"));
 
   // 4. work_terminals + P0-5 revokePublisher live OS PID death!
   const promptOut = await projectClient.invoke(person, workTerminalActions.prompt, {
@@ -435,21 +696,177 @@ test("P1-1 & P0-5: signed third-party sandbox package gets settings_entries (Wor
 test("44C-3 PSD-03 PSD-04a a signed com.example package and a studio.<id> package install from the real entry, open their pages and answer their calls", { ...mac, timeout: 120_000 }, async t => {
   const f = await serveHomeRuntime(t), project = await f.project("Third-party standing");
   const prefix = "/projects/" + project.project_id, client = f.host.actionClient(project.reference), caller = { ...sandboxPerson(), project_id: project.project_id };
-  const publisher = newPublisher();
-  for (const pluginId of [PACKAGE_PLUGIN_ID, "studio.4f0c7d1e-2b3a-4c5d-8e9f-0a1b2c3d4e5f"]) {
-    assert.ok(!pluginId.startsWith("io.molis.work."), `${pluginId} is not under the Host's reserved prefix`);
-    const preview = await client.invoke(caller, ref(pluginInstallActions.preview), { bundle: signedPackage(publisher, undefined, { pluginId }) }) as { preview_id: string };
-    await client.invoke(caller, ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: "Example publisher" });
-    const page = await f.request(prefix + "/plugins/" + pluginId + "?frame=workbench");
-    const html = await page.text();
-    assert.equal(page.status, 200, `${pluginId}: its page is served, not 404: ${html.slice(0, 200)}`);
-    const pageId = /"page_id":"([^"]+)"/u.exec(html)?.[1];
-    assert.ok(pageId, `${pluginId}: the page is the package's own installed frame`);
-    assert.ok(html.includes(`/api/plugins/${pluginId}/call`), `${pluginId}: the page calls through its own call route`);
-    const call = await f.request(prefix + "/api/plugins/" + pluginId + "/call", { method: "POST", body: { componentId: "notes", binding: "read", payload: {} }, headers: { "x-molis-plugin-page": pageId } });
-    assert.equal(call.status, 200, `${pluginId}: its call route answers, not 404: ${await call.clone().text()}`);
-    assert.ok("value" in (await call.json() as object), `${pluginId}: the call's answer is the operation's value`);
-    const views = (await client.discover(caller)).filter(view => view.provider.plugin_id === pluginId);
-    assert.ok(views.length > 0, `${pluginId}: its operations are in the project's directory like a built-in plugin's`);
+  const publisher = fixturePublisher("PSD-04a");
+  const studioRole = { name: "谨慎校对员", purpose: "校对文稿时保留作者的表达", body: "逐句对照原文。引用原句，说明修改依据。保留作者的语气。" };
+  const author = readyPublication(f.home, "role-publication", "project", design => ({ ...design, roleTemplates: [studioRole] }));
+  const distributed = await author.publish().then(release => readStudioDistribution(author.root, release)).finally(() => author.workflow.close());
+  const sampleRole = { name: "Archive editor", purpose: "Keep citations intact", body: "Compare the original wording before annotating any quotation." };
+  const ordinary = signedPackage(publisher, (files, manifest) => {
+    Object.assign(manifest, { agent: [{ name: sampleRole.name, purpose: sampleRole.purpose, body: "agent/editor.md" }] });
+    files["agent/editor.md"] = sampleRole.body;
+  });
+  const chrome = locateTestChrome(); assert.ok(chrome);
+  const browser = await ChromeHarness.start(f.home, { executable: chrome }); assert.ok(browser);
+  try {
+    const tab = await browser.page(), api = prefix + "/api/platform/characters/roles";
+    const readRoles = async () => await (await f.request(api)).json() as CharacterRoleCatalog;
+    for (const [bundle, role] of [[ordinary, sampleRole], [distributed, studioRole]] as const) {
+      const pluginId = bundle.payload.manifest.plugin_id;
+      assert.ok(!pluginId.startsWith("io.molis.work."), `${pluginId} is not under the Host's reserved prefix`);
+      const preview = await client.invoke(caller, ref(pluginInstallActions.preview), { bundle }) as { preview_id: string };
+      await client.invoke(caller, ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: "Example publisher" });
+      const page = await f.request(prefix + "/plugins/" + pluginId + "?frame=workbench");
+      const html = await page.text();
+      assert.equal(page.status, 200, `${pluginId}: its page is served, not 404: ${html.slice(0, 200)}`);
+      const pageId = /"page_id":"([^"]+)"/u.exec(html)?.[1];
+      assert.ok(pageId, `${pluginId}: the page is the package's own installed frame`);
+      assert.ok(html.includes(`/api/plugins/${pluginId}/call`), `${pluginId}: the page calls through its own call route`);
+      const call = await f.request(prefix + "/api/plugins/" + pluginId + "/call", { method: "POST", body: { componentId: "notes", binding: "read", payload: {} }, headers: { "x-molis-plugin-page": pageId } });
+      assert.equal(call.status, 200, `${pluginId}: its call route answers, not 404: ${await call.clone().text()}`);
+      assert.ok("value" in (await call.json() as object), `${pluginId}: the call's answer is the operation's value`);
+      const views = (await client.discover(caller)).filter(view => view.provider.plugin_id === pluginId);
+      assert.ok(views.length > 0, `${pluginId}: its operations are in the project's directory like a built-in plugin's`);
+      assert.ok(!(await readRoles()).members.some(item => item.title === role.name));
+      await tab.command("Page.navigate", { url: f.origin + prefix + "/settings/characters" });
+      await tab.wait("document.querySelector('[data-roles-act=add]:enabled')");
+      await tab.evaluate("document.querySelector('[data-roles-act=add]').click()");
+      const button = `[...document.querySelectorAll('[data-roles-act=adopt-template]:enabled')].find(b => b.closest('.mw-setting-row')?.textContent.includes(${JSON.stringify(role.name)}))`;
+      await tab.wait(button); await tab.evaluate(`(${button}).click()`);
+      await tab.wait(`[...document.querySelectorAll('.roles-row')].some(e => e.textContent.includes(${JSON.stringify(role.name)}))`);
+      const matches = (await readRoles()).members.filter(item => item.title === role.name);
+      assert.equal(matches.length, 1);
+      const member_id = matches[0]!.role.current.member_id;
+      const versions = await f.request(api + "/versions", { method: "POST", body: { role: { kind: "project", member_id } } });
+      assert.equal(versions.status, 200);
+      const read = await versions.json() as { versions: CharacterRoleVersionEntry[] };
+      assert.equal(read.versions.find(item => item.current)?.content.instructions, role.body);
+      t.diagnostic(pluginId + ": signed role " + role.name + " adopted as " + member_id);
+
+    }
+  } finally { await browser.close(); }
+});
+
+/** Both publishers use identical operation and group names. Only the scope, signer and values distinguish these installations. */
+function scopedSettingsPackage(scope: "home" | "project", version = "1.0.0") {
+  const pluginId = "com.example.settings", publisher = fixturePublisher(scope);
+  const layer = scope === "home" ? "personal" : "project", key = "greeting-" + scope, title = "Owner " + scope;
+  const example = { values: [{ key, value: title, state: "ok", source: layer, revision: "1" }] };
+  return signedPackage(publisher, (files, manifest) => {
+    const contract: SandboxPluginContract = JSON.parse(files[SANDBOX_PACKAGE_FILES.contract]!);
+    contract.operations.find(item => item.id === "notes.add")!.effects.storage = ["read", "write"];
+    if (scope === "home") contract.operations.find(item => item.id === "notes.list")!.effects.networkDomains = ["example.org"];
+    const complete = { ...contract, ui: { locales: { default: "en", available: ["en"] } },
+      settings_entries: { entries: [{ key, title: { key: "settings.title" }, layers: [layer], schema: { type: "string", maxLength: 80 } }], read_operation: "settings.read", write_operation: "settings.write" },
+      read_groups: [{ group_id: "values", title, description: title + " reads", operations: ["notes.list"] }],
+    } satisfies SandboxPluginContract;
+    complete.operations.push({ id: "settings.read", kind: "query", action_protocol: { kind: "settings", role: "read" }, input: SETTINGS_READ_INPUT_SCHEMA, output: SETTINGS_READ_OUTPUT_SCHEMA,
+      effects: { storage: ["read"] }, errors: [], examples: [{ input: { keys: [key] }, output: example }] },
+    { id: "settings.write", kind: "command", action_protocol: { kind: "settings", role: "write" }, input: SETTINGS_WRITE_INPUT_SCHEMA, output: SETTINGS_READ_OUTPUT_SCHEMA,
+      effects: { storage: ["read", "write"] }, errors: [], examples: [{ input: { key, layer, change: { set: title }, expected_revision: "1", request_id: "set" }, output: example }] });
+    files[SANDBOX_PACKAGE_FILES.contract] = JSON.stringify(complete);
+    files["locales/en.json"] = JSON.stringify({ format_version: 1, owner: pluginId, locale: "en", messages: { "settings.title": title } });
+    files[SANDBOX_PACKAGE_FILES.entrypoint] = files[SANDBOX_PACKAGE_FILES.entrypoint]!.replace("export const operations", `
+      const initial = ${JSON.stringify(example)};
+      async function get(sdk) { return JSON.parse(await sdk.storage.get("setting") || JSON.stringify(initial)); }
+      export const operations`).replace(/\};\s*$/u, `
+      'settings.read': async (_, sdk) => get(sdk),
+      'settings.write': async (input, sdk) => {
+        const state = await get(sdk), row = state.values[0];
+        if (input.expected_revision !== row.revision || input.key !== row.key) throw Error('stale setting');
+        row.value = input.change.set; row.revision = String(Number(row.revision) + 1);
+        await sdk.storage.set('setting', JSON.stringify(state)); return state;
+      },
+    };`);
+    return { ...sandboxPluginManifest({ pluginId, version, name: "Shared settings", publisher: manifest.publisher, presentation: false,
+      contract: complete, effects: effectsFromContract(complete), ...(scope === "home" ? { runtime: { scope } } : {}) }),
+      summary: title, ...(version === "1.0.0" ? {} : { upgrade_compatibility: { compatible_from_versions: ["1.0.0"] } }) };
+  }, { pluginId, scope, version });
+}
+
+test("44C-01/02 PSD-04 same-id publishers expose separate settings and task categories", { ...mac, timeout: 180_000 }, async t => {
+  let f = await serveHomeRuntime(t);
+  const project = await f.project("Scoped settings"), pluginId = "com.example.settings";
+  const client = f.host.actionClient(project.reference), caller = sandboxPerson(project.project_id);
+  const install = async (scope: "project" | "home", version?: string) => {
+    const preview = await client.invoke(caller, ref(pluginInstallActions.preview), { bundle: scopedSettingsPackage(scope, version) }) as { preview_id: string };
+    await client.invoke(caller, ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: "Owner " + scope });
+  };
+  await install("home"); await install("project");
+  const homeId = f.host.homePlugins!.installation(pluginId)!.install_id;
+  assert.equal((await f.request("/api/settings/plugin-permissions/set", { method: "POST", body: { install_id: homeId, permission: "network:request", granted: true } })).status, 200);
+  const query = "?project=" + encodeURIComponent(project.project_id);
+  const nav = await (await f.request("/settings/appearance" + query)).text();
+  const page = async (scope: string) => {
+    const path = nav.match(new RegExp("/settings/com[.]example[.]settings~" + scope + "~plugin-install-[a-f0-9]+"))?.[0];
+    assert.ok(path, scope);
+    const response = await f.request(path + query);
+    assert.equal(response.status, 200);
+    return response.text();
+  };
+  const write = (identity: ReturnType<typeof settingsInstallation>, value: string, revision: string) =>
+    f.request("/api/settings/plugin-entries/write", { method: "POST", body: { ...identity, plugin_id: pluginId, project_id: project.project_id,
+      key: "greeting-" + identity.scope, layer: identity.scope === "home" ? "personal" : "project", change: { set: value }, expected_revision: revision, request_id: value } });
+  const home = settingsInstallation(await page("home")), local = settingsInstallation(await page("project"));
+  assert.notEqual(home.plugin_install_id, local.plugin_install_id);
+  assert.equal((await write(home, "home-updated", "1")).status, 200);
+  assert.doesNotMatch(await page("project"), /home-updated/);
+  assert.equal((await write(local, "project-updated", "1")).status, 200);
+  assert.match(await page("project"), /project-updated/);
+  assert.match(await page("home"), /home-updated/);
+  const owner = await f.host.localPersonContext(project.reference);
+  const dataViews = (await client.discover(owner)).filter(view => view.provider.plugin_id === pluginId);
+  const invokeNote = (installId: string, operation: string, input: unknown) => { const view = dataViews.find(row => row.provider.plugin_install_id === installId && row.action.local_id === operation); assert.ok(view);
+    return client.invoke(owner, { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, input); };
+  for (const [id, label] of [[home.plugin_install_id, "home-only"], [local.plugin_install_id, "project-only"]] as const) {
+    await invokeNote(id, "notes.add", { text: label });
+    assert.deepEqual((await invokeNote(id, "notes.list", {}) as { text: string }[]).map(row => row.text), [label]);
+  }
+  assert.deepEqual((await invokeNote(home.plugin_install_id, "notes.list", {}) as { text: string }[]).map(row => row.text), ["home-only"]);
+  const current = () => client.invoke(owner, ref(agentTaskGrantActions.list), {}) as Promise<TaskGrantListResult>;
+  const categories = (await current()).categories.filter(category => category.plugin_id === pluginId);
+  assert.deepEqual(categories.map(row => row.description).sort(), ["Owner home reads", "Owner project reads"]);
+  assert.equal(new Set(categories.map(row => row.provider_id)).size, 1);
+  const grant = categories.find(row => row.description === "Owner home reads")!;
+  const category = { provider_id: grant.provider_id, group_id: grant.group_id, installation: grant.installation };
+  const set = (categories: typeof category[], expected_revision: string) => client.invoke(owner, ref(agentTaskGrantActions.set),
+    { plugin_install_id: local.plugin_install_id, key: "sample", categories, expected_revision }) as Promise<TaskGrantSubject>;
+  const held = await set([category], "");
+  assert.deepEqual(held.categories.map(row => [row.description, row.status]), [["Owner home reads", "granted"]]);
+  const other = categories.find(row => row.description === "Owner project reads")!;
+  await set([category, { provider_id: other.provider_id, group_id: other.group_id, installation: other.installation }], held.revision);
+  const endpoint = "/api/settings/authorizations?project=" + encodeURIComponent(project.project_id);
+  const list = await (await f.request(endpoint)).json() as AuthorizationList;
+  const entry = list.entries.find(item => item.owner === "task-grant" && item.title === "sample");
+  assert.ok(entry);
+  const narrow = { owner: entry.owner, id: entry.id, expected: entry.expected, kind: "narrow", keep: [category] };
+  const reply = await f.request(endpoint, { method: "POST", body: narrow });
+  assert.equal(reply.status, 200);
+  const narrowed = await reply.json() as AuthorizationDetail;
+  assert.deepEqual(narrowed.categories?.filter(row => row.status === "granted").map(row => row.installation), [grant.installation]);
+  assert.equal((await f.request(endpoint, { method: "POST", body: narrow })).status, 409);
+  const kept = (await current()).subjects.find(row => row.key === "sample")!;
+  await set([], kept.revision);
+  await assert.rejects(set([category], held.revision), { code: "actions.conflict" });
+  await install("project", "1.1.0");
+  assert.notEqual((await write(local, "old-release", "2")).status, 200);
+  assert.match(await page("home"), /home-updated/);
+  const upgraded = settingsInstallation(await page("project"));
+  assert.equal((await f.request(`/api/plugins/${pluginId}/disable`, { method: "POST", body: {} })).status, 200);
+  assert.notEqual((await write(home, "disabled-home", "2")).status, 200);
+  assert.equal((await write(upgraded, "project-active", "2")).status, 200);
+  assert.equal((await f.request(`/api/plugins/${pluginId}/enable`, { method: "POST", body: {} })).status, 200);
+  assert.match(await page("home"), /home-updated/);
+  const beforeRestart = f.home;
+  await f.host.close();
+  f = await serveHomeRuntime(t, { homeDirectory: beforeRestart });
+  try {
+    assert.match(await page("home"), /home-updated/);
+    assert.match(await page("project"), /project-active/);
+    const renewed = settingsInstallation(await page("home"));
+    assert.equal((await f.request("/api/settings/plugin-publishers/revoke", { method: "POST", body: { key_id: fixturePublisher("home").identity } })).status, 200);
+    assert.notEqual((await write(renewed, "revoked-home", "2")).status, 200);
+    assert.match(await page("project"), /project-active/);
+  } finally {
+    await f.host.close();
   }
 });

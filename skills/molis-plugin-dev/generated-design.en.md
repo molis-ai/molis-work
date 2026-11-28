@@ -83,3 +83,5 @@ Negative checks (`submitBlocked`, isolated query `faultRead`, `retry`, and `expe
 ## Revision and UI handoff
 
 Keep unchanged operations and parts identical with stable IDs so accepted code is reused; list code-only behavior changes in `rework`. See the mounted experience and UI chapters for journey, layout and review rules: when a collection already returns full body text, set `idField`/`titleField`/`textField` to share the row with detail instead of adding a selection-only detail query. Keep `selection:part.field` bound to a real part ID, never seed scenario inputs into production storage, and never let post-freeze visual revisions alter contract, acceptance or backend.
+
+If the author offers a character, add its separate `name`, `purpose` and `body` to the design’s `roleTemplates` array. Preserve the author’s wording. For example, a careful proofreader can “Quote each original sentence, explain the change, and preserve the author’s voice.” Publication signs the body with the plugin. The installer creates the character by choosing Adopt in project character settings.

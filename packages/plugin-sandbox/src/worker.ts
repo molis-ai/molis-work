@@ -59,6 +59,7 @@ function sdk(callId: string): SandboxSdk {
       delete: async key => { await invoke('storage.delete', [key]); },
       list: prefix => invoke('storage.list', [prefix ?? '']) as Promise<Array<{ key: string; value: SandboxJson }>>,
     },
+    scenes: { run: (localId, input) => invoke('scenes.run', [localId, input]) },
     artifacts: { get: id => invoke('artifacts.get', [id]), put: value => invoke('artifacts.put', [value]) },
     capability: { call: (id, input) => invoke('capability.call', [id, input]) },
     events: { publish: async (id, payload) => { await invoke('events.publish', [id, payload]); } },

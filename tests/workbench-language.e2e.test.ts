@@ -1162,7 +1162,9 @@ test("FSS-20 FSS-37 the Workbench and its inline Goals share a language change w
   await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/locale?lang=zh&next=" + encodeURIComponent(route) }, b.sessionId));
   await b.waitFor("typeof t === 'function' && document.querySelector('[data-open-create] span')");
   const projection = await b.evaluate("JSON.parse(document.querySelector('script[data-ui-page-text]')?.textContent || '[]').map(row => [row.slot,row.packs.map(pack => pack.owner)])");
-  assert.deepEqual(projection, [["project:goals", ["io.molis.work.goals"]]]);
+  assert.deepEqual(projection, [["project:goals", ["io.molis.work.goals"]], ["mainline:receive", ["system.shelf"]]]);
+  const stationKeys = await b.evaluate("JSON.parse(document.querySelector('script[data-ui-page-text]').textContent).find(row => row.slot === 'mainline:receive').packs.flatMap(pack => Object.keys(pack.messages))");
+  assert.deepEqual(stationKeys, ["shelf.directory.name"], "the placement menu receives only the station title");
   assert.equal(await b.evaluate("t.text('goals.tree-ui.new-goal')"), "新建目标");
   assert.equal(await b.evaluate("t.text('git.commit.plain')"), "这句话暂时显示不了", "an opaque client's words do not enter the shell");
   await b.evaluate("document.querySelector('[data-open-create]').click()");

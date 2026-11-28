@@ -54,12 +54,18 @@ function grantWords(grants: NonNullable<Extract<Document, { kind: "command" }>["
 function displayReview(document: Document, raw: RawReview, change: ReturnType<typeof changedMiddle> | undefined, titleOf: (value: string) => string | null): AssistantReviewDisplay {
   const own = reviewPresentation(document);
   switch (document.kind) {
-    case "tool-operation": return { summary: own?.summary ?? [raw.summary], fields: raw.fields.map((field, index): AssistantReviewField => {
-      const projection = own?.fields?.[index], label = projection?.label ?? [field.label];
-      if (projection?.format) return { label, value: field.value, format: projection.format };
-      const title = projection?.subject ? titleOf(field.value.trim()) : null;
-      return { label, value: projection?.value ?? [title ? quoted(title) : field.value] };
-    }) };
+    case "tool-operation": {
+      const registered = document.plugin_review;
+      const fields = raw.fields.map((field, index): AssistantReviewField => {
+        const projection = own?.fields?.[index], label = projection?.label ?? [field.label];
+        if (projection?.format) return { label, value: field.value, format: projection.format };
+        const title = projection?.subject ? titleOf(field.value.trim()) : null;
+        return { label, value: projection?.value ?? [title ? quoted(title) : field.value] };
+      });
+      return registered ? { summary: [registered.title], fields: [
+        ...registered.fields.map(field => ({ label: [field.label], value: [field.value] })), ...fields,
+      ] } : { summary: own?.summary ?? [raw.summary], fields };
+    }
     case "command": return { summary: [reviewText(document.background ? "run-background" : "run-command")],
       fields: [code("command", raw.fields[0]!.value, "sh"), plain("directory", [document.cwd || "."]),
         ...(document.escalate ? [plain("warning", [reviewText("requires-elevation")])] : []),

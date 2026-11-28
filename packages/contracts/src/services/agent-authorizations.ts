@@ -58,7 +58,7 @@ const index = { type: "integer", minimum: 0, maximum: 23 } as const;
 const targets = { type: "array", minItems: 1, maxItems: 16, items: object({ key: id, ids: { type: "array", minItems: 1, maxItems: 50,
   uniqueItems: true, items: { type: "string", maxLength: 300 } } }) } as const;
 const scope = object({ scope_index: index, operations: { type: "array", minItems: 1, maxItems: 24, items: object({ row_index: index, targets }) } }, ["scope_index"]);
-const category = object({ provider_id: id, group_id: id }, ["provider_id"]);
+const category = object({ provider_id: id, group_id: id, installation: id }, ["provider_id"]);
 
 export const AGENT_AUTHORIZATIONS_PROVIDER_ID = "system.agent-authorizations";
 function action<I, O>(name: string, version: number, title: string, operation: "command" | "query", input_schema: ActionSchema): ActionDefinition<I, O> {

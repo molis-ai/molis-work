@@ -52,6 +52,8 @@ export function bindCharactersActions(actorId: string, handlersFor: (caller: Act
     own(a.memberState, (h, input) => h.memberState(input)),
     own(a.restore, (h, input) => h.restore(input)),
     own(a.defaults, (h, input) => h.defaults(input)),
+    own(a.signedTemplates, h => h.signedTemplates()),
+    own(a.adoptSigned, (h, input) => h.adoptSigned(input)),
     own(a.fromTemplate, (h, input) => h.fromTemplate(input)),
     own(a.actions, h => h.actions()),
     own(a.create, (h, input) => h.create(input)),

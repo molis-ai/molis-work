@@ -279,7 +279,16 @@ export interface ActionExecutionContext extends ActionCallContext, ActionPersonE
   readonly retainBackgroundAuthority?: (additionalPermissions?: readonly string[]) => RetainedActionAuthority;
 }
 
+/** Guidance for an authorized agent tool and the original input fields its owner asks the person to review. */
+export interface AgentActionScenario {
+  readonly id: string;
+  readonly title: string;
+  readonly instructions: string;
+  readonly review?: { readonly kind: string; readonly title: string; readonly fields: readonly { readonly field: string; readonly label: string }[] };
+}
+
 export interface ActionMetadata {
+  readonly agent_scenario?: AgentActionScenario;
   readonly title: string;
   /** Localized display title (single-line, no arguments/plurals, max 80 chars). Falls back to `title` when omitted. */
   readonly title_text?: TextRef;

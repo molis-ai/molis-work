@@ -7,7 +7,7 @@ import {
   FRAGMENT_OFFERS_OUTPUT_SCHEMA, FRAGMENT_OFFERS_OUTPUT_TYPE, FRAGMENT_ROLES,
   PLACEMENT_COPY_INPUT_TYPE, PLACEMENT_COPY_INPUT_SCHEMA, PLACEMENT_COPY_OUTPUT_TYPE, PLACEMENT_MOVE_INPUT_SCHEMA,
   PLACEMENT_MOVE_INPUT_TYPE, PLACEMENT_MOVE_OUTPUT_TYPE, PLACEMENT_RESULT_SCHEMA,
-  SEARCH_ENTRIES_INPUT_SCHEMA, SEARCH_ENTRIES_INPUT_TYPE, SEARCH_ENTRIES_OUTPUT_SCHEMA, SEARCH_ENTRIES_OUTPUT_TYPE,
+  SEARCH_SURFACE_SCHEMA, SEARCH_ENTRIES_INPUT_SCHEMA, SEARCH_ENTRIES_INPUT_TYPE, SEARCH_ENTRIES_OUTPUT_SCHEMA, SEARCH_ENTRIES_OUTPUT_TYPE,
   PLACEMENT_RELATION_ROLES, actionEffect, isFileContentSource, isFileEntriesSource, isObjectCopier, isObjectMover, isSearchEntriesSource,
   type ActionMetadata, type FileSourceKind, type FragmentOfferChoice, type PlacementRelationRole, type SearchSourceKind,
 } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -29,7 +29,7 @@ export function searchSourceDeclarationProblems(key: string, action: Record<stri
   const kindsValid = Array.isArray(kinds) && kinds.length > 0 && kinds.every(entry => !!entry && typeof entry === "object"
     && typeof (entry as SearchSourceKind).kind === "string" && subjectKinds.includes((entry as SearchSourceKind).kind)
     && typeof (entry as SearchSourceKind).title === "string" && (entry as SearchSourceKind).title.trim().length > 0
-    && typeof (entry as SearchSourceKind).surface === "string" && /^[a-zA-Z0-9_-]{1,64}$/u.test((entry as SearchSourceKind).surface)
+    && typeof (entry as SearchSourceKind).surface === "string" && (entry as SearchSourceKind).surface.length <= SEARCH_SURFACE_SCHEMA.maxLength && new RegExp(SEARCH_SURFACE_SCHEMA.pattern, "u").test((entry as SearchSourceKind).surface)
     && ((entry as SearchSourceKind).glyph === undefined || (PLUGIN_ICON_NAMES as readonly string[]).includes((entry as SearchSourceKind).glyph!)))
     && new Set(kinds.map(entry => (entry as SearchSourceKind).kind)).size === kinds.length && kinds.length === subjectKinds.length;
   const schemas = entries ? [SEARCH_ENTRIES_INPUT_SCHEMA, SEARCH_ENTRIES_OUTPUT_SCHEMA] : null;

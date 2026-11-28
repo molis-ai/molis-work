@@ -8,7 +8,7 @@ import {defineErrorCodes} from '@molis-ai/molis-work-contracts/platform/actions'
 import type {PrivateValueReplicationOwner} from '@molis-ai/molis-work-contracts/platform/sync-transport';
 import type {PluginSyncDeclaration} from '@molis-ai/molis-work-contracts/platform/plugin';
 import type {AgentBuild,AgentRelease} from './agent-model.js';
-import {parseBuilderState,nextBuilderRevision,type BuilderSavedState} from './agent-state.js';
+import {BUILDER_SAVED_STATE_VERSION,parseBuilderState,nextBuilderRevision,type BuilderSavedState} from './agent-state.js';
 import {assertBuilderIdle,builderSyncInvalid,portableBuilderBuild,portableBuilderRelease,validateBuilderPortable,type BuilderPortableState} from './sync-shape.js';
 import {captureBuilderDirectory,stageBuilderDirectories,copyEditableBuilderDirectories,type BuilderPortableDirectory} from './sync-files.js';
 
@@ -92,7 +92,7 @@ function restore(value:BuilderPortableState|null,local:BuilderSavedState,project
   const id=String(row.id),revision=revisions[id]!;
   const directories=paths.get(id),directory=directories?.get('current');
   // Native execution state is never inherited. A received ready build must pass local checks again before publication.
-  return {...row,revision,active:null,...(directory?{directory}:{}),history:(row.history as Record<string,unknown>[]).map((h,index)=>{
+  return {...row,revision,active:null,candidates:(row.candidates as AgentBuild['candidates']).map(candidate=>candidate.mockup ? {...candidate,mockup:{status:'failed',regenerate:true}} : candidate),...(directory?{directory}:{}),history:(row.history as Record<string,unknown>[]).map((h,index)=>{
    const path=directories?.get('history-'+index);return {...h,...(path?{directory:path}:{})};
   })} as AgentBuild;
  });
@@ -102,7 +102,7 @@ function restore(value:BuilderPortableState|null,local:BuilderSavedState,project
   const directory=paths.get(String(row.buildId))?.get('release-'+row.version);if(!directory)builderSyncInvalid();
   releases.push({...row,directory,bundlePath:join(directory!,'plugin.mjs'),packagePath:directory} as AgentRelease);
  }
- options.authorize?.();return parseBuilderState(JSON.stringify({format:/* @version format.builder.saved-state */ 1,builds,releases,revisions}));
+ options.authorize?.();return parseBuilderState(JSON.stringify({format:BUILDER_SAVED_STATE_VERSION,builds,releases,revisions}));
 }
 /** Runtime selects one exact private key; independent authoring items have independent change keys. */
 export function builderPrivateValueReplicationOwner(options:BuilderReplicationOptions={}):PrivateValueReplicationOwner{

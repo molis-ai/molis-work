@@ -403,7 +403,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     await Promise.all([...this.#store.runs.values()].map(record => record.timingCommit));
     try {
       await this.#runtime.shutdown();
-      // A refused shutdown can leave runs live and able to emit receipts.
+      // After a failed shutdown, a run can still deliver a receipt before the Host retries.
       for (const record of this.#store.runs.values()) {
         clearNotifyTimer(record);
         record.unsubscribe();

@@ -1,7 +1,10 @@
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { systemOutputSource } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { readPluginReleaseManifest, readPluginRuntimeRecords } from "@molis-ai/molis-work-plugin-runtime";
-import { HOST_ARTIFACT_PRODUCERS, type InstalledArtifactView } from "./artifact-type-registry.js";
+import type { ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import { CHARACTER_ARTIFACT_PRODUCER } from "@molis-ai/molis-work-contracts/modules/characters";
+import { ARTIFACT_PRODUCER } from "@molis-ai/molis-work-module-artifacts";
+import { artifactManifestSource, artifactTypeDeclarations, HOST_ARTIFACT_PRODUCERS, type InstalledArtifactView } from "./artifact-type-registry.js";
 import { builtinPluginByManifestId } from "./plugin-registry.js";
 
 type Declares = { artifacts: Pick<PluginManifest["artifacts"], "produces">; process_items?: PluginManifest["process_items"] };
@@ -15,6 +18,27 @@ export function bindProjectArtifacts(db: object, view: InstalledArtifactView): (
   const views = projectViews.get(db) ?? new Set<InstalledArtifactView>();
   projectViews.set(db, views.add(view));
   return () => { views.delete(view); };
+}
+
+/** Resolve a fixed version using this project's running installation and the producer recorded when it was written. */
+export function projectArtifactDeclaration(db: object, version: ArtifactVersionRecord) {
+  const id = version.producer_plugin_id;
+  const sameType = (type: { artifact_type_id: string; schema_version: number }) => type.artifact_type_id === version.artifact_type_id && type.schema_version === version.schema_version;
+  const host = HOST_ARTIFACT_PRODUCERS.find(row => row.plugin_id === id);
+  if (host) {
+    const binding = id === ARTIFACT_PRODUCER.plugin_id ? ARTIFACT_PRODUCER.binding_signature : CHARACTER_ARTIFACT_PRODUCER.binding_signature;
+    if (binding !== version.producer_binding_signature) return undefined;
+    const source = { ...host, artifacts: { produces: host.produces.filter(sameType), consumes: [] } };
+    return artifactTypeDeclarations([source]).get(version.artifact_type_id);
+  }
+  const views = [...projectViews.get(db) ?? []].filter(view => view.alive());
+  const installation = views.flatMap(view => view.effectiveManifests().filter(m => m.plugin_id === id).map(manifest => ({ manifest, provider: view.providerId?.(id) })))[0];
+  const shipped = builtinPluginByManifestId(id);
+  const manifest = installation?.manifest ?? (views.some(view => view.knownPluginIds().includes(id)) ? undefined : shipped?.manifest);
+  if (!manifest || manifest.publisher.signature !== version.producer_binding_signature) return undefined;
+  const source = artifactManifestSource(manifest, shipped?.project_plugin_id ?? id);
+  const declaration = artifactTypeDeclarations([{ ...source, artifacts: { ...source.artifacts, produces: source.artifacts.produces.filter(sameType) } }]).get(version.artifact_type_id);
+  return declaration && { ...declaration, provider_id: installation?.provider ?? id };
 }
 
 /** What this Build declares for a producer that ships with it: a built-in plugin's Manifest, or the Host's own producer's entry (it writes no process items). */

@@ -2451,6 +2451,14 @@ export type AgentToolActivityState = "started" | "completed" | "failed" | "unkno
 
 export interface AgentToolOperationReviewDocument {
     kind: "tool-operation";
+    plugin_review?: {
+        kind: string;
+        title: string;
+        fields: {
+            label: string;
+            value: string;
+        }[];
+    };
     tool: string;
     summary: string;
     fields: Array<{

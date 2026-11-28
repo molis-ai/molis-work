@@ -7,7 +7,9 @@ import {validateFrozenStudioWords,validateStudioPlainWords} from './agent-ui-tex
 import type {AgentBuild,AgentBuildSnapshot,AgentDesign,AgentProposal,AgentRelease} from './agent-model.js';
 import {isStudioBuildFailure,isStudioStepLabel} from './studio-collaboration.js';
 
-export interface BuilderSavedState {format:/* @version format.builder.saved-state */ 1;builds:AgentBuild[];releases:AgentRelease[];revisions:Record<string,number>}
+export const BUILDER_SAVED_STATE_VERSION = /* @version format.builder.saved-state */ 1;
+
+export interface BuilderSavedState {format:typeof BUILDER_SAVED_STATE_VERSION;builds:AgentBuild[];releases:AgentRelease[];revisions:Record<string,number>}
 const errors=defineErrorCodes('plugin_builder',{store_invalid:'invalid',store_limit:'too_large'});
 const invalid=():never=>{throw errors.store_invalid('创作数据格式版本无效，原内容已保留');};
 function wordsAreValid(design: AgentDesign | null | undefined): boolean {
@@ -16,8 +18,25 @@ function wordsAreValid(design: AgentDesign | null | undefined): boolean {
  try { validateFrozenStudioWords(design); return true; } catch { return false; }
 }
 function previewWordsAreValid(candidate: AgentProposal): boolean {
- try { if (candidate?.preview) validateStudioPlainWords(candidate.preview); return true; } catch { return false; }
+ try {
+  if (candidate?.preview) validateStudioPlainWords(candidate.preview);
+  const picture = candidate?.mockup;
+  if (picture === undefined) return true;
+  if (!isRecord(picture) || !['drawing','failed','ready'].includes(picture.status)
+    || Object.keys(picture).some(key => !['status','jobId','imageId','reason','binding','regenerate','requestId','prompt'].includes(key))) return false;
+  const binding = picture.binding;
+  if (binding !== undefined && (!isRecord(binding) || !['home','project'].includes(binding.scope)
+    || Object.keys(binding).sort().join(',') !== 'connection_id,install_id,installation_generation,manifest_digest,project_id,provider_id,scope,version'
+    || ![binding.install_id,binding.installation_generation,binding.version,binding.manifest_digest,binding.provider_id,binding.project_id].every(identity) || !imageIdentity(binding.connection_id))) return false;
+  if (picture.prompt !== undefined && (typeof picture.prompt !== 'string' || !picture.prompt.length || picture.prompt.length > 32000)) return false;
+  if (picture.requestId !== undefined && !identity(picture.requestId) || picture.regenerate !== undefined && picture.regenerate !== true
+    || picture.reason !== undefined && typeof picture.reason !== 'string') return false;
+  if (picture.jobId !== undefined && (!binding || !imageIdentity(picture.jobId))) return false;
+  if (picture.imageId !== undefined && (!picture.jobId || !imageIdentity(picture.imageId))) return false;
+  return picture.status !== 'ready' || Boolean(picture.binding && picture.requestId && picture.jobId && picture.imageId);
+ } catch { return false; }
 }
+const imageIdentity=(value:unknown):value is string=>typeof value==='string'&&value.length>0&&value.length<=256;
 const identity=(value:unknown):value is string=>typeof value==='string'&&!!value.trim()&&value.length<=200;
 const revision=(value:unknown):value is number=>Number.isSafeInteger(value)&&Number(value)>0;
 export function nextBuilderRevision(value:number):number{
@@ -38,11 +57,11 @@ function checkSavedUi(design:unknown,nodes:unknown):void{
 }
 /** One current owner document. A different format is refused without rewriting or empty-state recovery. */
 export function parseBuilderState(raw:string|null):BuilderSavedState{
- if(raw===null)return {format:/* @version format.builder.saved-state */ 1,builds:[],releases:[],revisions:{}};
+ if(raw===null)return {format:BUILDER_SAVED_STATE_VERSION,builds:[],releases:[],revisions:{}};
  let value:unknown;try{value=JSON.parse(raw);}catch{return invalid();}
  if(!value||typeof value!=='object'||Array.isArray(value))return invalid();
  const row=value as Record<string,unknown>;
- if(Object.keys(row).sort().join(',')!=='builds,format,releases,revisions'||row.format!==/* @version format.builder.saved-state */ 1
+ if(Object.keys(row).sort().join(',')!=='builds,format,releases,revisions'||row.format!==BUILDER_SAVED_STATE_VERSION
   ||!Array.isArray(row.builds)||!Array.isArray(row.releases)||row.builds.length>10000||row.releases.length>10000
   ||!row.revisions||typeof row.revisions!=='object'||Array.isArray(row.revisions))return invalid();
  const floors=row.revisions as Record<string,unknown>;

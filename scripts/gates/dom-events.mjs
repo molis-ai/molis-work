@@ -67,6 +67,33 @@ export function ownerPrefixOf(name, owners) {
 
 const NAME = /^[a-z][a-z0-9-]*(?::[a-z0-9-]+)?$/;
 const FIRST_ARGUMENT_LIMIT = 400;
+const FRAME_SENDER = "apps/workbench/src/browser/plugin-frame/fetch.ts";
+
+// M6 has one parameterized name. Recognize only the declaration-backed, payload-free dispatch to the frame element.
+// A second dynamic constructor even in this file still goes through the ordinary unreadable-name check.
+function frameAnnouncementPosition(file, text) {
+  if (file !== FRAME_SENDER) return -1;
+  const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
+  const sender = source.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === "dispatchPluginAnnouncement");
+  const statements = sender?.body?.statements;
+  if (statements?.length !== 2) return -1;
+  const [read, check] = statements;
+  if (!ts.isVariableStatement(read) || !ts.isIfStatement(check) || !ts.isBlock(check.thenStatement)) return -1;
+  const receipt = read.declarationList.declarations[0];
+  function compact(node) {
+    if (!node) return "";
+    const tokens = node.getChildren(source);
+    return tokens.length ? tokens.map(compact).join("") : node.getText(source);
+  }
+  if (receipt?.name.getText(source) !== "announcement" || compact(receipt.initializer) !== 'response.headers.get("x-molis-plugin-event")') return -1;
+  if (compact(check.expression) !== 'response.ok&&method==="POST"&&url.pathname===stage.actionPath&&announcement&&/^[a-z][a-z0-9-]{0,63}$/.test(announcement)') return -1;
+  const [send] = check.thenStatement.statements;
+  if (check.thenStatement.statements.length !== 1 || !ts.isExpressionStatement(send) || !ts.isCallExpression(send.expression)) return -1;
+  const call = send.expression, [event] = call.arguments;
+  if (compact(call.expression) !== "stage.root.dispatchEvent" || call.arguments.length !== 1 || !ts.isNewExpression(event)) return -1;
+  if (event.expression.getText(source) !== "CustomEvent" || event.arguments?.length !== 1 || compact(event.arguments[0]) !== '"plugin:"+stage.pluginId+"/"+announcement') return -1;
+  return event.getStart(source);
+}
 
 // ---- reading the registry ---------------------------------------------------------------------------------------------
 /** Evaluates the registry file: it is data (`import type` only), so it runs in a context with no `require` and no globals. */
@@ -182,7 +209,9 @@ export function domEventSites(snapshot, prefixes, owners = {}) {
   for (const file of snapshot.files.filter(isScanned)) {
     const text = snapshot.read(file);
     if (text === null || !/Event\b|Listener\b|\blisten\b/.test(text)) continue;
+    const frameAnnouncement = frameAnnouncementPosition(file, text);
     for (const match of text.matchAll(CONSTRUCTOR)) {
+      if (match.index === frameAnnouncement) continue;
       const call = callAfter(text, match.index + match[0].length);
       if (!call) continue;
       const argument = call.open === undefined ? null : firstArgument(text, call.open);

@@ -1,4 +1,5 @@
 import type { IntegrationDriverDefinition } from "@molis-ai/molis-work-contracts/platform/integration-drivers";
+import { hostLog } from "./host-log.js";
 import { builtinIntegrationDrivers } from "./builtin-drivers.js";
 import { connectorSourceAccount } from "./connector-source-account.js";
 import { IntegrationDeclarations } from "./integration-declarations.js";
@@ -42,23 +43,45 @@ export function builtinIntegrationDeclarations(): IntegrationDeclarationsView {
   return builtinDeclarations;
 }
 
-const registries = new Map<string, Promise<IntegrationRegistry>>();
-
-export const existingIntegrationRegistry = (home: string): Promise<IntegrationRegistry> | undefined => registries.get(home);
-
-/**
- * The Home's registry, with the built-in integration plugins enabled: one per Home. A caller that brings its own provider factory
- * (a test) gets a registry of its own and shares nothing.
- */
-export function homeIntegrationRegistry(home: string, providerFactory?: IntegrationProviderFactory, now?: () => Date): Promise<IntegrationRegistry> {
-  const build = async () => {
-    const registry = new IntegrationRegistry({ platform: PLATFORM_CONNECTION_SERVICES });
-    for (const definition of builtinIntegrationDefinitions(providerFactory, now, home)) await registry.enable(definition);
-    return registry;
+/** Keep successful starts in their original registry. Concurrent callers join one pass over the remaining drivers. */
+function homeRegistry(definitions: IntegrationDriverDefinition[]) {
+  const registry = new IntegrationRegistry({ platform: PLATFORM_CONNECTION_SERVICES });
+  let pending = definitions;
+  let reading: Promise<IntegrationRegistry> | undefined;
+  const load = () => {
+    if (reading) return reading;
+    reading = (async () => {
+      const failed: IntegrationDriverDefinition[] = [];
+      for (const definition of pending) {
+        try { await registry.enable(definition); }
+        catch (error) {
+          hostLog.warn("connections", "builtin_driver_unavailable", error, { plugin_id: definition.manifest.plugin_id });
+          failed.push(definition);
+        }
+      }
+      pending = failed;
+      return registry;
+    })().finally(() => { if (pending.length) reading = undefined; });
+    return reading;
   };
-  let registry = registries.get(home);
-  if (inLanguagePreview()) return registry ?? Promise.reject(languagePreviewUnavailable());
-  if (providerFactory) return build();
-  if (!registry) { registry = build(); registries.set(home, registry); }
-  return registry;
+  return { load, existing: () => reading ?? Promise.resolve(registry) };
+}
+
+const registries = new Map<string, ReturnType<typeof homeRegistry>>();
+
+export const existingIntegrationRegistry = (home: string): Promise<IntegrationRegistry> | undefined => registries.get(home)?.existing();
+
+/** The Home's registry. Duplicate declarations fail before any driver starts. A test provider gets a private registry. */
+export async function homeIntegrationRegistry(home: string, providerFactory?: IntegrationProviderFactory, now?: () => Date): Promise<IntegrationRegistry> {
+  let entry = registries.get(home);
+  if (inLanguagePreview()) {
+    if (!entry) throw languagePreviewUnavailable();
+    return entry.existing();
+  }
+  if (!entry || providerFactory) {
+    builtinIntegrationDeclarations();
+    entry = homeRegistry(builtinIntegrationDefinitions(providerFactory, now, home));
+    if (!providerFactory) registries.set(home, entry);
+  }
+  return entry.load();
 }

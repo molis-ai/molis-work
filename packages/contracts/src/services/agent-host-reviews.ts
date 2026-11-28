@@ -89,6 +89,8 @@ export interface AgentCommandGrants {
 
 export interface AgentToolOperationReviewDocument {
   kind: "tool-operation";
+  /** Signed declaration of the original tool. Workbench renders these labels and literal values as text. */
+  plugin_review?: { kind: string; title: string; fields: { label: string; value: string }[] };
   tool: string;
   summary: string;
   fields: Array<{ key?: string; label: string; value: string }>;

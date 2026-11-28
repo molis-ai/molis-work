@@ -1,3 +1,5 @@
+import { PLATFORM_SURFACE_CLIENT_PATHS } from "./platform-client-paths.js";
+export { PLATFORM_SURFACE_CLIENT_PATHS } from "./platform-client-paths.js";
 import { CHARACTER_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/characters";
 import { SESSIONS_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/sessions";
 
@@ -20,13 +22,14 @@ export interface PlatformSurface {
   readonly search_row?: { readonly selector: string; readonly attribute: string };
 }
 
+
 export const PLATFORM_SURFACES = [
   { id: "artifacts", provider_id: "system.artifacts", accepts_objects: true },
-  // The settings pages load it themselves (Settings › 角色, 项目设置 › 角色); the address is its plugin pack's (CHR-1 D5, BL-378).
+  // The settings pages load it themselves (Settings › 角色, 项目设置 › 角色); the deferred settings loader uses the registered platform address.
   { id: "characters", provider_id: CHARACTER_PLUGIN_ID, accepts_objects: false,
-    client: { path: "/assets/molis-work-plugins/characters.js", on_show: false }, search_row: { selector: "[data-character-id]", attribute: "characterId" } },
+    client: { path: PLATFORM_SURFACE_CLIENT_PATHS.characters, on_show: false }, search_row: { selector: "[data-character-id]", attribute: "characterId" } },
   { id: "sessions", provider_id: SESSIONS_PROVIDER_ID, accepts_objects: false,
-    client: { path: "/assets/molis-work-plugins/sessions.js", on_show: true }, search_row: { selector: "[data-session-key]", attribute: "sessionKey" } },
+    client: { path: PLATFORM_SURFACE_CLIENT_PATHS.sessions, on_show: true }, search_row: { selector: "[data-session-key]", attribute: "sessionKey" } },
 ] as const satisfies readonly PlatformSurface[];
 
 export type PlatformSurfaceId = typeof PLATFORM_SURFACES[number]["id"];

@@ -37,3 +37,11 @@
 
 耗时：测量时整机负载约 27（同机其他会话在构建与测试），判断 POST 本身占了 2～20 秒且波动大，两轮之间的总耗时差异主要来自负载，不能作为改前改后的结论；可比的是每次少一份完整页文档读取（这份 HTML 的体量随项目变大，先导里约 905 KB）与提示顺序。判断 POST 为何在 20 条固定结果下仍要数秒，留在空闲机上复测后再定，不在本次改动。Feed 首开详情与 Inbox 转待办后打开两项，仍按 BFP-01 待正式基线。
 
+## 2026-11-27 Inbox 批量判断核验
+
+[#2351](https://github.com/molis-ai/molis-work/pull/2351) 接续 BFP-03，减少每条 Inbox 判断重复读取动作目录的次数。内核只跨检查复用自己冻结的合同快照和逐项冻结的授权引用。宿主仍现读场景绑定，并在写入前核对调用者与插件状态。分区安装记录只复用本轮实际读取的数据库行，实例状态仍从当前分区取得。公共动作合同和 Inbox 存储结构沿用现行版本。
+
+- **BFP-04** 外层冻结的授权数组与场景合同仍可包含可变值。再次检查时，以当前动作引用和当前合同内容为准。验证 `tests/action-directory-pass.test.ts`、`tests/action-schema-compiler.test.ts`。
+- **BFP-05** 批处理中途撤权或停用插件时，已提交条目保留，后续条目拒绝写入判断和事件。验证 `tests/inbox-action-scenes.test.ts`，并在 CI 复验 `tests/inbox-evaluate-reads.e2e.test.ts` 与 `tests/home-offers.e2e.test.ts`。
+- **BFP-06** 同一轮目录读取中，分区插件崩溃后，按 ID 查询和安装列表都立即反映该分区状态。其他分区和 Home 安装记录沿用各自状态。验证 `tests/security-invariants-partition-isolation.test.ts`。
+

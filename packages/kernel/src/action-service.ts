@@ -3,7 +3,7 @@ import { assertReadOnlyEffects, captureActionRegistration, visibleAction } from 
 import { actionDirectoryLookup, actionKey } from "./action-directory-lookup.js";
 import { assertSceneHandler, consumeScene, protectSceneReads, runSceneEffect } from "./action-scene-execution.js";
 import { inDirectoryPass, rememberInDirectoryPass } from "./directory-pass.js";
-import { discoveredActionViews, registeredActionMetadata, type ActionSelection, type ObserveActionRegistration } from "./action-metadata.js";
+import { discoveredActionViews, registeredActionMetadata, registeredOneActionMetadata, type ActionSelection, type ObserveActionRegistration } from "./action-metadata.js";
 import {
   ActionError, requireSynchronous,
   type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionClient, type ActionDefinition,
@@ -14,7 +14,7 @@ import type { HostCapabilityDescriptor } from "@molis-ai/molis-work-contracts/pl
 import { CapabilityRegistry } from "./index.js";
 import { assertCallerProvenance } from "./action-authorship.js";
 import { assertCurrentAuthority, bindCall, describeCall, settleCall, settleCallSync, type CallContext, type CallReports } from "./action-settlement.js";
-import { actionSchemaAccepts, createActionSchemaCompiler, validateActionValue, type ActionValidator } from "./action-schema.js";
+import { actionSchemaAccepts, createActionSchemaCompiler, freezeActionDeclaration, validateActionValue, type ActionValidator } from "./action-schema.js";
 import { validateActionInput } from "./version-precondition.js";
 import { registerActionExecution, type ActionExecutionEffects } from "./action-registered-execution.js";
 import { subjectOfferCompatibilityReason } from "./subject-offer-choices.js";
@@ -49,6 +49,7 @@ function definitionForRegistration<Input, Output>(definition: ActionDefinition<I
 /** One execution registry, shared by UI, workflows, SDK and protocol adapters. */
 export class ActionService implements ActionClient, ActionRegistryPort {
   private readonly scenes = new Map<string, RegisteredScene>();
+  private sceneGeneration = 0;
   /** Availability is synchronous; this stack exists only during a directory/execution check. */
   private readonly checkingDependencies = new WeakMap<ActionCallContext, Set<string>>(); // per context: a delegated caller's authority check reads its original's own, which is not a cycle
 
@@ -57,6 +58,11 @@ export class ActionService implements ActionClient, ActionRegistryPort {
       /** Host policy, before anything is resolved or dispatched. Asynchronous, so a synchronous call is never offered to it. */
       admit?(context: CallContext, reference: ActionReference): void | Promise<void>;
     } = {}) {}
+
+  /** Monotonic stamp covering capability registrations, scene registrations, and scene binding writes. */
+  directoryGeneration(): number {
+    return this.registry.generation() + this.sceneGeneration;
+  }
 
   registerProvider(registration: ActionProviderRegistration): () => void {
     const problems = inspectActionDeclarations(registration.definitions, registration.scenes);
@@ -125,8 +131,9 @@ export class ActionService implements ActionClient, ActionRegistryPort {
         disposers.push(this.registry.register(registeredDefinition, execute,
           { availability, metadataAvailability: context => availability(context, true), synchronous: handler.execution === "sync" }));
       }
+      const frozenProvider = freezeActionDeclaration(provider);
       for (const original of registration.scenes ?? []) {
-        const definition = structuredClone(original);
+        const definition = freezeActionDeclaration(structuredClone(original));
         const key = scopedSceneKey(definition, provider.project_id);
         const handler = protectSceneReads(sceneHandlers.get(sceneKey(definition))!, () => {
           if (this.scenes.get(key) !== scene) throw new ActionError("actions.provider_changed", "原消费场景已停止或重新加载");
@@ -136,7 +143,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
           throw new ActionError("actions.scene_duplicate", `消费场景重复：${sceneKey(definition)}`);
         }
         assertSceneHandler(definition, sceneHandlers.get(sceneKey(definition))!);
-        const scene: RegisteredScene = { definition, provider, handler,
+        const scene: RegisteredScene = { definition, provider: frozenProvider, handler,
           ...(definition.event_schema ? { validateEvent: compile(original.event_schema!, definition.event_schema) } : {}),
           validateInput: compile(original.input_schema, definition.input_schema), validateResult: compile(original.result_schema, definition.result_schema),
           configurationAvailability: context => {
@@ -156,7 +163,13 @@ export class ActionService implements ActionClient, ActionRegistryPort {
           },
         };
         this.scenes.set(key, scene);
-        disposers.push(() => { if (this.scenes.get(key) === scene) this.scenes.delete(key); });
+        this.sceneGeneration += 1;
+        disposers.push(() => {
+          if (this.scenes.get(key) === scene) {
+            this.scenes.delete(key);
+            this.sceneGeneration += 1;
+          }
+        });
       }
     } catch (error) { dispose(); throw error; }
     return dispose;
@@ -246,9 +259,63 @@ export class ActionService implements ActionClient, ActionRegistryPort {
   }
 
   private sceneDeclarations(context: ActionCallContext, selection?: ActionSceneSelection, reference?: SceneReference) {
+    if (reference && !selection) {
+      const candidates = context.project_id
+        ? [this.scenes.get(scopedSceneKey(reference, context.project_id)), this.scenes.get(scopedSceneKey(reference))]
+        : [this.scenes.get(scopedSceneKey(reference))];
+      return candidates.filter((scene): scene is RegisteredScene => !!scene && sceneVisible(scene, context))
+        .map(scene => ({ scene, metadata: { definition: scene.definition, provider: scene.provider } }));
+    }
     const declared = selection ? new Set(selection.scenes.map(sceneKey)) : undefined;
     return [...this.scenes.values()].filter(scene => (!selection || scene.provider.plugin_id === selection.plugin_id && declared!.has(sceneKey(scene.definition)))
-      && (!reference || sceneKey(scene.definition) === sceneKey(reference)) && sceneVisible(scene, context)).map(scene => ({ scene, metadata: { definition: structuredClone(scene.definition), provider: structuredClone(scene.provider) } }));
+      && (!reference || sceneKey(scene.definition) === sceneKey(reference)) && sceneVisible(scene, context)).map(scene => ({ scene, metadata: { definition: scene.definition, provider: scene.provider } }));
+  }
+
+  /** Project one visible scene in O(1) without enumerating unrelated registered scenes. */
+  sceneViewOne(context: ActionCallContext, reference: SceneReference, judgment?: ActionReference): ActionSceneView | undefined {
+    const scene = (context.project_id ? this.scenes.get(scopedSceneKey(reference, context.project_id)) : undefined)
+      ?? this.scenes.get(scopedSceneKey(reference));
+    if (!scene || !sceneVisible(scene, context)) return undefined;
+    const directory = judgment && scene.definition.recommendation_source === "subject-offers" ? this.discover(context) : undefined;
+    const fn = judgment ? (directory ? actionDirectoryLookup(directory)(judgment) : this.discoverOne(context, judgment)) : undefined;
+    const reason = judgment ? actionSceneCompatibilityReason(scene.definition, fn, judgment, directory, scene.provider) : undefined;
+    return {
+      definition: scene.definition,
+      provider: scene.provider,
+      configuration_availability: scene.configurationAvailability(context),
+      availability: scene.availability(context),
+      compatible: !reason,
+      ...(reason ? { reason } : {}),
+    };
+  }
+
+  /** Read one visible scene's stored binding function without computing full usages or action directory projections. */
+  async sceneBindingFunction(context: ActionCallContext, reference: SceneReference, bindingId: string): Promise<ActionReference | undefined> {
+    const scene = (context.project_id ? this.scenes.get(scopedSceneKey(reference, context.project_id)) : undefined)
+      ?? this.scenes.get(scopedSceneKey(reference));
+    if (!scene || !sceneVisible(scene, context)) return undefined;
+    const bindings = await scene.handler.bindings(context);
+    return bindings.find(b => b.binding_id === bindingId && bindingBelongsTo(b, scene.definition, context))?.function;
+  }
+
+  /** Live check that a visible scene still holds the exact enabled binding and revision previously verified. */
+  async sceneBindingMatches(
+    context: ActionCallContext,
+    reference: SceneReference,
+    bindingId: string,
+    revision: string | undefined,
+    fn: ExactActionReference,
+  ): Promise<boolean> {
+    const scene = (context.project_id ? this.scenes.get(scopedSceneKey(reference, context.project_id)) : undefined)
+      ?? this.scenes.get(scopedSceneKey(reference));
+    if (!scene || !sceneVisible(scene, context)) return false;
+    const bindings = await scene.handler.bindings(context);
+    const current = bindings.find(b => b.binding_id === bindingId && bindingBelongsTo(b, scene.definition, context));
+    return !!current?.enabled
+      && current.revision === revision
+      && current.function.capability_id === fn.capability_id
+      && current.function.version === fn.version
+      && current.function.provider_id === fn.provider_id;
   }
 
   /** Composition-only declarations. No handler, availability evaluation or execution authority is returned. */
@@ -335,9 +402,14 @@ export class ActionService implements ActionClient, ActionRegistryPort {
     if (!current || current.revision !== binding.revision || current.enabled !== binding.enabled
       || current.function.capability_id !== binding.function.capability_id || current.function.version !== binding.function.version
       || current.function.provider_id !== binding.function.provider_id) throw new ActionError("actions.provider_changed", "原场景绑定已变化，请重新读取");
-    const directory = inDirectoryPass(() => registeredActionMetadata(this.registry, context, (definition, provider) => metadataVisible(definition, provider, context))
-      .map(metadata => ({ ...metadata, availability: this.registry.metadataAvailability(context, { ...metadata, action_provider: metadata.provider }) })));
-    const fn = directory.find(value => value.capability_id === reference.capability_id && value.version === reference.version && value.provider.provider_id === reference.provider_id);
+    const directory = scene.definition.recommendation_source === "subject-offers"
+      ? inDirectoryPass(() => registeredActionMetadata(this.registry, context, (definition, provider) => metadataVisible(definition, provider, context))
+          .map(metadata => ({ ...metadata, availability: this.registry.metadataAvailability(context, { ...metadata, action_provider: metadata.provider }) })))
+      : undefined;
+    const metadata = directory ? undefined : registeredOneActionMetadata(this.registry, context, reference,
+      (definition, provider) => metadataVisible(definition, provider, context));
+    const fn = metadata ? { ...metadata, availability: this.registry.metadataAvailability(context, target) }
+      : directory?.find(value => value.capability_id === reference.capability_id && value.version === reference.version && value.provider.provider_id === reference.provider_id);
     const reason = actionSceneCompatibilityReason(scene.definition, fn, reference, directory, scene.provider), state = scene.availability(context);
     const availability = !binding.enabled ? unavailable("actions.binding_disabled", "此使用位置已停用")
       : !state.available ? state : reason ? unavailable("actions.binding_invalid", reason) : fn!.availability;
@@ -438,8 +510,11 @@ export class ActionService implements ActionClient, ActionRegistryPort {
         if (binding.enabled) await context.validate_authority?.(saved.function);
         await context.validate_permissions?.(requiredPermissions);
         if (binding.enabled) this.requireCompatible(context, scene, saved.function);
-      } }, caller => scene.handler.bind(caller, structuredClone(saved), options ? { provider_id: options.provider_id,
-      expected_revision: options.expected_revision, required_permissions: [...new Set(requiredPermissions)] } : undefined));
+      } }, async caller => {
+        await scene.handler.bind(caller, structuredClone(saved), options ? { provider_id: options.provider_id,
+          expected_revision: options.expected_revision, required_permissions: [...new Set(requiredPermissions)] } : undefined);
+        this.sceneGeneration += 1;
+      });
   }
 
   /** Trigger owners supply events; prepared private state is never accepted from callers. */

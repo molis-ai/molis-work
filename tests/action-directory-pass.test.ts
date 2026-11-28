@@ -167,6 +167,19 @@ test("QEA-98 repeated current checks of one action do not enumerate unrelated al
   assert.throws(() => service.invokeSync(caller, definitions[0]!, {}), { code: "actions.forbidden" });
 });
 
+test("BFP-04 freezing an allow-list does not freeze its action references", () => {
+  const { service, definitions } = askingService(2);
+  const allowed = definitions.map(definition => ({
+    capability_id: definition.capability_id, version: definition.version, provider_id: provider.provider_id,
+  }));
+  const caller = { ...context, allowed_actions: Object.freeze(allowed) };
+  assert.deepEqual(service.discover(caller).map(view => view.capability_id), definitions.map(definition => definition.capability_id));
+
+  allowed[1]!.provider_id = "other";
+  assert.deepEqual(service.discover(caller).map(view => view.capability_id), [definitions[0]!.capability_id]);
+  assert.throws(() => service.invokeSync(caller, definitions[1]!, {}), { code: "actions.forbidden" });
+});
+
 test("D0012 nested directory passes share a read and restore the outer pass after throws", () => {
   const owner = {}; let reads = 0;
   inDirectoryPass(() => {

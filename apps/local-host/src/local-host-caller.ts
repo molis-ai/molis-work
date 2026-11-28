@@ -2,12 +2,21 @@ import { ActionError, requireSynchronous, type ActionCallContext } from "@molis-
 import { snapshotHostUserAction } from "./plugin-consent-settings-entry.js";
 import type { RuntimeEntry } from "./local-host-project-line.js";
 
+const immutableRefLists = new WeakSet<readonly unknown[]>();
+
+function snapshotRefs<T extends object>(items: readonly T[]): readonly T[] {
+  if (immutableRefLists.has(items)) return items;
+  const frozen = Object.freeze(items.map(item => Object.freeze({ ...item })));
+  immutableRefLists.add(frozen);
+  return frozen;
+}
+
 export function snapshotCaller(caller: ActionCallContext): ActionCallContext {
-  return { ...caller, permissions: [...caller.permissions],
+  return { ...caller, permissions: Object.isFrozen(caller.permissions) ? caller.permissions : Object.freeze([...caller.permissions]),
     ...(caller.page_context ? { page_context: { ...caller.page_context } } : {}),
     ...(caller.user_action ? { user_action: snapshotHostUserAction(caller.user_action) } : {}),
-    ...(caller.allowed_capability_ids ? { allowed_capability_ids: [...caller.allowed_capability_ids] } : {}),
-    ...(caller.allowed_actions ? { allowed_actions: caller.allowed_actions.map(ref => ({ ...ref })) } : {}),
+    ...(caller.allowed_capability_ids ? { allowed_capability_ids: Object.isFrozen(caller.allowed_capability_ids) ? caller.allowed_capability_ids : Object.freeze([...caller.allowed_capability_ids]) } : {}),
+    ...(caller.allowed_actions ? { allowed_actions: snapshotRefs(caller.allowed_actions) } : {}),
   };
 }
 

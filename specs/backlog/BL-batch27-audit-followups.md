@@ -10,7 +10,7 @@
 
 ## 子项与去处
 
-- **① Inbox 判断 POST/整舞台 CPU**：已测并修一部分（2026-11-13）。改前每次更新约 29 万次同步读安装记录（5 次更新 145 万次），起因是每次授权与可用性检查都在目录遍历之外重读；现在一次同步检查算一次 directory pass（`assertCurrent`、`effectGuard`、注册表的 availability、场景读回调的检查、网页调用的授权建立），宿主的依赖解析一次检查共用一份目录。读安装记录降 79%，本机 p50 4.5→3.9 秒，CPU 节流 3 倍下用例通过（p50 6.2 秒）。剩下的大头是每条事项仍要好几次整目录 discover，转 [BL-inbox-update-blocks-host](BL-inbox-update-blocks-host.md)。
+- **① Inbox 判断 POST/整舞台 CPU**：已测并修一部分（2026-11-13）。改前每次更新约 29 万次同步读安装记录（5 次更新 145 万次），起因是每次授权与可用性检查都在目录遍历之外重读；现在一次同步检查算一次 directory pass（`assertCurrent`、`effectGuard`、注册表的 availability、场景读回调的检查、网页调用的授权建立），宿主的依赖解析一次检查共用一份目录。读安装记录降 79%，本机 p50 4.5→3.9 秒，CPU 节流 3 倍下用例通过（p50 6.2 秒）。剩下的大头是每条事项仍要好几次整目录 discover，转 [BL-inbox-update-blocks-host](../../docs/backlog-removed.md)（已由 #2351 完成）。
 - **② Feed 作者 `sourceName`**：不变，低优先级观察；若上游再给内部值，按缺陷另记。E／Feed。
 - **③ 平台渲染文字的内部标识**：已排查（2026-11-13，只读子代理 + 复核）。修了一处：步骤行没有对应词的步骤（运行时工具、MCP 工具、`model-switch`、`approval` 等）原样显示工具名，现在说「处理了一步」。余下三处要条件才出现，没改：读/改/建议的目标在动作标题表里查不到时退回能力 id（`assistant-present.ts`，卸载、撤权、模型拼错 id、标题表建好后才装的能力）；镜像审批失败时一行 `approval` 加效果 id（`prologue-run-store.ts`）；停止原因认不出时原样附在句后（`assistant-present.ts`）。输入回执的「记录」一栏列输入号、问题号、工具调用号是有意的出处记录，不算泄漏。前三条留助理面板，A／助理。
 - **④ B27SRC-05／B27SRC-07**：不变，05 交 56 的真实 Host 剩余项，07 的同条件浏览器测量并 56。E／Coding、56。

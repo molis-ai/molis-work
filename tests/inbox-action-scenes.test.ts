@@ -4,11 +4,11 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, DEMO_PROJECT_ID, withFunctionsService } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, runningPluginPlatform, seedDemoBoard, DEMO_PROJECT_ID, withFunctionsService } from "@molis-ai/molis-work-app-local-host";
 import { inboxActions, inboxContentActions, inboxManifest, inboxNextScene, inboxSceneBindingId, INBOX_ACTION_PERMISSIONS, type InboxJudgmentState } from "@molis-ai/molis-work-plugin-inbox";
 import { feedContentActions, feedInboxActions, feedItemActions, type FeedJudgmentCatalog } from "@molis-ai/molis-work-plugin-feed";
 import { createFunctionsService, publishedFunctionAction } from "@molis-ai/molis-work-module-judgment-rules";
-import type { ActionCallContext, ActionDefinition, ActionSceneBinding, ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionDefinition, type ActionSceneBinding, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import type { FunctionsHostOptions } from "../apps/local-host/dist/judgment-rules-host.js";
@@ -60,6 +60,94 @@ test("QEA-91 Inbox yields between committed judgments so a pending cancellation 
       });
     } finally { stop(); }
   } finally { if (pending) clearImmediate(pending); await host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test("BFP-05 BL-inbox-update-blocks-host mid-batch permission revocation or plugin disablement synchronously rejects later entries with zero DB writes", async () => {
+  const home = await mkdtemp(join(tmpdir(), "inbox-batch-fence-"));
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const databasePath = join(home, "project.db"); seedDemoBoard(databasePath);
+  const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
+  const caller: ActionCallContext = { actor_id: "owner", project_id: reference.project_id, audience: "user", permissions: [...INBOX_ACTION_PERMISSIONS, "evidence:read"] };
+  try {
+    const entries = await host.withProject(reference, runtime => {
+      const feed = createLocalFeedApplication(runtime.store.db);
+      const source = createLocalFeedSourceService(runtime.store.db, runtime.project_id).register({ kind: "research_library", repository: "fixture/fence", research_source: "batch" }).source;
+      return Array.from({ length: 4 }, (_, index) => {
+        const item = feed.ingestItem({ source, externalId: `fence-${index}`, title: `待核验 ${index}`, summary: "摘要", body: `正文 ${index}`, occurredAt: new Date().toISOString(), attention: false }).item;
+        return feed.ensureInboxEntryForFeedItem(runtime.project_id, item.item_id, "manual").entry;
+      });
+    });
+    await host.actionClient(reference).discover(caller);
+    const definition: ActionDefinition = { capability_id: "fixture.inbox.batch.fence", version: 1, operation: "command", action: {
+      title: "中途围栏判断", description: "mid-batch fence fixture", kind: "judgment", scope: "project", audiences: ["user"], permissions: [], subject_kinds: ["inbox_entry"],
+      input_schema: inboxNextScene.input_schema, output_schema: inboxNextScene.result_schema, output_type: inboxNextScene.result_type } };
+    let calls = 0;
+    let onSecondJudgment: (() => void | Promise<void>) | undefined;
+    const stopProvider = host.actionRegistry(reference).registerProvider({
+      provider: { provider_id: "fixture.inbox.batch.fence", title: "fixture", kind: "plugin", project_id: reference.project_id },
+      definitions: [definition],
+      handlers: [{ ...definition, handle: async () => {
+        if (++calls === 2) await onSecondJudgment?.();
+        return { status: "ok", suggested_behavior_ids: ["inbox.verify"] };
+      } }],
+    });
+    try {
+      await host.sceneClient(reference).bind(caller, {
+        binding_id: inboxSceneBindingId(reference.project_id), scene_id: inboxNextScene.scene_id, scene_version: 1,
+        project_id: reference.project_id, enabled: true, function: definition, title: "Inbox 下一步", href: "/",
+      });
+      const actions = host.actionClient(reference);
+      const history = () => withFunctionsService(home, service => service.listJudgments());
+
+      // 1) Mid-batch synchronous permission revocation after entry 0 commits and warms caches: entry 1 & 2 must be synchronously rejected without writing.
+      let permissionRevoked = false;
+      onSecondJudgment = () => { permissionRevoked = true; };
+      const revocableCaller: ActionCallContext = {
+        ...caller,
+        assert_authority_current: () => {
+          if (permissionRevoked) throw new ActionError("actions.forbidden", "批处理中途权限已撤销");
+        },
+      };
+      await assert.rejects(
+        actions.invoke(revocableCaller, inboxActions.evaluateJudgment, { entry_ids: entries.slice(0, 3).map(entry => entry.entry_id) }),
+        { code: "actions.forbidden" },
+      );
+      assert.equal(calls, 2, "revocation during entry 1 halts before entry 2 starts");
+      assert.deepEqual(history().map(record => record.subject.id), [entries[0]!.entry_id], "neither entry 1 nor entry 2 writes a judgment");
+      await host.withProject(reference, runtime => {
+        const rows = runtime.store.db.prepare("SELECT object_id FROM events WHERE type LIKE '%judgment_completed'").all() as Array<{ object_id: string }>;
+        assert.deepEqual(rows.map(row => row.object_id), [history()[0]!.judgment_id], "only entry 0's judgment event is persisted");
+      });
+
+      // 2) Mid-batch plugin disablement from a concurrent task while entry 2 awaits judgment: entry 2 & 3 must be rejected before any DB write.
+      calls = 0;
+      onSecondJudgment = () => new Promise<void>((resolve, reject) => {
+        setImmediate(() => {
+          void host.withProject(reference, runtime => runningPluginPlatform(runtime.store, reference.project_id, "io.molis.work.inbox"))
+            .then(inboxPlatform => {
+              const inboxInstall = inboxPlatform!.runtime.list().find(item => item.plugin_id === "io.molis.work.inbox")!;
+              return inboxPlatform!.runtime.stop(inboxInstall.install_id);
+            })
+            .then(() => resolve(), reject);
+        });
+      });
+      await assert.rejects(
+        actions.invoke(caller, inboxActions.evaluateJudgment, { entry_ids: entries.slice(1).map(entry => entry.entry_id) }),
+        (error: unknown) => error instanceof ActionError && ["actions.forbidden", "actions.provider_changed", "actions.scene_missing"].includes(error.code),
+      );
+      assert.equal(calls, 2, "plugin disablement during entry 2 halts before entry 3 starts");
+      const committed = history();
+      assert.deepEqual(
+        committed.map(record => record.subject.id).sort(),
+        [entries[0]!.entry_id, entries[1]!.entry_id].sort(),
+        "disabled plugin prevents entry 2 and entry 3 from writing to the judgment ledger",
+      );
+      await host.withProject(reference, runtime => {
+        const rows = runtime.store.db.prepare("SELECT object_id FROM events WHERE type LIKE '%judgment_completed'").all() as Array<{ object_id: string }>;
+        assert.deepEqual(rows.map(row => row.object_id).sort(), committed.map(record => record.judgment_id).sort(), "only committed entries 0 and 1 have judgment events in the project DB");
+      });
+    } finally { stopProvider(); }
+  } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 test("FI-1 RAC-482 binding a published rule goes through the plugin's own scene and refuses drafts, unknown rules, read-only callers and rules of another scene", async () => {

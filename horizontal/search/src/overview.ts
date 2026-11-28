@@ -195,8 +195,14 @@ export class OverviewService {
       if ((!partition || library.partition_id === partition) && (!install || library.install_id === install)) this.failedReads.delete(key);
     }
   }
-  removeInstall(installId: string, partitionId?: string): void { this.forgetFailures(partitionId, installId); this.port.removeInstall(installId, partitionId); }
-  removePartition(partitionId: string): void { this.forgetFailures(partitionId); this.port.removePartition(partitionId); }
+  removeInstall(installId: string, partitionId?: string): void {
+    this.forgetFailures(partitionId, installId);
+    this.port.removeInstall(installId, partitionId);
+  }
+  removePartition(partitionId: string): void {
+    this.forgetFailures(partitionId);
+    this.port.removePartition(partitionId);
+  }
 
   /**
    * The rows `reach` allows of the asked kinds, with only the allowed fields. `reach` is asked before the read and again before the rows

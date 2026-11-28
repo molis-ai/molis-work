@@ -269,12 +269,16 @@ test("B2R-02 a delayed Home provider cannot retain a revoked project in the runt
     row("p1", "schedule", "expired", "2026-10-01T00:00:00.000Z", { missed_at: NOW }),
   ], { "home:assistant.runs.overview": async input => { entered.resolve(); await release.promise; return overview("assistant", [])(input); } });
   let denied = "";
-  const pending = runtimeOverview({ ...ports, readableProjects: ids => ids.filter(id => id !== denied) });
+  const pending = runtimeOverview({ ...ports, readableProjects: ids => ids.filter(id => id !== denied), projectRuns: async (...args) => {
+    const runs = await ports.projectRuns(...args);
+    return runs && { ...runs, refreshing: ["p1"], updating: true };
+  } });
   await entered.promise;
   denied = "p1";
   release.resolve();
   const result = await pending;
   assert.deepEqual(result.upcoming.map(run => run.run_id), ["second"]);
+  assert.equal(result.updating, undefined, "the only refreshing partition lost access");
   assert.deepEqual(result.missed, []);
   assert.equal(result.expired.count, 0);
   assert.ok(!result.expired.owners.includes(expiredOwnerKey("p1", "schedule")));

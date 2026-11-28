@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ActionError, defineBackgroundTasksAction, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { runningPartitionPlatformServices } from "@molis-ai/molis-work-app-local-host";
 import type { HomeBackgroundTasksReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import { openTestHome, type TestHome, type TestProject } from "./fixtures/test-home.js";
 
@@ -28,7 +29,7 @@ function hostTaskSource(home: TestHome, projects: readonly TestProject[]) {
 test("QEA-14/16 Home attention keeps partial failure, invalid-answer and timeout evidence until a real read recovers", { timeout: 90_000 }, async t => {
   let denied = "";
   const home = await openTestHome(t, { catalogPolicy: false, host: { overviewProjectAccess: (_caller, id) => id !== denied } });
-  const a = await home.createProject("Alpha"), b = await home.createProject("Beta");
+  const a = await home.createProject("Alpha", ["images", "coding"]), b = await home.createProject("Beta");
   const provider = hostTaskSource(home, [a, b]);
   const read = async () => (await home.web.get<{ background_tasks: HomeBackgroundTasksReadResult }>("/api/attention")).background_tasks;
   const secret = "provider-private-error-content";
@@ -79,10 +80,19 @@ test("QEA-14/16 Home attention keeps partial failure, invalid-answer and timeout
     }
     return answer(id);
   };
+  const index = runningPartitionPlatformServices(home.home)!.overview, readSources = index.refreshForRead.bind(index);
+  const scheduled = Promise.withResolvers<void>();
+  index.markDirty(a.project_id);
+  t.mock.method(index, "refreshForRead", (libraries: Parameters<typeof readSources>[0]) => {
+    const progress = readSources(libraries);
+    if (progress.pending.some(library => library.partition_id === a.project_id)) scheduled.resolve();
+    return progress;
+  });
   const pending = read();
-  try { await entered.promise; denied = a.project_id; } finally { resume.resolve(); }
+  try { await Promise.all([entered.promise, scheduled.promise]); denied = a.project_id; } finally { resume.resolve(); }
   const filtered = await pending;
   assert.deepEqual(filtered.issues, []);
+  assert.equal(filtered.updating, undefined, "A was the only project refreshing");
   assert.deepEqual(filtered.tasks.map(row => row.project_id), [b.project_id]);
   provider.answer = answer;
   const beforeDeniedRead = provider.calls.length;

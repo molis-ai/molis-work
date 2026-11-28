@@ -76,7 +76,7 @@ export function bindPersonalTasks(root: HTMLElement): () => void {
           } else if (result.incomplete) {
             const status = document.createElement("p");
             status.setAttribute("role", "status");
-            words(() => { status.textContent = t.text("workbench.attention.tasks-incomplete"); });
+            words(() => { status.textContent = t.text("workbench.personal-tasks.incomplete"); });
             body.append(status);
           } else if (!list.childElementCount) words(() => { body.textContent = t.text("workbench.personal-tasks.empty"); });
         };
@@ -135,6 +135,7 @@ export function bindPersonalTasks(root: HTMLElement): () => void {
         event.preventDefault();
         if (save.disabled || !input.value.trim()) return;
         save.disabled = true;
+        input.readOnly = true;
         try {
           await request(prefix + "/api/plugins/" + encodeURIComponent(taskOwner) + taskRoute, {
             method: "POST",
@@ -145,6 +146,7 @@ export function bindPersonalTasks(root: HTMLElement): () => void {
         } catch (error) {
           if (!signal.aborted) {
             save.disabled = false;
+            input.readOnly = false;
             request.show(failure, error);
           }
         }

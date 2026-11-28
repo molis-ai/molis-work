@@ -133,7 +133,7 @@ export async function runtimeOverview(ports: RuntimeOverviewPorts, signal?: Abor
       }));
     }).catch((error: unknown) => { signal?.throwIfAborted(); unavailable.push({ project_id: null, provider_id: null, code: codeOf(error) }); }),
   ]);
-  const candidates = [...new Set([...(projects?.unavailable ?? []), ...(projects?.owners ?? []).map(owner => owner.project_id), ...[...upcoming, ...missed].flatMap(run => run.project_id ? [run.project_id] : [])])];
+  const candidates = [...new Set([...(projects?.refreshing ?? []), ...(projects?.unavailable ?? []), ...(projects?.owners ?? []).map(owner => owner.project_id), ...[...upcoming, ...missed].flatMap(run => run.project_id ? [run.project_id] : [])])];
   const allowed = new Set(ports.readableProjects?.(candidates) ?? candidates);
   if (projects) {
     for (const id of projects.unavailable ?? []) if (allowed.has(id)) unavailable.push({ project_id: id, provider_id: null, code: "actions.plugin_unavailable" });
@@ -147,7 +147,7 @@ export async function runtimeOverview(ports: RuntimeOverviewPorts, signal?: Abor
   }
   const waiting = { network: !ports.online(), model: !ports.model() };
   return {
-    state: "running", ...(projects?.updating && { updating: true }), waiting, gaps: ports.gaps(),
+    state: "running", ...(projects?.refreshing?.some(id => allowed.has(id)) && { updating: true }), waiting, gaps: ports.gaps(),
     upcoming: upcoming.filter(run => !run.project_id || allowed.has(run.project_id)).sort((a, b) => a.due_at.localeCompare(b.due_at)).slice(0, UPCOMING_SHOWN)
       .map(run => ({ ...run, waiting: run.needs.some(need => need === "network" ? waiting.network : waiting.model) })),
     missed: missed.filter(run => !run.project_id || allowed.has(run.project_id)).sort((a, b) => b.due_at.localeCompare(a.due_at)),

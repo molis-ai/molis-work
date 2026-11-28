@@ -267,14 +267,17 @@ test("UPP-30 B2R-09 capture a task in personal space after confirmation, then fi
     window.fetch = (input, init) => {
       if (new URL(input?.url || input, location.href).pathname.endsWith('/api/plugins/io.molis.work.todo/items') && (init?.method || input?.method) === 'POST') {
         window.fetch = real;
-        return Promise.resolve(Response.json({ message: 'capture temporarily unavailable' }, { status: 503 }));
+        return new Promise(resolve => { window.rejectCapture = () => resolve(Response.json({ message: 'capture temporarily unavailable' }, { status: 503 })); });
       }
       return real(input, init);
     };
   })()`);
   await b.click(panel + " form button");
+  await b.waitFor("typeof window.rejectCapture === 'function'");
+  assert.equal(await b.evaluate("captureInput.readOnly"), true);
+  await b.evaluate("window.rejectCapture()");
   await b.waitFor("captureInput.form?.lastElementChild.textContent && !captureInput.form.querySelector('button').disabled");
-  assert.equal(await b.evaluate("captureInput.value"), "B2 personal capture");
+  assert.deepEqual(await b.evaluate("[captureInput.readOnly, captureInput.value]"), [false, "B2 personal capture"]);
   await b.click(panel + " form button");
   await b.waitFor("!document.querySelector('[data-personal-tasks-body] form')");
   await switchLanguage("ja");

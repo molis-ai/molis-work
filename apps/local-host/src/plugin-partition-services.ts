@@ -27,7 +27,7 @@ function settingsCaller(instance: Instance): PersonSettingsCaller {
   return scope.caller;
 }
 
-const settingsListeners = new Map<string, Set<() => void>>();
+const settingsListeners = new Map<string, Set<() => void | Promise<void>>>();
 const pendingSettings = new Set<string>();
 const settingsKey = (home: string, installId: string) => JSON.stringify([resolveConfiguredHome(home), installId]);
 
@@ -39,7 +39,7 @@ export function personSettingsChanged(home: string, installId: string): void {
   queueMicrotask(() => {
     pendingSettings.delete(key);
     for (const listener of settingsListeners.get(key) ?? []) {
-      try { listener(); } catch { /* A subscriber cannot prevent another instance from refreshing. */ }
+      try { void Promise.resolve(listener()).catch(() => {}); } catch { /* A subscriber cannot prevent another instance from refreshing. */ }
     }
   });
 }
@@ -61,8 +61,16 @@ export function pluginPersonSettingsFor(home: string | undefined, manifest: Plug
     onChange(listener) {
       assertActive();
       if (currentPluginInvocation()) throw new ActionError("actions.forbidden", "本人设置的订阅由插件启动时登记");
-      const key = settingsKey(home, owner.install_id), listeners = settingsListeners.get(key) ?? new Set<() => void>();
-      const notify = AsyncLocalStorage.bind(() => { assertActive(); listener(); });
+      const key = settingsKey(home, owner.install_id), listeners = settingsListeners.get(key) ?? new Set<() => void | Promise<void>>();
+      // A remote apply can roll back after writing its business row. Compare committed records once its transaction ends.
+      const stamp = () => use((store, caller) => JSON.stringify(store.list(caller, owner.install_id)));
+      let previous = stamp();
+      const notify = AsyncLocalStorage.bind(() => {
+        const current = stamp();
+        if (current === previous) return;
+        previous = current;
+        return listener();
+      });
       const stop = () => {
         lifetime.removeEventListener("abort", stop);
         listeners.delete(notify);

@@ -12,6 +12,7 @@
     "workbench.personal-tasks.prompt": "What needs doing?",
     "workbench.personal-tasks.save": "Save task",
     "workbench.personal-tasks.saved": "Saved to your personal space",
+    "workbench.personal-tasks.incomplete": "Some tasks could not be loaded.",
     "workbench.personal-tasks.empty": "No tasks yet",
     "workbench.personal-tasks.name": "Todo",
     "workbench.import.importing-count-name-recognizing-text-takes-moment": "Importing {at} / {count}: {name} (recognizing text takes a moment)",

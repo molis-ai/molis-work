@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { readFileSync } from "node:fs";
-import { runWithLocale, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
-import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
+import { mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { personalConfigRegistrations, runWithLocale, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { ensureStorageSpace, personalStorageSpace, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
+import { openPersonSettings } from "@molis-ai/molis-work-service-person-settings";
 import { imagesManifest, imagesActions as actions } from "@molis-ai/molis-work-plugin-images";
 import { imageRuntimeFixture, imageTerminal } from "./fixtures/images-runtime.js";
 
@@ -203,6 +206,41 @@ test("B2R-05/06 a new Agent image job sees another active partition's settings a
   } finally { release.resolve(); }
   assert.equal((await first).connection.auth_connection_id, two);
   assert.equal((await b.invoke(actions.connections, {})).connections[0]?.auth_connection_id, two);
+});
+
+test("B2R-06 remote settings notify an active installation after commit and isolate a failing listener", async t => {
+  const home = mkdtempSync(join(tmpdir(), "images-setting-notify-"));
+  const space = ensureStorageSpace(home, personalStorageSpace("https://auth.example.test", "molis-work", "image-owner"));
+  const heard: string[] = [];
+  const f = await imageRuntimeFixture(t, { home, context(context) {
+    if (context.project_id === "project-b") {
+      const settings = context.services!.personSettings!;
+      settings.onChange(async () => { throw new Error("listener failed"); });
+      settings.onChange(() => { heard.push(...settings.list().map(row => row.key)); });
+    }
+    return context;
+  } });
+  const selections: ReturnType<typeof personalConfigRegistrations>[number]["selection"][] = [];
+  const [install] = f.contexts;
+  assert.ok(install);
+  const registration = personalConfigRegistrations({ home, spaceId: space.spaceId, actor: space.ownerUserId!, authorize() {},
+    catalog: async () => { throw new Error("person settings do not read the project catalog"); },
+    selected: () => ({ revision: 1, selections }), personSettings: () => ({ install_id: install.install_id, declarations: imagesManifest.person_settings }),
+  }).find(row => row.selection.collection_id === "person_settings")!;
+  selections.push(registration.selection);
+  const event = { key: imagesManifest.plugin_id + "/connections", base: 0, revision: 1, operationId: "remote-images-1",
+    value: { space_id: space.spaceId, data: { value: { services: [] } } } };
+  const store = openPersonSettings(home);
+  try {
+    store.db.exec("CREATE TRIGGER fail_settings_head BEFORE INSERT ON person_settings_replica_heads BEGIN SELECT RAISE(ABORT,'rollback test'); END");
+    assert.throws(() => registration.withReplica(replica => replica.receive(event)), /rollback test/u);
+    await new Promise<void>(resolve => setImmediate(resolve));
+    assert.deepEqual(heard, []);
+    store.db.exec("DROP TRIGGER fail_settings_head");
+    registration.withReplica(replica => replica.receive(event));
+    await new Promise<void>(resolve => setImmediate(resolve));
+    assert.deepEqual(heard, ["connections"]);
+  } finally { store.close(); }
 });
 
 test("ARF-4 an unfinished account switch or deletion survives restart and refuses dispatch until retried", async t => {

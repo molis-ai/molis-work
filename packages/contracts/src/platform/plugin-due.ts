@@ -69,7 +69,7 @@ export interface PluginPersonSettingsClient {
   get(key: string): PersonSettingRecord | null;
   list(): PersonSettingRecord[];
   /** Register during the plugin's own start. A committed change signals active instances of this installation to reread their settings. */
-  onChange(listener: () => void): () => void;
+  onChange(listener: () => void | Promise<void>): () => void;
   /** Captures this installation's settings under the current reader's authority. The later check discloses only whether that snapshot still holds. */
   snapshot(): { readonly records: readonly PersonSettingRecord[]; current(): boolean };
   /** Compare revisions and commit all declared keys in a single transaction, including portable and device-only parts of one edit. */

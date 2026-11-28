@@ -12,6 +12,7 @@
     "workbench.personal-tasks.prompt": "何をしますか？",
     "workbench.personal-tasks.save": "タスクを保存",
     "workbench.personal-tasks.saved": "個人スペースに保存しました",
+    "workbench.personal-tasks.incomplete": "一部のタスクを読み込めませんでした。",
     "workbench.personal-tasks.empty": "タスクはまだありません",
     "workbench.personal-tasks.name": "タスク",
     "workbench.import.importing-count-name-recognizing-text-takes-moment": "インポート中 {at} / {count}：{name}（文字認識に少し時間がかかります）",

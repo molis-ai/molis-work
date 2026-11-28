@@ -105,7 +105,9 @@ export async function openHostSession(options: PluginHostExecutorOptions, defini
   let terminal: ReturnType<typeof pluginTerminalFor>;
   let withdrawText: (() => void) | undefined;
   const dispose = async () => {
-    active = false; stopped = true; settingsLifetime.abort();
+    active = false;
+    stopped = true;
+    settingsLifetime.abort();
     let sqlClosed: Promise<void> | undefined;
     try { terminal?.dispose(); if (options.home) disposeWorkTerminalsForOwner({ home: options.home.directory, install_id: context.install_id, project_id: options.project_id }); } finally {
       try {
@@ -186,7 +188,10 @@ export async function openHostSession(options: PluginHostExecutorOptions, defini
       hasProjectWork: projectId => !!background?.hasProjectWork(projectId) || !!terminal?.live()
         || (!!options.home && hasLiveWorkTerminals({ home: options.home.directory, install_id: context.install_id, project_id: projectId })),
       activeWorkCount: () => background?.activeWorkCount() ?? 0,
-      revoke: () => { active = false; settingsLifetime.abort(); withdrawText?.(); try { terminal?.dispose(); if (options.home) disposeWorkTerminalsForOwner({ home: options.home.directory, install_id: context.install_id, project_id: options.project_id }); } finally { withdrawPages?.(); directory?.dispose(); scheduler?.dispose(); agents?.dispose(); background?.close(); withdrawCaller?.(); } }, dispose };
+      revoke: () => {
+        active = false;
+        settingsLifetime.abort();
+        withdrawText?.(); try { terminal?.dispose(); if (options.home) disposeWorkTerminalsForOwner({ home: options.home.directory, install_id: context.install_id, project_id: options.project_id }); } finally { withdrawPages?.(); directory?.dispose(); scheduler?.dispose(); agents?.dispose(); background?.close(); withdrawCaller?.(); } }, dispose };
   } catch (error) {
     await dispose();
     throw error;

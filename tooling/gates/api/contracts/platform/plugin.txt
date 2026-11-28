@@ -5564,7 +5564,7 @@ export interface PluginPermissionDeclaration {
 export interface PluginPersonSettingsClient {
     get(key: string): PersonSettingRecord | null;
     list(): PersonSettingRecord[];
-    onChange(listener: () => void): () => void;
+    onChange(listener: () => void | Promise<void>): () => void;
     snapshot(): {
         readonly records: readonly PersonSettingRecord[];
         current(): boolean;

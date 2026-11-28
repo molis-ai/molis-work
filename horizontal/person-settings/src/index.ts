@@ -145,10 +145,11 @@ export type PersonSettingsInstallation = (pluginId: string) => { readonly instal
 /**
  * The portable keys as a personal configuration replica (#2231), keyed `<plugin>/<key>`: only rows marked portable go out or come in, and an
  * incoming key must be one the plugin's installation here declares portable, so sync never writes a secret, a connection or a path, and never
- * a setting of a plugin this device does not have. It is kept under that installation.
+ * a setting of a plugin this device does not have. It is kept under that installation. A write schedules a post-transaction read;
+ * the subscriber compares committed state before notifying its plugin.
  */
 export function personSettingsConfigReplica(db: Parameters<typeof personalConfigReplica>[0], spaceId: string, authorize: () => void,
-  installation: PersonSettingsInstallation, now: () => Date = () => new Date(), changed?: (installId: string) => void) {
+  installation: PersonSettingsInstallation, now: () => Date = () => new Date(), scheduleRefresh?: (installId: string) => void) {
   const split = (id: string): [string, string] => {
     const at = id.lastIndexOf("/");
     if (at < 1 || at === id.length - 1) throw new ActionError("actions.input_invalid", "本人设置的同步键无效");
@@ -177,7 +178,7 @@ export function personSettingsConfigReplica(db: Parameters<typeof personalConfig
       if (data === null) {
         db.prepare("DELETE FROM person_settings WHERE install_id = ? AND plugin_id = ? AND key = ? AND portable = 1")
           .run(target.install_id, target.plugin_id, target.key);
-        changed?.(target.install_id);
+        scheduleRefresh?.(target.install_id);
         return;
       }
       const { value } = personalConfigRecord(data, ["value"]);
@@ -186,7 +187,7 @@ export function personSettingsConfigReplica(db: Parameters<typeof personalConfig
       db.prepare(`INSERT INTO person_settings (install_id, plugin_id, key, kind, portable, value_json, revision, updated_at) VALUES (?, ?, ?, 'preference', 1, ?, ?, ?)
         ON CONFLICT (install_id, key) DO UPDATE SET kind = excluded.kind, portable = excluded.portable, value_json = excluded.value_json, revision = excluded.revision, updated_at = excluded.updated_at`)
         .run(target.install_id, target.plugin_id, target.key, JSON.stringify(value), (current?.revision ?? 0) + 1, now().toISOString());
-      changed?.(target.install_id);
+      scheduleRefresh?.(target.install_id);
     },
     canUpload(id) { return portable(id) !== null; },
   });

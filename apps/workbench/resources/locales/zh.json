@@ -12,6 +12,7 @@
     "workbench.personal-tasks.prompt": "记什么待办？",
     "workbench.personal-tasks.save": "保存待办",
     "workbench.personal-tasks.saved": "已记到个人空间",
+    "workbench.personal-tasks.incomplete": "部分待办暂时无法读取。",
     "workbench.personal-tasks.empty": "还没有待办",
     "workbench.personal-tasks.name": "待办",
     "workbench.import.importing-count-name-recognizing-text-takes-moment": "正在导入 {at} / {count}：{name}（识别文字要一会儿）",

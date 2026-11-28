@@ -277,7 +277,7 @@ test("UPP-31 Home-level uninstall (partitionId = null) clears due entries, overv
   const services = new PartitionPlatformServices({ home, assembly: { acquire: async () => { throw new Error("unused"); } } });
   try {
     const read = () => services.readOverview(localPerson, libraries, () => ({ readable: ["personal", "project-a", "project-b"], grants: [] }));
-    assert.deepEqual(read(), { rows: [], updating: true });
+    assert.deepEqual(read(), { rows: [], updating: true, refreshing: ["personal", "project-a", "project-b"] });
     assert.equal((await refreshedOverview(read)).rows.length, 3);
     assert.equal(services.due.entries().length, 3);
   } finally { services.close(); }

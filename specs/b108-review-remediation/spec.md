@@ -2,7 +2,7 @@
 
 状态：修复复验中。原 108 的受检提交为 #2348（80decbf761），主线后续修复 #2355 已于 9bc3775eff 合入。目标为隔离 Home 内部完整。2026-11-27 一骏已确认两个干净 v1、G4 前台常数开库及 107 原六项补写。原决定 66 的复验提交为 [98c5223](https://github.com/molis-ai/molis-work/commit/98c522313a13e4074e2c0f12c684b650ef0f5eda)。[复核修复 PR #2358](https://github.com/molis-ai/molis-work/pull/2358) 承接决定 69 的干净 v1。在新建 Home 验证生产写入、关闭与重开，同时将决定 66 存档中的 B2 库样本装到相同空间身份的隔离 Home，用当前所有者读取。原合同见[统一工作分区](../unified-partition-plugins/spec.md)与[批次记录](../post-anticorruption-roadmap/reference/batches/108.md)。
 
-修复沿现有所有者进行。插件只写本分区业务库，平台负责调用身份、可读范围、到期回执、同步和索引。保留个人 IM、五插件标准成员与分区存储、默认只启用 Schedule 及 Work Brief 已交给 109 的装配。复核中的不同 SHA、实验夹具错误和未归因的其他批次 CI 失败分开记录。
+修复沿现有所有者进行。插件只写本分区业务库，平台负责调用身份、可读范围、到期回执、同步和索引。保留个人 IM、五插件标准成员与分区存储，新分区默认只启用 Schedule。Work Brief 的 Home 装配已随 109-1 退役。平台 Home 装配与跨项目合同由 [109-3](../post-anticorruption-roadmap/reference/batches/109.md#batch-109-item-3) 收尾。复核中的不同 SHA、实验夹具错误和未归因的其他批次 CI 失败分开记录。
 
 | 验收 | 业务结果和回归 |
 | --- | --- |

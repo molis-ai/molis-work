@@ -377,6 +377,13 @@ export interface ActionMetadata {
   /** Mandatory nested typed-role calls satisfied together by one available provider; never grants access. */
   readonly required_roles?: readonly { readonly input_type: string; readonly output_type: string }[];
   /**
+   * Where a command's input names the target object and its optimistic-concurrency revision: dot paths to its id and expected
+   * revision, e.g. `{ id: "item_id", expected_revision: "expected_cursor" }`. Written, it is an object, and its paths must be
+   * in this action's `input_schema` (checked at registration). Undeclared, `actionInputRevision` falls back to `{ id, expected_revision }`
+   * or `{ id, expected_version }`.
+   */
+  readonly input_subject?: { readonly id: string; readonly expected_revision?: string };
+  /**
    * Where a command's output names the object it created or changed: dot paths to its id and new revision, e.g.
    * `{ id: "document.id", revision: "document.version" }`. The object's kind is the action's single subject kind. Written, it is an object, and both paths must be
    * in this action's `output_schema` (checked at registration). Callers that keep relations to results (the Assistant's work) use it;

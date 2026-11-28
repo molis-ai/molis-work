@@ -49,11 +49,10 @@
 
 ### 当前保留机制
 
-2026-11-26 清理说明：本节不再作为新增数据迁移或历史格式兼容读取的审批通道。开发前阶段全部具体数据迁移段、旧 Home 一次性补丁与历史格式双读（含早先的 M1-B1/B2、记忆账本 1→2、外观状态 1→2、第 107/108 批旧 Home 成员补写与 `removedHomeStores()`、导入文档 v1 兼容读取、`agent-definitions` 1→2、`feed/→security/` 搬家等）均已删除，全量回归干净 v1。下表仅列出不属于历史兼容或数据迁移的现行机制与第三方路径：
+2026-11-26 清理说明：本节不再作为新增数据迁移或历史格式兼容读取的审批通道。开发前阶段全部具体数据迁移段、旧 Home 一次性补丁与历史格式双读（含早先的 M1-B1/B2、记忆账本 1→2、外观状态 1→2、第 107/108 批旧 Home 成员补写与 `removedHomeStores()`、导入文档 v1 兼容读取、`agent-definitions` 1→2、`feed/→security/` 搬家，以及 2026-11-27 按决定 69 进一步清除的退役 `materials/` Home 条目、`plugin_consents` 的 `'always_on'` 约束和 `HOST_PLUGIN_IDS` 中的 `"io.molis.work.files"` 占位）均已删除，全量回归干净 v1。下表仅列出不属于历史兼容或数据迁移的现行机制与第三方路径：
 
 | 机制 | 目的与允许边界 | owner 与生命周期 |
 | --- | --- | --- |
-| 退役的 `materials/` Home 条目（第 112-1 批） | 本机语音转写删除后没有代码创建或读写 `{home}/materials`；`homeStores()` 保留一条只排除、不建目录的登记（不随快照备份、恢复时重置、卸载时清除），不读其中任何内容 | `apps/local-host`；第 90 批 v1 封板时删除 |
 | 第三方插件升级声明（`upgrade_compatibility`）与发行物留存 | 面向第三方签名包与未来 1.0 发布的现行产品能力；开发前阶段内置库一律固定 v1、不写升级段 | Manifest 合同与 plugin SDK（见 [插件开发手册](../platform/PLUGIN-DEVELOPMENT.md)） |
 | 休眠中的通用升级引擎（Plan A） | `packages/storage` / `apps/local-host` / `packages/plugin-runtime` 中通用的升级编排与校验框架代码保留休眠供未来 1.0 启用；开发前阶段零具体迁移段、零开发金样、零旧 Home 补丁 | `packages/storage`、`apps/local-host`、`packages/plugin-runtime`；1.0 正式发布后按需激活 |
 | pdfjs 的 `legacy/build` 路径 | 第三方包给 Node 的构建入口名，不是本产品的旧格式读取分支 | 引用 pdfjs 的现行功能及该依赖；随上游构建入口调整 |

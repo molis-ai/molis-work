@@ -202,12 +202,12 @@ for (const selected of ["project", "home"] as const) test(`RAC-2507 RAC-2508 RAC
   assert.equal(direct.status, 200);
   const initial = await direct.text();
   assert.ok(initial.includes(`data-desktop-surface="${id}"`));
-  assert.ok(initial.includes(`id="goal-tree-pane" data-desktop-directory="${id}"`));
+  assert.ok(initial.includes(`id="shell-directory-pane" data-desktop-directory="${id}"`));
   assert.doesNotMatch(initial.match(/<main class="immersive-workspace[^>]*>/u)![0], /is-plugin-directory-empty/u);
   for (const requested of ["not-offered", "settings", "shelf"]) {
     const response = await request(`${base}/?openPlugin=${requested}`), html = await response.text();
     assert.equal(response.status, 200);
-    assert.ok(html.includes('id="goal-tree-pane" data-desktop-directory="root"'), `${requested} does not claim a main directory`);
+    assert.ok(html.includes('id="shell-directory-pane" data-desktop-directory="root"'), `${requested} does not claim a main directory`);
   }
   draws.length = 0; seen.length = 0;
   for (const surface of ["persisted-detail", "frame-block"]) {

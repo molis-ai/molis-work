@@ -35,8 +35,8 @@ test("Immersive directories resize and retain compact, operable Goal and Feed li
     const { data } = await command<{ data: string }>("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }, sessionId);
     await writeFile(join(directory, name + ".png"), Buffer.from(data, "base64"));
   };
-  const width = () => evaluate<number>("Math.round(document.querySelector('#goal-tree-pane').getBoundingClientRect().width)");
-  const expectWidth = (expected: number) => waitFor("Math.round(document.querySelector('#goal-tree-pane').getBoundingClientRect().width) === " + expected);
+  const width = () => evaluate<number>("Math.round(document.querySelector('#shell-directory-pane').getBoundingClientRect().width)");
+  const expectWidth = (expected: number) => waitFor("Math.round(document.querySelector('#shell-directory-pane').getBoundingClientRect().width) === " + expected);
   await viewport(1440);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }, { name: "prefers-color-scheme", value: "light" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: page }, sessionId));
@@ -202,9 +202,9 @@ test("Immersive directories resize and retain compact, operable Goal and Feed li
   await click('[data-plugin-strip] [data-plugin-id="feed"]');
   await waitFor("document.body.dataset.desktopSurface === 'feed' && document.querySelector('[data-work-surface=feed]:not([hidden])') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");
   await feedView.waitFor("document.querySelector('[data-feed-stage-directory]') && document.querySelector('[data-feed-list]')");
-  assert.equal(await evaluate("document.querySelector('#goal-tree-pane [data-feed-list]')"), null);
+  assert.equal(await evaluate("document.querySelector('#shell-directory-pane [data-feed-list]')"), null);
   assert.equal(await feedView.evaluate("document.querySelector('[data-feed-views]')"), null);
-  assert.equal(await evaluate("document.querySelector('#goal-tree-pane')?.dataset.desktopDirectory"), "root");
+  assert.equal(await evaluate("document.querySelector('#shell-directory-pane')?.dataset.desktopDirectory"), "root");
   assert.equal(await evaluate("document.querySelector('[data-plugin-section=goals]')"), null);
   assert.equal(await evaluate("document.querySelector('[data-plugin-section=feed]')?.hidden"), true);
   assert.equal(await evaluate("document.querySelector('[data-directory-panel=feed]')"), null);

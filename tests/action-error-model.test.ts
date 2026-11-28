@@ -562,3 +562,61 @@ test("F-hc2-27 Host error edge localizes pure English prose errors in zh locale"
     await server.close();
   }
 });
+
+test("IUI-22: ActionError text_key and text_args localize across zh/en/ja at the Host error edge while keeping plain errors minimal", async () => {
+  const plain = new ActionError("actions.missing", "找不到");
+  for (const field of ["kind", "details", "text_key", "text_args", "cause"]) {
+    assert.equal(Object.hasOwn(plain, field), false, field);
+  }
+  const ownerErrors = defineErrorCodes("sample", { missing: "not_found", limited: "invalid" });
+  const keyed = ownerErrors.missing("主线上没有这件事项", { item: "i-1" }, { key: "workbench.mainline.error.item-missing" });
+  assert.equal(keyed.text_key, "workbench.mainline.error.item-missing");
+  assert.equal(Object.hasOwn(keyed, "text_args"), false);
+
+  const parameterized = ownerErrors.limited("仅提取前 10 页", undefined, {
+    key: "workbench.material-native.issue.pdf-page-limit",
+    args: { limit: 10 },
+  });
+  assert.deepEqual(parameterized.text_args, { limit: 10 });
+
+  const unknownKey = new ActionError("actions.missing", "找不到对象", {
+    text_key: "workbench.nonexistent.key",
+  });
+
+  const server = await serveNativeHttp(async (request, response, url) => {
+    const locale = (url.searchParams.get("locale") ?? "zh") as "zh" | "en" | "ja";
+    const target = url.pathname === "/keyed" ? keyed : url.pathname === "/param" ? parameterized : url.pathname === "/unknown" ? unknownKey : null;
+    if (!target) return false;
+    runWithLocale(locale, () => sendUnhandledWebError(response, target, request));
+    return true;
+  });
+  try {
+    const zh = await server.post("/keyed?locale=zh", "{}");
+    assert.equal(zh.status, 404);
+    assert.equal(zh.body.code, "sample.missing");
+    assert.deepEqual(zh.body.details, { item: "i-1" });
+    assert.match(String(zh.body.error), /主线/);
+
+    const en = await server.post("/keyed?locale=en", "{}");
+    assert.equal(en.status, 404);
+    assert.equal(en.body.code, "sample.missing");
+    assert.doesNotMatch(String(en.body.error), /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u);
+    assert.match(String(en.body.error), /mainline|item/iu);
+
+    const ja = await server.post("/keyed?locale=ja", "{}");
+    assert.equal(ja.status, 404);
+    assert.equal(ja.body.code, "sample.missing");
+    assert.match(String(ja.body.error), /[\p{Script=Hiragana}\p{Script=Katakana}]/u);
+
+    const paramEn = await server.post("/param?locale=en", "{}");
+    assert.equal(paramEn.status, 400);
+    assert.match(String(paramEn.body.error), /10/);
+    assert.doesNotMatch(String(paramEn.body.error), /[\p{Script=Han}]/u);
+
+    const fallbackEn = await server.post("/unknown?locale=en", "{}");
+    assert.equal(fallbackEn.status, 404);
+    assert.doesNotMatch(String(fallbackEn.body.error), /UI_TEXT_UNAVAILABLE|[\p{Script=Han}]/u);
+  } finally {
+    await server.close();
+  }
+});

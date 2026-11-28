@@ -241,3 +241,69 @@ test("RAC-1863 a title that fits is kept as it is: the document's own, else the 
     assert.deepEqual(titles, ["十月计划", "周报 😀"]);
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
+
+test("PLAT-35: native OCR structured issue_codes, PDF page markers, and error codes localize across zh/en/ja", async () => {
+  const home = mkdtempSync(path.join(tmpdir(), "material-native-i18n-"));
+  const helper = path.join(home, "helper");
+  const extractIn = (locale?: string) => createMaterialExtractor({ platform: "darwin", helperPath: helper, locale });
+  const writeHelper = (payload: unknown, exitCode = 0) => writeFileSync(
+    helper,
+    `#!${process.execPath}\nprocess.stdout.write(${JSON.stringify(JSON.stringify(payload))});process.exit(${exitCode});\n`,
+    { mode: 0o700 },
+  );
+  try {
+    writeHelper({
+      text: "Hello\n\nSecond",
+      extractor: "macos-pdfkit-vision",
+      pages: [
+        { number: 1, text: "Hello", method: "pdf-text", confidence: null },
+        { number: 2, text: "Second", method: "vision-ocr", confidence: 0.9 },
+      ],
+      coverage: {
+        status: "partial",
+        processed_pages: 2,
+        total_pages: 105,
+        issues: [],
+        issue_codes: [
+          { code: "first_frame_only" },
+          { code: "no_readable_text" },
+          { code: "pdf_page_limit", limit: 100 },
+          { code: "pdf_page_unreadable", page: 3 },
+          { code: "pdf_page_ocr_failed", page: 4 },
+          { code: "pdf_page_render_failed", page: 5 },
+          { code: "pdf_page_empty", page: 6 },
+          { code: "character_limit", limit: 2_000_000 },
+        ],
+      },
+    });
+    const zh = await extractIn("zh")({ file_name: "scan.pdf", bytes: Buffer.from("%PDF-1.4") }, { pdfMode: "ocr" });
+    assert.match(zh.text, /\[第 1 页\]\nHello/);
+    assert.match(zh.text, /\[第 2 页\]\nSecond/);
+    assert.equal(zh.coverage.issues.length, 8);
+    assert.match(zh.coverage.issues[2]!, /100/);
+    assert.match(zh.coverage.issues[3]!, /3/);
+
+    const en = await extractIn("en")({ file_name: "scan.pdf", bytes: Buffer.from("%PDF-1.4") }, { pdfMode: "ocr" });
+    assert.match(en.text, /\[Page 1\]\nHello/);
+    assert.match(en.text, /\[Page 2\]\nSecond/);
+    assert.equal(en.coverage.issues.length, 8);
+    for (const issue of en.coverage.issues) assert.doesNotMatch(issue, /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u, issue);
+
+    const ja = await extractIn("ja")({ file_name: "scan.pdf", bytes: Buffer.from("%PDF-1.4") }, { pdfMode: "ocr" });
+    assert.match(ja.text, /\[1 ページ\]\nHello/);
+    assert.equal(ja.coverage.issues.length, 8);
+    for (const issue of ja.coverage.issues) assert.match(issue, /[\p{Script=Hiragana}\p{Script=Katakana}]/u, issue);
+
+    writeHelper({ error: "locked_pdf", message: "PDF is password-protected; unlock it before uploading" }, 1);
+    await assert.rejects(
+      extractIn("en")({ file_name: "locked.pdf", bytes: Buffer.from("%PDF-1.4") }, { pdfMode: "ocr" }),
+      (error: unknown) => error instanceof ActionError && error.code === "material.locked_pdf" && /unlock|password|encrypted/iu.test(error.message),
+    );
+    await assert.rejects(
+      extractIn("ja")({ file_name: "locked.pdf", bytes: Buffer.from("%PDF-1.4") }, { pdfMode: "ocr" }),
+      (error: unknown) => error instanceof ActionError && error.code === "material.locked_pdf" && /[\p{Script=Hiragana}\p{Script=Katakana}]/u.test(error.message),
+    );
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});

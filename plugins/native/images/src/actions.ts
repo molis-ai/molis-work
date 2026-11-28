@@ -25,7 +25,7 @@ function define<I,O>(name:string, version: number,title:string,description:strin
 /** Tags one of the four actions with its image-generation role (Role 6), so platform parts find this plugin by what it does, not by name. */
 const role = <I, O>(definition: ActionDefinition<I, O>, name: ImageGenerationRole): ActionDefinition<I, O> => ({ ...definition, action: { ...definition.action, ...IMAGE_GENERATION_PROTOCOL[name] } });
 const saveCopyInput = { type: "object", properties: { id: { type: "string", minLength: 1, pattern: "\\S" }, image_id: { type: "string", minLength: 1, pattern: "\\S" }, filename: { type: "string" } }, required: ["id", "image_id"], additionalProperties: false } as const;
-const saveCopyDef = createActionDefinition<InferActionInput<typeof saveCopyInput>, { item: Record<string, unknown> }>("images.images.save_copy", "command", { title: "保存图片副本", description: "按文件收纳角色发现目标插件并将生成的图片副本保存进去", scope: "project", audiences: ["user"], scheduling: "concurrent", subject_kinds: ["image"], input_schema: saveCopyInput, output_schema: { type: "object", properties: { item: { type: "object" } }, required: ["item"] }, permissions: ["images:read"] }, /* @version action.images.images.save_copy */ 1);
+const saveCopyDef = createActionDefinition<InferActionInput<typeof saveCopyInput>, { item: Record<string, unknown>; surface?: string; subject_kind?: string }>("images.images.save_copy", "command", { title: "保存图片副本", description: "按文件收纳角色发现目标插件并将生成的图片副本保存进去", scope: "project", audiences: ["user"], scheduling: "concurrent", subject_kinds: ["image"], input_schema: saveCopyInput, output_schema: { type: "object", properties: { item: { type: "object" }, surface: { type: "string" }, subject_kind: { type: "string" } }, required: ["item"] }, permissions: ["images:read"] }, /* @version action.images.images.save_copy */ 1);
 export const imagesActions={
   connectionUsages:defineConnectorUsagesAction("images.connection.usages", /* @version action.images.connection.usages */ 1,"生图配置使用的连接",["images:connections:read"],"project"),
   connections:role(define<Record<string,never>,{connections:ImageConnection[];auth_connections:ConnectorConnectionView[]}>("connections.list", /* @version action.images.connections.list */ 1,"生图服务列表","读取本人的生图配置及当前服务连接状态，不返回凭据","query","project",object({}),object({connections:array(connection),auth_connections:array(auth)}),["images:connections:read"]),"services.list"),
@@ -67,13 +67,25 @@ export function createImagesActionHandlers(ports:ImagesActionPorts):ActionHandle
     bind(imagesActions.cancel,async (input,caller)=>({job:await ports.service().cancel(project(caller),input.id,caller)})),
     bind(imagesActions.delete,async (input,caller)=>{await ports.service().deleteJob(project(caller),input.id,caller);return {deleted:true as const};}),
     bind(imagesActions.image,(input,caller)=>{const image=ports.service().readImage(project(caller),input.id,input.image_id);return {base64:image.bytes.toString("base64"),mime_type:image.mime,filename:image.filename};}),
-    bind(imagesActions.saveCopy,async (input,caller)=>{
-      const image=ports.service().readImage(project(caller),input.id,input.image_id);
-      if(!ports.directory)throw new ActionError("actions.unavailable","当前没有可用的文件收纳插件");
-      const target=(await ports.directory.discover()).find(view=>view.availability.available&&isFileCopyIntakeAction(view.action));
-      if(!target)throw new ActionError("actions.unavailable","当前没有可用的文件收纳插件");
-      const filename=input.filename?.trim()?input.filename.trim():image.filename;
-      return ports.directory.invoke<{item:Record<string,unknown>}>({capability_id:target.capability_id,version:target.version,provider_id:target.provider.provider_id},{filename,mime:image.mime,bytes_base64:image.bytes.toString("base64")});
+    bind(imagesActions.saveCopy, async (input, caller) => {
+      const image = ports.service().readImage(project(caller), input.id, input.image_id);
+      if (!ports.directory) throw new ActionError("actions.unavailable", "当前没有可用的文件收纳插件");
+      const target = (await ports.directory.discover()).find(view => view.availability.available && isFileCopyIntakeAction(view.action));
+      if (!target) throw new ActionError("actions.unavailable", "当前没有可用的文件收纳插件");
+      const filename = input.filename?.trim() ? input.filename.trim() : image.filename;
+      const saved = await ports.directory.invoke<{ item: Record<string, unknown> }>(
+        { capability_id: target.capability_id, version: target.version, provider_id: target.provider.provider_id },
+        { filename, mime: image.mime, bytes_base64: image.bytes.toString("base64") },
+      );
+      const href = target.action.result_view?.link?.href_template;
+      const surface = (href ? new URL(href, "http://local").searchParams.get("openPlugin") : null)
+        ?? target.provider.provider_id.replace(/^system\./, "");
+      const subject_kind = target.action.subject_kinds[0];
+      return {
+        ...saved,
+        ...(surface ? { surface } : {}),
+        ...(subject_kind ? { subject_kind } : {}),
+      };
     }),
     ...createImagesSearchHandlers(ports.service),
   ];

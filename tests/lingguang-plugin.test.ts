@@ -135,7 +135,7 @@ test("PRR-12 工作台挂上灵光空态、确认框和快记区，工作面由 
   // Top strip (WLN-16, 第 32 批): the start page behind ＋ lists every entry of the project, then the person's own tray and
   // the project button; the Assistant sits in the work line at the foot. 灵光 is a tab of the side panel, right after
   // Shelf, the platform part, and still opens as a full stage from the start page.
-  const stack = html.slice(html.indexOf('class="workbench-header immersive-titlebar"'), html.indexOf('id="goal-tree-pane"'));
+  const stack = html.slice(html.indexOf('class="workbench-header immersive-titlebar"'), html.indexOf('id="shell-directory-pane"'));
   const stripAt = stack.indexOf("data-plugin-strip"), assistantAt = stack.indexOf("data-assistant-island");
   // specs/screen-polish §3 方案 C (POLISH-05): the right end is the side's switch, the layout button and the project; no tray of the person's own.
   const sideAt = stack.indexOf("data-side-toggle"), projectAt = stack.indexOf("data-project-island"), footAt = stack.indexOf('class="workbench-bar"');

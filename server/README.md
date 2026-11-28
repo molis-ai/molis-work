@@ -25,7 +25,7 @@ node apps/server/dist/main.js serve --state /absolute/server-state --config /abs
 现有桌面 Host 必须已启动。`projects.json` 显式列出允许传输的项目、目标和固定成果版本，不填写私有数据库路径：
 
 ```json
-{"projects":[{"id":"EXISTING_PROJECT_ID","title":"项目接续","goal_ids":["EXISTING_GOAL_ID"],"artifacts":[{"artifact_id":"EXISTING_ARTIFACT_ID","version":2}]}]}
+{"projects":[{"id":"EXISTING_PROJECT_ID","title":"项目接续","item_ids":["EXISTING_ITEM_ID"],"artifacts":[{"artifact_id":"EXISTING_ARTIFACT_ID","version":2}]}]}
 ```
 
 打开 `http://127.0.0.1:4187/continuity`。使用 state 目录中 `connect.json` 的一次性代码连接第一个设备（10 分钟有效）；文件权限为 0600，代码不写到日志。重新启动会生成新代码。每次启动都以当前 projects.json 为准：移除项目会撤回全部设备成员的该项目访问并作废旧邀请；重新加入只恢复所有者，原成员需重新邀请。后续同用户设备通过“连接另一台设备”配对；项目邀请创建或复用另一位成员，仅授予指定项目权限。

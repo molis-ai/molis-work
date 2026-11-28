@@ -153,85 +153,93 @@ function renderProjectReferenceDialog(_L: (text: string) => string): string {
     footer: `<a class="mw-btn mw-btn--secondary" data-project-reference-download download>${uiText("workbench.shell-page-renderer.downloads")}</a><button class="mw-btn mw-btn--primary" value="close">${uiText("common.control.close")}</button>` });
 }
 
-/** The shell's whole page: Workbench owns placement; Goals/Feed/Work owners retain their actual UI and facts. The function keeps its old name until W5-10 splits it, because the giant-unit gate keys a function by its name. */
-export function createWorkbenchGoalsPageRenderer<TView extends WorkbenchShellPageView>(
-  owners: WorkbenchShellPageOwners<TView>,
-) {
-  const { readText, escapeHtml, icon, htmlLang, controlTokenMeta, themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT,
-    renderIconSprite, prefixLocalLinks, renderWorkbenchDocument,
-    renderDesktopProjectChrome, renderProjectCorner,
-    stageModel } = owners;
+interface ResolvedShellStageSelection {
+  readonly page: RenderedStagePage | undefined;
+  readonly parts: RenderedStagePage["parts"] | undefined;
+  readonly offered: ReadonlyArray<{ readonly id: string }>;
+  readonly initialDesktopSurface: string;
+  readonly initialDesktopDirectory: string;
+  readonly directoryEmpty: boolean;
+}
 
-function renderMolisWorkWeb(
+function resolveShellStageSelection<TView extends WorkbenchShellPageView>(
   view: TView,
-  controlToken = "",
-  desktopShell = false,
-): string {
-  const enabledPlugins = shownPagePlugins(view);
-  const declared = renderDeclaredStages({ enabled: enabledPlugins, hostSurfaces: true, rendered: view.plugin_stage_surfaces ?? [], unavailable: (view.unavailable_plugin_stages ?? []).map(stage => stage.surface), page_owner: view.page_owner,
-    model: pluginId => stageModel(pluginId, view) });
-  const page = view.page_stage ?? declared.page, parts = page?.parts;
-  const title = parts?.title ?? "Molis Work";
-  const bootstrap = parts?.bootstrap;
-  const projectOptions = view.projects.length ? view.projects : view.project ? [view.project] : [];
-  const primitives = { readText, escapeHtml, icon, htmlLang };
-  const appearance = owners.appearance?.current();
-  // What the Runtimes run in this project, as their Manifests declare it; a page drawn with no Runtime reads the built-in catalog.
-  const directory = pluginDirectoryFor(view.plugin_directory), places = sidePlaces(directory);
-  // A running Plugin's own panel wins over the built-in one; initial geometry and the rendered sections use this same set.
-  const directoryPanels = { ...declared.panels, ...(view.plugin_panels ?? {}) };
+  enabledPlugins: readonly string[],
+  directory: PluginDirectory,
+  declared: ReturnType<typeof renderDeclaredStages>,
+  directoryPanels: Readonly<Record<string, string>>,
+  places: ReturnType<typeof sidePlaces>,
+): ResolvedShellStageSelection {
+  const page = view.page_stage ?? declared.page;
+  const parts = page?.parts;
   const requested = view.pane_plugin ?? view.initial_plugin;
   const surfaces = [...(view.plugin_stage_surfaces ?? []), ...declared.surfaces];
   // The platform's own framed surfaces (the studio, 47-1 C) are on every workbench page, as the studio always was by default.
-  const hosted = HOST_FRAMED_SURFACES;
-  const offered = [...railEntries(enabledPlugins, directory), ...islandEntries(enabledPlugins, directory), ...hosted.map(surface => ({ id: surface.project_plugin_id }))];
-  const contributions = requested ? [view.plugin_stage_views?.[`home:${requested}`], view.plugin_stage_views?.[`project:${requested}`],
-    ...WORKBENCH_SURFACE_CATALOG.filter(entry => entry.project_plugin_id === requested).flatMap(entry => entry.workbench.contributions)] : [];
-  const requestedMain = requested && offered.some(entry => entry.id === requested) && !Object.hasOwn(places.side, requested)
+  const offered = [
+    ...railEntries(enabledPlugins, directory),
+    ...islandEntries(enabledPlugins, directory),
+    ...HOST_FRAMED_SURFACES.map(surface => ({ id: surface.project_plugin_id })),
+  ];
+  const contributions = requested
+    ? [
+        view.plugin_stage_views?.[`home:${requested}`],
+        view.plugin_stage_views?.[`project:${requested}`],
+        ...WORKBENCH_SURFACE_CATALOG.filter(entry => entry.project_plugin_id === requested).flatMap(entry => entry.workbench.contributions),
+      ]
+    : [];
+  const requestedMain = Boolean(
+    requested
+    && offered.some(entry => entry.id === requested)
+    && !Object.hasOwn(places.side, requested)
     && !(view.unavailable_plugin_stages ?? []).some(stage => stage.surface === requested)
     && contributions.some(contribution => contribution?.descriptor.surfaces?.some(surface => surface.surface_id === "workbench"
-      && surface.target_slot_id === "workbench.main" && surface.format === "declarative-html"
-      && surfaces.some(drawn => drawn.contribution_id === contribution.descriptor.contribution_id && drawn.surface === surface.surface_id)));
+      && surface.target_slot_id === "workbench.main"
+      && surface.format === "declarative-html"
+      && surfaces.some(drawn => drawn.contribution_id === contribution.descriptor.contribution_id && drawn.surface === surface.surface_id))),
+  );
   const initialDesktopSurface = parts?.open_stage ? page!.owner : requested && requestedMain ? requested : "home";
   const initialDesktopDirectory = railEntries(enabledPlugins, directory).some(entry => entry.id === initialDesktopSurface
     && directoryPanelIdentity(entry.id, directoryPanels[entry.id] ?? "").ids.includes(initialDesktopSurface))
-    ? initialDesktopSurface : "root";
+    ? initialDesktopSurface
+    : "root";
+  return {
+    page,
+    parts,
+    offered,
+    initialDesktopSurface,
+    initialDesktopDirectory,
+    directoryEmpty: initialDesktopDirectory === "root",
+  };
+}
+
+interface ShellMainBodyInput<TView extends WorkbenchShellPageView> {
+  readonly view: TView;
+  readonly owners: WorkbenchShellPageOwners<TView>;
+  readonly primitives: { readText: Translate; escapeHtml: (value: unknown) => string; icon: (name: PageIcon) => string; htmlLang: () => string };
+  readonly enabledPlugins: readonly string[];
+  readonly directory: PluginDirectory;
+  readonly places: ReturnType<typeof sidePlaces>;
+  readonly declared: ReturnType<typeof renderDeclaredStages>;
+  readonly directoryPanels: Readonly<Record<string, string>>;
+  readonly selection: ResolvedShellStageSelection;
+  readonly projectOptions: readonly ShellProject[];
+  readonly desktopShell: boolean;
+  readonly title: string;
+}
+
+function renderShellMainBody<TView extends WorkbenchShellPageView>(input: ShellMainBodyInput<TView>): string {
+  const { view, owners, primitives, enabledPlugins, directory, places, declared, directoryPanels, selection, projectOptions, desktopShell, title } = input;
+  const { readText, escapeHtml, icon, renderIconSprite, renderDesktopProjectChrome, renderProjectCorner } = owners;
+  const { page, parts, offered, initialDesktopDirectory, directoryEmpty } = selection;
+  const appearance = owners.appearance?.current();
   const settingsDirectory = `${renderSettingsDirectorySection(primitives, enabledPlugins, desktopShell)}${view.project ? renderProjectSettingsDirectorySection(primitives) : ""}`;
   const settingsSurfaces = `${renderSettingsWorkSurface(primitives, `${view.route_prefix || ""}/?settings=appearance`,
     appearance && owners.appearance ? { current: appearance, choices: owners.appearance.choices() } : undefined)}${view.project ? renderProjectSettingsWorkSurface({ ...primitives, projectDeletionLabels: owners.projectDeletionLabels }, view.project, desktopShell) : ""}`;
   const defer = deferredSurfaces(enabledPlugins, view, directory);
   const projectTitlebarChrome = renderDesktopProjectChrome(view.project ?? null, projectOptions, desktopShell, view.project ? "__PROJECT_SETTINGS__" : null, { switcherClass: "desktop-project-switcher", manageHref: "__PROJECT_INDEX__", directoryToggle: true, globalSearch: true });
-  const directoryEmpty = initialDesktopDirectory === "root";
   const sideTabs = projectSideTabs(enabledPlugins, view.route_prefix, directory);
-  const collection = parts?.body_attributes?.["data-board-view"];
-  const widthPreference = directoryWidthPreferenceScript(view.project?.project_id ?? "", collection === "archive" || collection === "trash" ? collection : "current", view.pane_plugin !== undefined);
-
-  const html = renderWorkbenchDocument({
-    preamble_html: `<!--
-THESIS: 在连续工作区内阅读、记录和执行，内容贴齐标签页，避免浮窗套浮窗。
-OWN-WORLD: 用户指定的 Linear × coss 方向；石墨中性色、细分隔线、平面选中、44px 标签栏。
-STORY: 点左边插件在右边开分组标签；点 item 开一张；可拆栏并排看。
-FIRST VIEWPORT: 左侧目录，右侧固定标签栏和全宽内容；Goal 返回在左上，编辑操作在固定底栏。临时配置贴右边缘。
-FORM: 用户指定 continuous-workspace-v11；保留画布节点、分屏及真实 Plugin 数据与 Runtime 契约。控件短反馈，面板轻淡入，无缩放弹起。
-FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
--->\n`,
-    lang: htmlLang(),
-    title,
-    head_before_title_html: controlTokenMeta(controlToken) + projectedPageText(view, owners.catalogTextPacks),
-    head_html: `<script>${THEME_BOOTSTRAP_SCRIPT};${homeToolKeysScript()};${widthPreference}</script>
-  <link rel="stylesheet" href="__WORKBENCH_CSS__">${pluginShellStyleLinks(enabledPlugins)}${appearanceHead(appearance)}`,
-    body_attributes: {
-      class: "immersive-workbench",
-      ...Object.fromEntries(Object.entries(parts?.body_attributes ?? {}).filter(([name]) => /^data-[a-z0-9-]+$/.test(name))),
-      "data-route-prefix": view.route_prefix,
-      "data-project-id": view.project?.project_id || "",
-      "data-project-title": view.project?.display_name || null,
-      "data-project-plugin-revision": view.project_plugin_revision ?? null,
-      "data-desktop-shell": "true",
-      "data-desktop-surface": initialDesktopSurface,
-      "data-native-desktop": desktopShell ? "true" : null,
-    },
-    body_html: `
+  const bootstrap = parts?.bootstrap;
+  return `
   ${renderIconSprite()}
   ${renderPluginDirectoryData([...directory, ...hostSurfaceDirectory().filter(surface => !directory.some(entry => entry.id === surface.id))], offered.map(entry => entry.id), places)}
   ${renderPluginTabTitlesData(pluginTabTitles(directory))}
@@ -241,15 +249,16 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
         enabled: enabledPlugins,
         rail: renderPluginRail(primitives, enabledPlugins, directory),
         corner: renderProjectCorner(view.project ?? null, projectOptions, desktopShell, "__PROJECT_INDEX__"),
-        projectChrome: renderWorkspaceChrome(primitives, projectTitlebarChrome.replace("<!-- project-menu-extra -->", renderPersonalMenuItems(primitives, !!appearance))), hostSurfaces: true,
+        projectChrome: renderWorkspaceChrome(primitives, projectTitlebarChrome.replace("<!-- project-menu-extra -->", renderPersonalMenuItems(primitives, !!appearance))),
+        hostSurfaces: true,
       })}
       ${renderWorkbenchBar(primitives, { sideTabs })}
-      <aside class="mw-sidebar mw-sidebar--directory mw-drawer mw-drawer--left tree-pane" id="goal-tree-pane" data-desktop-directory="${initialDesktopDirectory}" data-directory-pane data-slot="sidebar" aria-label="${uiText("workbench.shell-page-renderer.app-directory")}">
+      <aside class="mw-sidebar mw-sidebar--directory mw-drawer mw-drawer--left tree-pane" id="shell-directory-pane" data-desktop-directory="${initialDesktopDirectory}" data-directory-pane data-slot="sidebar" aria-label="${uiText("workbench.shell-page-renderer.app-directory")}">
         <div class="mw-scroll directory-content-scroll">
         ${renderDirectoryPluginSections(primitives, enabledPlugins, directoryPanels, directory, initialDesktopDirectory, settingsDirectory)}
         </div>
       </aside>
-      <div class="tree-resizer" data-tree-resizer role="separator" tabindex="0" aria-orientation="vertical" aria-label="${uiText("workbench.shell-page-renderer.resize-directory")}" aria-controls="goal-tree-pane" aria-valuemin="200" aria-valuemax="520" aria-valuenow="240" title="${uiText("workbench.shell-page-renderer.drag-resize-directory-double-click-reset")}"></div>
+      <div class="tree-resizer" data-tree-resizer role="separator" tabindex="0" aria-orientation="vertical" aria-label="${uiText("workbench.shell-page-renderer.resize-directory")}" aria-controls="shell-directory-pane" aria-valuemin="200" aria-valuemax="520" aria-valuenow="240" title="${uiText("workbench.shell-page-renderer.drag-resize-directory-double-click-reset")}"></div>
       <button class="immersive-sidebar-scrim" data-directory-dismiss tabindex="-1" aria-label="${uiText("workbench.shell-page-renderer.collapse-directory")}" hidden></button>
       <div class="mw-frame immersive-plugin-stage" data-plugin-stage data-slot="frame">
         <div class="tab-workspace mw-frame__panel" data-tab-workspace>
@@ -277,10 +286,85 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
   <div class="mw-toast toast" data-toast data-settings-toast role="status" aria-live="polite"></div>${renderProjectReferenceDialog(readText)}${renderAppearanceRecovery(readText, appearance)}
   ${bootstrap ? `<script id="${escapeHtml(bootstrap.id)}" type="application/json">${JSON.stringify(bootstrap.value).replaceAll("<", "\\u003c")}</script>` : ""}
   <script src="/assets/molis-work-mainline.js"></script><script src="/assets/molis-work-workbench.js"></script>${knowledgeClientTag()}
-  ${parts?.terminal_client ? '<script src="/desktop/pty-client.js"></script>' : ""}`,
-  });
-  return prefixLocalLinks(html, view.route_prefix, desktopShell);
+  ${parts?.terminal_client ? '<script src="/desktop/pty-client.js"></script>' : ""}`;
 }
+
+const SHELL_DOCUMENT_PREAMBLE = `<!--
+THESIS: 在连续工作区内阅读、记录和执行，内容贴齐标签页，避免浮窗套浮窗。
+OWN-WORLD: 用户指定的 Linear × coss 方向；石墨中性色、细分隔线、平面选中、44px 标签栏。
+STORY: 点左边插件在右边开分组标签；点 item 开一张；可拆栏并排看。
+FIRST VIEWPORT: 左侧目录，右侧固定标签栏和全宽内容；项目返回在左上，编辑操作在固定底栏。临时配置贴右边缘。
+FORM: 用户指定 continuous-workspace-v11；保留画布节点、分屏及真实 Plugin 数据与 Runtime 契约。控件短反馈，面板轻淡入，无缩放弹起。
+FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance
+-->\n`;
+
+/** The shell's whole page: Workbench owns placement while plugin owners retain their own UI and facts. */
+export function createWorkbenchShellPageRenderer<TView extends WorkbenchShellPageView>(
+  owners: WorkbenchShellPageOwners<TView>,
+) {
+  const { readText, escapeHtml, icon, htmlLang, controlTokenMeta, themeBootstrapScript, prefixLocalLinks, renderWorkbenchDocument, stageModel } = owners;
+  const primitives = { readText, escapeHtml, icon, htmlLang };
+
+  function renderMolisWorkWeb(view: TView, controlToken = "", desktopShell = false): string {
+    const enabledPlugins = shownPagePlugins(view);
+    const declared = renderDeclaredStages({
+      enabled: enabledPlugins,
+      hostSurfaces: true,
+      rendered: view.plugin_stage_surfaces ?? [],
+      unavailable: (view.unavailable_plugin_stages ?? []).map(stage => stage.surface),
+      page_owner: view.page_owner,
+      model: pluginId => stageModel(pluginId, view),
+    });
+    // What the Runtimes run in this project, as their Manifests declare it; a page drawn with no Runtime reads the built-in catalog.
+    const directory = pluginDirectoryFor(view.plugin_directory);
+    const places = sidePlaces(directory);
+    // A running Plugin's own panel wins over the built-in one; initial geometry and the rendered sections use this same set.
+    const directoryPanels = { ...declared.panels, ...(view.plugin_panels ?? {}) };
+    const selection = resolveShellStageSelection(view, enabledPlugins, directory, declared, directoryPanels, places);
+    const title = selection.parts?.title ?? "Molis Work";
+    const projectOptions = view.projects.length ? view.projects : view.project ? [view.project] : [];
+    const appearance = owners.appearance?.current();
+    const collection = selection.parts?.body_attributes?.["data-board-view"];
+    const widthPreference = directoryWidthPreferenceScript(
+      view.project?.project_id ?? "",
+      collection === "archive" || collection === "trash" ? collection : "current",
+      view.pane_plugin !== undefined,
+    );
+    const html = renderWorkbenchDocument({
+      preamble_html: SHELL_DOCUMENT_PREAMBLE,
+      lang: htmlLang(),
+      title,
+      head_before_title_html: controlTokenMeta(controlToken) + projectedPageText(view, owners.catalogTextPacks),
+      head_html: `<script>${themeBootstrapScript};${homeToolKeysScript()};${widthPreference}</script>
+  <link rel="stylesheet" href="__WORKBENCH_CSS__">${pluginShellStyleLinks(enabledPlugins)}${appearanceHead(appearance)}`,
+      body_attributes: {
+        class: "immersive-workbench",
+        ...Object.fromEntries(Object.entries(selection.parts?.body_attributes ?? {}).filter(([name]) => /^data-[a-z0-9-]+$/.test(name))),
+        "data-route-prefix": view.route_prefix,
+        "data-project-id": view.project?.project_id || "",
+        "data-project-title": view.project?.display_name || null,
+        "data-project-plugin-revision": view.project_plugin_revision ?? null,
+        "data-desktop-shell": "true",
+        "data-desktop-surface": selection.initialDesktopSurface,
+        "data-native-desktop": desktopShell ? "true" : null,
+      },
+      body_html: renderShellMainBody({
+        view,
+        owners,
+        primitives,
+        enabledPlugins,
+        directory,
+        places,
+        declared,
+        directoryPanels,
+        selection,
+        projectOptions,
+        desktopShell,
+        title,
+      }),
+    });
+    return prefixLocalLinks(html, view.route_prefix, desktopShell);
+  }
   return { renderMolisWorkWeb };
 }
 

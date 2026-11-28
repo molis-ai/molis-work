@@ -17,7 +17,7 @@ export interface ContextScope {
 export interface ObjectRef {
   /**
    * Whose object it is. `assistant` is an Assistant work; `plugins` is an object a Plugin owns, named by
-   * `object_type` (the subject kind its context reader declares, e.g. `pages_document`) within `project_id`, and by `plugin_id`
+   * `object_type` (the subject kind its context reader declares, e.g. `note_document`) within `project_id`, and by `plugin_id`
    * when the relation says whose (a relation a plugin's sync collection carries names it: `relation-edges`).
    * `agent-host` is something an agent run holds, not Molis: `agent_input` (one input of a run session, id
    * `<session>/<input_id>`) or `runtime_session`. Molis keeps only the reference and does not check that it exists

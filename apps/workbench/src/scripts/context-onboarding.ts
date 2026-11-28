@@ -14,9 +14,9 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   const firstRun = document.body.dataset.onboardingMode === 'first_run';
   const directories = ['downloads','documents','desktop','custom'];
   const contextFileSkip = ${contextFileSkip.toString()}, contextSkipRuleName = ${contextSkipRuleName.toString()}, codeRootFile = ${codeRootFile.toString()}, objectLinkAt = ${objectLinkAt.toString()};
-  const kinds = [...(native?directories:['directory']),'files','browser','gmail','chat','sessions'];
-  const names = {downloads:"workbench.context-onboarding.downloads",documents:"workbench.context-onboarding.documents",desktop:"workbench.context-onboarding.desktop",custom:"workbench.context-onboarding.another-folder",files:"workbench.context-onboarding.pick-files",directory:"workbench.context-onboarding.folder-materials",sessions:"workbench.context-onboarding.sessions",browser:"workbench.context-onboarding.browser-content",gmail:"workbench.context-onboarding.gmail",chat:"workbench.context-onboarding.chat-history"};
-  const sourceIcons = {downloads:'folder',documents:'folder',desktop:'folder',custom:'folder',files:'file',directory:'folder',browser:'globe',gmail:'mail',chat:'message',sessions:'history'};
+  const kinds = [...(native?directories:['directory']),'files','browser','mail','chat','sessions'];
+  const names = {downloads:"workbench.context-onboarding.downloads",documents:"workbench.context-onboarding.documents",desktop:"workbench.context-onboarding.desktop",custom:"workbench.context-onboarding.another-folder",files:"workbench.context-onboarding.pick-files",directory:"workbench.context-onboarding.folder-materials",sessions:"workbench.context-onboarding.sessions",browser:"workbench.context-onboarding.browser-content",mail:"workbench.context-onboarding.work-email",chat:"workbench.context-onboarding.chat-history"};
+  const sourceIcons = {downloads:'folder',documents:'folder',desktop:'folder',custom:'folder',files:'file',directory:'folder',browser:'globe',mail:'mail',chat:'message',sessions:'history'};
   const grants = {}, uploads = new Map();
   let preparing = '', readingLocal = '', uploading = null, counting = null, reviewFiles = false, folded = new Set();
   const invoke = (command,args) => globalThis.__TAURI__.core.invoke(command,args);
@@ -35,12 +35,18 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   const keepFailure = err => err && typeof err==='object' && 'callId' in err ? err : String(err?.message||err);
   const endpoint = suffix => contextPath+'/'+journey.id+(suffix?'/'+suffix:'');
   const source = kind => journey.sources.find(s => s.kind === kind);
-  const connected = () => (config.connections || []).filter(c => c.state === 'connected');
+  const mailboxes = () => Array.isArray(config.mailboxes) && config.mailboxes.length ? config.mailboxes : (config.mailbox ? [{ ...config.mailbox, configured: Boolean(config.mailbox.configured), connections: config.connections || [] }] : []);
+  const mailProvider = s => { const list = mailboxes(); return (s?.service_id && list.find(m => m.service_id === s.service_id)) || list[0] || null; };
+  const mailConnections = s => (mailProvider(s)?.connections || []).filter(c => c.state === 'connected');
+  const mailConfigured = s => Boolean(mailProvider(s)?.configured);
+  const mailTitle = s => mailProvider(s)?.title || readText("workbench.context-onboarding.work-email");
+  const mailAccountTitle = s => mailProvider(s)?.account_title || mailTitle(s);
+  const mailUnavailable = () => { const s = source('mail'); return !mailConfigured(s) && !mailConnections(s).length && !mailboxes().some(m => m.configured || (m.connections || []).some(c => c.state === 'connected')); };
 ${CONTEXT_ONBOARDING_SESSIONS_PART}
   const stagedReady = s => included(s).length > 0 && included(s).every(f => Boolean(s.staged_digests?.[f.path]));
-  const ready = s => s.references?.length || s.held_secrets?.length ? true : directory(s) ? native && grants[s.kind]?.state==='ready' : s.kind==='sessions' ? Boolean(existing() && sessionsState?.allowed && sessionsState.readable > 0) : s.kind==='gmail' ? Boolean(s.connection_id && connected().some(c=>c.connection_id===s.connection_id)) : s.kind==='browser' ? Boolean(s.text?.trim()) : Boolean(s.files?.length||uploads.has(s.kind)||stagedReady(s));
+  const ready = s => s.references?.length || s.held_secrets?.length ? true : directory(s) ? native && grants[s.kind]?.state==='ready' : s.kind==='sessions' ? Boolean(existing() && sessionsState?.allowed && sessionsState.readable > 0) : s.kind==='mail' ? Boolean(s.connection_id && mailConnections(s).some(c=>c.connection_id===s.connection_id)) : s.kind==='browser' ? Boolean(s.text?.trim()) : Boolean(s.files?.length||uploads.has(s.kind)||stagedReady(s));
   const readable = () => picked().filter(ready);
-  const sourceStatus = s => s.references?.length ? "workbench.context-onboarding.staged" : directory(s) ? (grants[s.kind]?.state==='ready'?"workbench.context-onboarding.authorized":grants[s.kind]?.state==='unavailable'?"workbench.context-onboarding.reauthorization-required":"workbench.context-onboarding.awaiting-authorization") : ready(s)?"workbench.context-onboarding.added":s.kind==='gmail'?(config.gmail_configured?"workbench.context-onboarding.awaiting-connection":"workbench.context-onboarding.unavailable-now"):"workbench.context-onboarding.awaiting-material";
+  const sourceStatus = s => s.references?.length ? "workbench.context-onboarding.staged" : directory(s) ? (grants[s.kind]?.state==='ready'?"workbench.context-onboarding.authorized":grants[s.kind]?.state==='unavailable'?"workbench.context-onboarding.reauthorization-required":"workbench.context-onboarding.awaiting-authorization") : ready(s)?"workbench.context-onboarding.added":s.kind==='mail'?(mailConfigured(s)?"workbench.context-onboarding.awaiting-connection":"workbench.context-onboarding.unavailable-now"):"workbench.context-onboarding.awaiting-material";
   const startLabel = () => busy ? (counting && !counting.saving ? (counting.nativeDir ? globalThis.t.text("workbench.context-onboarding.counting-folder-progress", {done:counting.done, kept:counting.kept, size:size(counting.bytes)}) : globalThis.t.text("workbench.context-onboarding.counting-done-total", counting)) : preparing?readText("workbench.context-onboarding.preparing"):uploading?globalThis.t.text("workbench.context-onboarding.uploading-k-n", uploading):readingLocal?readText("workbench.context-onboarding.reading-now"):readText("workbench.context-onboarding.saving")) : readText("workbench.context-onboarding.confirm-scope");
   /* ───────── Markup: the design system's parts, drawn in the browser (same classes as primitives/*.ts) ───────── */
   const recParts = globalThis.molisRecoveryParts;
@@ -99,18 +105,18 @@ ${CONTEXT_ONBOARDING_WELCOME_PART}
     {id:'files', kinds:['files'], icon:'file', name:readText("workbench.context-onboarding.pick-files"), caption:readText("workbench.context-onboarding.file-types")},
     {id:'browser', kinds:['browser'], icon:'globe', name:readText("workbench.context-onboarding.browser-content"), caption:readText("workbench.context-onboarding.browser-source-hint")},
     {id:'chat', kinds:['chat'], icon:'message', name:readText("workbench.context-onboarding.chat-history"), caption:readText("workbench.context-onboarding.chat-source-hint")},
-    {id:'gmail', kinds:['gmail'], icon:'mail', name:'Gmail', caption:''},
+    {id:'mail', kinds:['mail'], icon:'mail', name:mailTitle(source('mail')), caption:''},
     {id:'sessions', kinds:['sessions'], icon:'history', name:readText("workbench.context-onboarding.sessions"), caption:readText(existing() ? "workbench.context-onboarding.sessions-hint" : "workbench.context-onboarding.sessions-hint-new")},
   ];
   const sourcesOf = row => row.kinds.map(kind => source(kind)).filter(Boolean);
-  const countOf = s => ((s.references?.length || 0) + (s.held_secrets?.length || 0)) || (s.kind === 'sessions' ? (existing() ? sessionsState?.readable || 0 : 0) : s.kind === 'browser' ? (s.text?.trim() ? 1 : 0) : s.kind === 'gmail' ? (ready(s) ? 1 : 0) : (included(s).length || s.files?.length || 0));
+  const countOf = s => ((s.references?.length || 0) + (s.held_secrets?.length || 0)) || (s.kind === 'sessions' ? (existing() ? sessionsState?.readable || 0 : 0) : s.kind === 'browser' ? (s.text?.trim() ? 1 : 0) : s.kind === 'mail' ? (ready(s) ? 1 : 0) : (included(s).length || s.files?.length || 0));
   const rowCount = row => sourcesOf(row).filter(s => s.selected && ready(s)).reduce((sum, s) => sum + countOf(s), 0);
-  function gmailCaption() {
-    const s = source('gmail');
-    if (!ready(s) && connected().length) return globalThis.t.text("workbench.context-onboarding.choose-connected-google-account");
-    if (!ready(s) && !config.gmail_configured) return globalThis.t.text("workbench.context-onboarding.google-access-not-set-up-molis-yet-use");
-    const c = connected().find(c => c.connection_id === s.connection_id);
-    return (c ? c.account_label || c.display_name : globalThis.t.text("workbench.context-onboarding.work-email")) + ' · ' + globalThis.t.text("workbench.context-onboarding.last-n-n-up-20-emails-no-attachments", {n:s.days || 30});
+  function mailCaption(s = source('mail')) {
+    const conns = mailConnections(s), provider = mailAccountTitle(s);
+    if (!ready(s) && conns.length) return globalThis.t.text("workbench.context-onboarding.choose-existing-account");
+    if (!ready(s) && !mailConfigured(s)) return globalThis.t.text("workbench.context-onboarding.mail-provider-not-set-up", { provider });
+    const c = conns.find(c => c.connection_id === s.connection_id);
+    return (c ? c.account_label || c.display_name : mailTitle(s)) + ' · ' + globalThis.t.text("workbench.context-onboarding.last-n-n-up-20-emails-no-attachments", {n:s.days || 30});
   }
   // A row that only chooses files opens the system chooser itself: the inputs stay in the page, out of sight.
   const picker = kind => '<input id="cx-upload-' + kind + '" class="mw-sr-only" type="file" multiple tabindex="-1" aria-hidden="true"' + (kind === 'directory' ? ' webkitdirectory directory' : '') + ' data-upload="' + kind + '">';
@@ -138,11 +144,15 @@ ${CONTEXT_ONBOARDING_WELCOME_PART}
         + '<div class="ob-cfg-block"><p class="ob-label">' + globalThis.t.text("workbench.context-onboarding.time-range") + '</p>' + toggles(globalThis.t.text("workbench.context-onboarding.time-range"), RANGES.map(d => ({label:rangeLabel(d), current:days === d, attrs:{'data-range-pick':String(d)}}))) + '</div>';
     }
     if (row.id === 'browser') { const s = source('browser'); return '<div class="ob-cfg-block"><label class="ob-label" for="cx-browser-text">' + globalThis.t.text("workbench.context-onboarding.page-text") + '</label><textarea class="mw-textarea" id="cx-browser-text" rows="4" maxlength="100000" data-kind="browser" data-field="text" placeholder="' + esc(globalThis.t.text("workbench.context-onboarding.copy-content-need-page-paste-here")) + '">' + esc(s.text || '') + '</textarea></div><div class="ob-cfg-block"><label class="ob-label" for="cx-url">' + globalThis.t.text("workbench.context-onboarding.page-address-optional") + '</label><input type="url" class="mw-input" id="cx-url" data-kind="browser" data-field="url" placeholder="https://" value="' + esc(s.url || '') + '"></div>' + note(globalThis.t.text("workbench.context-onboarding.only-pasted-text-used-other-tabs-history-never"), 'shield'); }
-    if (row.id === 'gmail') {
-      const s = source('gmail');
-      const account = '<div class="ob-cfg-block"><label class="ob-label" for="cx-account">' + globalThis.t.text("workbench.context-onboarding.use-account") + '</label><select class="mw-select" data-slot="select" id="cx-account" data-field="connection_id" data-kind="gmail"><option value="">' + globalThis.t.text(connected().length ? "workbench.context-onboarding.choose-existing-account" : "workbench.context-onboarding.connect-google-account") + '</option>' + connected().map(c => '<option value="' + esc(c.connection_id) + '" ' + (c.connection_id === s.connection_id ? 'selected' : '') + '>' + esc(c.account_label || c.display_name) + '</option>').join('') + '</select></div>';
-      const days = '<div class="ob-cfg-block"><label class="ob-label" for="cx-days">' + globalThis.t.text("workbench.context-onboarding.time-range-2") + '</label><select class="mw-select" data-slot="select" id="cx-days" data-field="days" data-kind="gmail"><option value="7" ' + (s.days === 7 ? 'selected' : '') + '>' + globalThis.t.text("workbench.context-onboarding.last-7-days") + '</option><option value="30" ' + (s.days !== 7 ? 'selected' : '') + '>' + globalThis.t.text("workbench.context-onboarding.last-30-days") + '</option></select></div>';
-      return account + days + note(globalThis.t.text("workbench.context-onboarding.reads-up-20-email-bodies-never-reads-attachments"), 'shield') + (!config.gmail_configured ? note(globalThis.t.text("workbench.context-onboarding.google-access-isn-t-set-up-molis-yet"), 'circle-alert', 'warning') : '<div class="ob-cfg-actions">' + btn({variant:'secondary', icon:'mail', label:globalThis.t.text(connected().length ? "workbench.context-onboarding.connect-another-google-account" : "workbench.context-onboarding.connect-google"), attrs:{'data-action':'connect'}}) + '</div>');
+    if (row.id === 'mail') {
+      const s = source('mail'), list = mailboxes(), conns = mailConnections(s), provider = mailAccountTitle(s);
+      const activeService = mailProvider(s)?.service_id || '';
+      const serviceSelect = list.length > 1
+        ? '<div class="ob-cfg-block"><label class="ob-label" for="cx-mail-service">' + globalThis.t.text("workbench.context-onboarding.work-email") + '</label><select class="mw-select" data-slot="select" id="cx-mail-service" data-field="service_id" data-kind="mail">' + list.map(m => '<option value="' + esc(m.service_id) + '" ' + (m.service_id === activeService ? 'selected' : '') + '>' + esc(m.title) + '</option>').join('') + '</select></div>'
+        : '';
+      const account = '<div class="ob-cfg-block"><label class="ob-label" for="cx-account">' + globalThis.t.text("workbench.context-onboarding.use-account") + '</label><select class="mw-select" data-slot="select" id="cx-account" data-field="connection_id" data-kind="mail"><option value="">' + (conns.length ? globalThis.t.text("workbench.context-onboarding.choose-existing-account") : globalThis.t.text("workbench.context-onboarding.connect-mail-provider", { provider })) + '</option>' + conns.map(c => '<option value="' + esc(c.connection_id) + '" ' + (c.connection_id === s.connection_id ? 'selected' : '') + '>' + esc(c.account_label || c.display_name) + '</option>').join('') + '</select></div>';
+      const days = '<div class="ob-cfg-block"><label class="ob-label" for="cx-days">' + globalThis.t.text("workbench.context-onboarding.time-range-2") + '</label><select class="mw-select" data-slot="select" id="cx-days" data-field="days" data-kind="mail"><option value="7" ' + (s.days === 7 ? 'selected' : '') + '>' + globalThis.t.text("workbench.context-onboarding.last-7-days") + '</option><option value="30" ' + (s.days !== 7 ? 'selected' : '') + '>' + globalThis.t.text("workbench.context-onboarding.last-30-days") + '</option></select></div>';
+      return serviceSelect + account + days + note(globalThis.t.text("workbench.context-onboarding.reads-up-20-email-bodies-never-reads-attachments"), 'shield') + (!mailConfigured(s) ? note(globalThis.t.text("workbench.context-onboarding.mail-provider-not-set-up", { provider }), 'circle-alert', 'warning') : '<div class="ob-cfg-actions">' + btn({variant:'secondary', icon:'mail', label:globalThis.t.text(conns.length ? "workbench.context-onboarding.connect-another-mail-provider" : "workbench.context-onboarding.connect-mail-provider", { provider }), attrs:{'data-action':'connect'}}) + '</div>');
     }
     return '';
   }
@@ -151,28 +161,28 @@ ${CONTEXT_ONBOARDING_WELCOME_PART}
     if (row.id === 'sessions' && sessionsLater()) return readText("workbench.context-onboarding.sessions-later");
     const n = rowCount(row);
     if (n) return globalThis.t.text("workbench.context-onboarding.added-n", {n});
-    if (row.id === 'gmail' && !config.gmail_configured && !connected().length) return globalThis.t.text("workbench.context-onboarding.unavailable-now");
+    if (row.id === 'mail' && mailUnavailable()) return globalThis.t.text("workbench.context-onboarding.unavailable-now");
     return row.id === 'folder' && native && directories.some(kind => source(kind)?.selected && grants[kind]?.state === 'unavailable') ? globalThis.t.text("workbench.context-onboarding.reauthorization-required") : globalThis.t.text("workbench.context-onboarding.add");
   }
   // What pressing the row does, drawn as the button it acts as (the row is the one control): 添加, or the green count once added.
   function rowAct(row) {
-    const n = rowCount(row) || (row.id === 'sessions' && sessionsLater() ? 1 : 0), quiet = row.id === 'gmail' && !config.gmail_configured && !connected().length;
+    const n = rowCount(row) || (row.id === 'sessions' && sessionsLater() ? 1 : 0), quiet = row.id === 'mail' && mailUnavailable();
     return '<span class="ob-source__act' + (n ? ' is-added' : quiet ? ' is-quiet' : ' mw-btn mw-btn--secondary mw-btn--sm') + '">' + (quiet ? '' : glyph(n ? 'check' : 'plus')) + '<span>' + esc(rowWord(row)) + '</span></span>';
   }
   function sourceList() {
     return '<div class="ob-sources" role="list" aria-label="' + globalThis.t.text("workbench.context-onboarding.choose-material-sources") + '">' + sourceRows().map(row => {
-      const unavailable = row.id === 'gmail' && !config.gmail_configured && !connected().length;
+      const unavailable = row.id === 'mail' && mailUnavailable();
       const open = expanded === row.id && !pickerOf(row.id), has = rowCount(row) > 0, own = !pickerOf(row.id) && !unavailable;
-      const caption = row.id === 'gmail' ? gmailCaption() : row.caption;
+      const caption = row.id === 'mail' ? mailCaption() : row.caption;
       return '<div class="ob-source' + (open ? ' is-open' : '') + (has ? ' has-items' : '') + '" role="listitem" data-src="' + row.id + '">' + dirRow({title:row.name, caption:caption, icon:row.icon, end:rowAct(row), selected:open, cls:unavailable ? 'is-unavailable' : '', attrs:{'data-open':row.id, disabled:unavailable, 'aria-expanded':own ? String(open) : null, 'aria-controls':own ? 'cfgp-' + row.id : null}}) + (open ? '<div class="ob-source__cfg" id="cfgp-' + row.id + '">' + rowConfig(row) + '</div>' : '') + '</div>';
     }).join('') + '</div>' + (native ? '' : picker('directory')) + picker('files') + picker('chat');
   }
   const fileCount = s => included(s).length || s.files?.length || 0;
   function groupFor(s) {
-    const kind = s.kind, add = {attrs:{'data-group':kind}, remove:{label:readText("workbench.context-onboarding.remove-source", { name: readText(names[kind]) }), attrs:{'data-remove':kind}}};
-    if (!s.metadata && s.references?.length) return fileGroup({...add, icon:sourceIcons[kind], title:globalThis.t.text(names[kind]), caption:globalThis.t.text("workbench.context-onboarding.n-n-stored-snapshot-will-be-reused", {n:s.references.length}), rows:[]});
+    const kind = s.kind, label = kind === 'mail' ? mailTitle(s) : readText(names[kind]), add = {attrs:{'data-group':kind}, remove:{label:readText("workbench.context-onboarding.remove-source", { name: label }), attrs:{'data-remove':kind}}};
+    if (!s.metadata && s.references?.length) return fileGroup({...add, icon:sourceIcons[kind], title:label, caption:globalThis.t.text("workbench.context-onboarding.n-n-stored-snapshot-will-be-reused", {n:s.references.length}), rows:[]});
     if (kind === 'sessions') return fileGroup({...add, icon:'history', title:readText(names.sessions), caption:sessionsWhy(), rows:[]});
-    if (kind === 'gmail') return fileGroup({...add, icon:'mail', title:'Gmail', caption:gmailCaption(), rows:[fileRow({name:globalThis.t.text("workbench.context-onboarding.emails-last-n-n", {n:s.days || 30}) + '.eml', size:'≤ 20', chip:kindChip('x.eml')})]});
+    if (kind === 'mail') return fileGroup({...add, icon:'mail', title:mailTitle(s), caption:mailCaption(s), rows:[fileRow({name:globalThis.t.text("workbench.context-onboarding.emails-last-n-n", {n:s.days || 30}) + '.eml', size:'≤ 20', chip:kindChip('x.eml')})]});
     if (kind === 'browser') { const bytes = new TextEncoder().encode(s.text || '').length; return fileGroup({...add, icon:'globe', title:globalThis.t.text("workbench.context-onboarding.page-text"), caption:(s.url || globalThis.t.text("workbench.context-onboarding.pasted-text")), rows:[fileRow({name:globalThis.t.text("workbench.context-onboarding.page-text-n-n", {n:globalThis.format.number((s.text || '').length)}) + '.txt', size:size(bytes)})]}); }
     const files = (s.metadata?.files || (s.files || []).map(f => ({path:f.path, size:0}))), listed = included(s).length ? included(s) : files;
     const shown = listed.slice(0, 8), more = listed.length - shown.length;
@@ -201,7 +211,7 @@ ${CONTEXT_ONBOARDING_RECOVERY_PART}
       : (partialRestoredKinds.size > 0 || picked().some(s => s.metadata?.truncated && !s.references?.length)) ? note(readText("workbench.context-onboarding.partial-scan-saved-note"), 'info') : '';
     const left = (existing() ? question(readText("workbench.context-onboarding.continue-from-tools"), globalThis.t.text("workbench.context-onboarding.continue-from-tools-sub", {project:journey.project_title || ''})) : question(globalThis.t.text("workbench.context-onboarding.bring-existing-materials"), globalThis.t.text("workbench.context-onboarding.files-pages-chats-become-new-project-s-background"))) + resumeNotice()
       + (journey.summary ? note(readText("workbench.context-onboarding.materials-already-read-kept-starting-again-replaces-current"), 'info') : '')
-      + (journey.oauth_status === 'pending' ? '<div class="ob-notice" role="status"><span data-mw-state="reauth" aria-hidden="true"></span>' + '<span>' + globalThis.t.text("workbench.context-onboarding.finish-google-authorization-browser-continues-afterwards") + '</span>' + btn({variant:'secondary', size:'sm', label:globalThis.t.text("workbench.context-onboarding.skip-gmail-continue"), attrs:{'data-action':'skip-auth'}}) + '</div>' : '')
+      + (journey.oauth_status === 'pending' ? '<div class="ob-notice" role="status"><span data-mw-state="reauth" aria-hidden="true"></span>' + '<span>' + globalThis.t.text("workbench.context-onboarding.finish-mail-authorization-browser", { provider: mailAccountTitle(source('mail')) }) + '</span>' + btn({variant:'secondary', size:'sm', label:globalThis.t.text("workbench.context-onboarding.skip-mail-continue", { provider: mailTitle(source('mail')) }), attrs:{'data-action':'skip-auth'}}) + '</div>' : '')
       + errorLine(error) + sourceList() + '<div class="ob-notes">' + countUi + note(globalThis.t.text("workbench.context-onboarding.adding-records-only-names-sizes-text-read-when"), 'shield') + note(globalThis.t.text("workbench.context-onboarding.no-limit-how-many-how-large-large-folder"), 'info') + '</div>';
     return {kind:'onboard', view:'sources', step:'sources', left, right:materialsPane(), rightCls:any.length ? '' : 'is-empty',
       bar:{start:exitButton() + stepsBar('sources'), center:'<a class="mw-btn mw-btn--ghost" href="' + sceneHref + '">' + esc(readText("workbench.scene.title")) + '</a>', end:(existing() ? '' : secondary("workbench.context-onboarding.skip",'blank')) + primaryText(startLabel(), 'prepare', {disabled:!picked().length || busy})}};
@@ -221,14 +231,16 @@ ${CONTEXT_ONBOARDING_RECOVERY_PART}
   // No count or size limit (user 2026-10-22); past this much, the page says the files are read in a queue it may leave.
   const QUEUED = {count: 50, bytes: 50000000};
   function missingBlock(s) {
-    const fix = directory(s) ? btn({variant:'secondary', size:'sm', label:globalThis.t.text("workbench.context-onboarding.choose-authorize"), attrs:{'data-authorize':s.kind}}) : s.kind === 'sessions' ? (sessionsState && !sessionsState.error && !sessionsState.allowed ? permitButton() : '') : s.kind === 'gmail' ? btn({variant:'secondary', size:'sm', label:globalThis.t.text(connected().length ? "workbench.context-onboarding.choose-existing-account" : "workbench.context-onboarding.connect-google"), attrs:{'data-action':connected().length ? 'choose-account' : 'connect'}}) : btn({variant:'secondary', size:'sm', label:globalThis.t.text("workbench.context-onboarding.add-content"), attrs:{'data-add':s.kind}});
-    return '<section class="mw-file-group"><div class="mw-file-group__head"><span class="mw-file-group__ic">' + glyph(sourceIcons[s.kind]) + '</span><span class="mw-file-group__text"><strong>' + globalThis.t.text(names[s.kind]) + '</strong><small>' + esc(s.error || (s.kind === 'sessions' ? sessionsWhy() : '') || globalThis.t.text(directory(s) ? "workbench.context-onboarding.authorization-isn-t-finished-can-choose-directory-again" : s.kind === 'gmail' ? "workbench.context-onboarding.once-account-connected-mail-chosen-period-read-when" : "workbench.context-onboarding.add-some-content-first-after-refresh-files-chosen")) + '</small></span>' + fix + btn({variant:'ghost', size:'sm', label:globalThis.t.text("workbench.context-onboarding.skip-time"), attrs:{'data-skip':s.kind}}) + '</div></section>';
+    const conns = s.kind === 'mail' ? mailConnections(s) : [];
+    const label = s.kind === 'mail' ? mailTitle(s) : globalThis.t.text(names[s.kind]);
+    const fix = directory(s) ? btn({variant:'secondary', size:'sm', label:globalThis.t.text("workbench.context-onboarding.choose-authorize"), attrs:{'data-authorize':s.kind}}) : s.kind === 'sessions' ? (sessionsState && !sessionsState.error && !sessionsState.allowed ? permitButton() : '') : s.kind === 'mail' ? btn({variant:'secondary', size:'sm', label:conns.length ? globalThis.t.text("workbench.context-onboarding.choose-existing-account") : globalThis.t.text("workbench.context-onboarding.connect-mail-provider", { provider: mailAccountTitle(s) }), attrs:{'data-action':conns.length ? 'choose-account' : 'connect'}}) : btn({variant:'secondary', size:'sm', label:globalThis.t.text("workbench.context-onboarding.add-content"), attrs:{'data-add':s.kind}});
+    return '<section class="mw-file-group"><div class="mw-file-group__head"><span class="mw-file-group__ic">' + glyph(sourceIcons[s.kind]) + '</span><span class="mw-file-group__text"><strong>' + esc(label) + '</strong><small>' + esc(s.error || (s.kind === 'sessions' ? sessionsWhy() : '') || globalThis.t.text(directory(s) ? "workbench.context-onboarding.authorization-isn-t-finished-can-choose-directory-again" : s.kind === 'mail' ? "workbench.context-onboarding.once-account-connected-mail-chosen-period-read-when" : "workbench.context-onboarding.add-some-content-first-after-refresh-files-chosen")) + '</small></span>' + fix + btn({variant:'ghost', size:'sm', label:globalThis.t.text("workbench.context-onboarding.skip-time"), attrs:{'data-skip':s.kind}}) + '</div></section>';
   }
   function scopeGroup(s) {
     if (!previewReady(s)) return missingBlock(s);
-    const add = {attrs:{'data-group':s.kind}};
-    if (!s.metadata && (s.references?.length || s.held_secrets?.length)) return fileGroup({...add, icon:sourceIcons[s.kind], title:globalThis.t.text(names[s.kind]), caption:globalThis.t.text("workbench.context-onboarding.stored-text-reused-changing-range-reads-again"), rows:[]});
-    if (!s.metadata) return fileGroup({...add, icon:sourceIcons[s.kind], title:globalThis.t.text(names[s.kind]), caption:s.kind === 'gmail' ? gmailCaption() : s.kind === 'sessions' ? sessionsWhy() : globalThis.t.text("workbench.context-onboarding.added-content-processed-once-start"), rows:[]});
+    const add = {attrs:{'data-group':s.kind}}, label = s.kind === 'mail' ? mailTitle(s) : globalThis.t.text(names[s.kind]);
+    if (!s.metadata && (s.references?.length || s.held_secrets?.length)) return fileGroup({...add, icon:sourceIcons[s.kind], title:label, caption:globalThis.t.text("workbench.context-onboarding.stored-text-reused-changing-range-reads-again"), rows:[]});
+    if (!s.metadata) return fileGroup({...add, icon:sourceIcons[s.kind], title:label, caption:s.kind === 'mail' ? mailCaption(s) : s.kind === 'sessions' ? sessionsWhy() : globalThis.t.text("workbench.context-onboarding.added-content-processed-once-start"), rows:[]});
     const items = s.metadata.files, selected = included(s), folders = [...new Set(items.filter(f=>f.path.includes('/')).map(f=>f.path.slice(0,f.path.indexOf('/'))))];
     const limit = scopeVisible[s.kind] || 200, shownItems = items.slice(0, limit);
     const rows = folders.map(folder => fileRow({name:folder + '/', chip:'<span class="mw-file-kind" data-slot="file-kind">' + glyph('folder') + '</span>', size:globalThis.t.text("workbench.context-onboarding.include-subfolders"), check:{checked:!(s.excluded||[]).includes(folder), attrs:{id:'cx-d-' + s.kind + '-' + folders.indexOf(folder), 'data-folder':s.kind, 'data-path':folder}}}))
@@ -239,7 +251,7 @@ ${CONTEXT_ONBOARDING_RECOVERY_PART}
     const seen = s.metadata.skipped || 0, sr = s.metadata.skipped_reasons;
     const onlyFiltered = seen > 0 && (!directory(s) || (s.days ?? 30) === 0 || Boolean(sr && !sr.time && ((sr.ignored || 0) + (sr.secret || 0) + (sr.unreadable || 0) > 0)));
     const emptyKey = s.metadata.total_entries === 0 || (!seen && (!directory(s) || (s.days ?? 30) === 0)) ? "workbench.context-onboarding.folder-is-empty" : onlyFiltered ? "workbench.context-onboarding.no-supported-files-filtered" : "workbench.context-onboarding.no-supported-files-time-range-widen-skip";
-    return fileGroup({...add, icon:sourceIcons[s.kind], title:directory(s) ? globalThis.t.text("workbench.context-onboarding.folder") + ' · ' + globalThis.t.text(names[s.kind]) : globalThis.t.text(names[s.kind]), caption:s.kind === 'gmail' ? gmailCaption() : (grants[s.kind]?.path || s.path || ''), count:items.length ? selected.length + '/' + items.length : (seen ? String(seen) : '0/0'),
+    return fileGroup({...add, icon:sourceIcons[s.kind], title:directory(s) ? globalThis.t.text("workbench.context-onboarding.folder") + ' · ' + globalThis.t.text(names[s.kind]) : label, caption:s.kind === 'mail' ? mailCaption(s) : (grants[s.kind]?.path || s.path || ''), count:items.length ? selected.length + '/' + items.length : (seen ? String(seen) : '0/0'),
       check:{checked:items.length ? selected.length === items.length : s.selected, mixed:items.length > 0 && selected.length > 0 && selected.length < items.length, attrs:{id:'cx-all-' + s.kind, 'data-files-all':s.kind}}, tools, rows,
       note:[s.metadata.cancelled ? globalThis.t.text("workbench.context-onboarding.partial-scan-saved-note") : s.metadata.truncated ? globalThis.t.text("workbench.context-onboarding.folder-has-too-many-entries-scan-them-all") : (!items.length ? globalThis.t.text(emptyKey) : ''), seen ? seen + ' ' + globalThis.t.text("workbench.context-onboarding.items-left-out-time-type-access") : ''].filter(Boolean).join(' ')});
   }
@@ -248,7 +260,7 @@ ${CONTEXT_ONBOARDING_RECOVERY_PART}
     const left = question(globalThis.t.text("workbench.context-onboarding.confirm-what-gets-read"), globalThis.t.text(picked().some(s => s.references?.length || s.reused_references?.length) ? "workbench.context-onboarding.stored-text-reused-newly-chosen-files-show-only" : "workbench.context-onboarding.deselect-files-don-t-need-their-text-read")) + errorLine(error) + scopeDeltaCard() + lateNotice()
       + (uploading ? note(globalThis.t.text("workbench.context-onboarding.uploading-files-stay-page-until-upload-finishes-after"), 'clock') + meter(uploading.done, uploading.total, globalThis.t.text("workbench.context-onboarding.upload-progress"), globalThis.t.text("workbench.context-onboarding.done-total-uploaded", {done:amount(uploading.done), total:amount(uploading.total)})) : queued ? note(globalThis.t.text("workbench.context-onboarding.that-s-lot-material-once-start-files-read"), 'clock') : '')
       + note(globalThis.t.text(config.ai_available ? "workbench.context-onboarding.after-start-selected-text-read-sent-chosen-model" : "workbench.context-onboarding.after-start-selected-text-read-stored-computer-original"), 'shield')
-      + (picked().some(s => s.kind === 'gmail') ? note(globalThis.t.text("workbench.context-onboarding.value-20-most-recent-emails-chosen-time-read"), 'mail') : '')
+      + (picked().some(s => s.kind === 'mail') ? note(globalThis.t.text("workbench.context-onboarding.value-20-most-recent-emails-chosen-time-read"), 'mail') : '')
       + draftsChoice() + collapsible(globalThis.t.text("workbench.context-onboarding.how-reading-works"), '<p>' + globalThis.t.text("workbench.context-onboarding.no-limit-how-many-files-how-big-each") + '</p>');
     const listed = journey.sources.filter(s => s.selected || (directory(s) && s.metadata));
     const right = stageHead(globalThis.t.text("workbench.context-onboarding.confirm-one-one"), globalThis.t.text("workbench.context-onboarding.n-selected-size", {n:total.count, size:size(total.bytes)})) + listed.map(scopeGroup).join('') + staleSummaryCard();
@@ -451,7 +463,7 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     problem: () => error ? failureText(error) : '',
     startOffer: () => {
       const total = selectionTotal(), missing = picked().some(s => !previewReady(s));
-      return { label: config.ai_available ? "workbench.context-onboarding.start-organizing" : "workbench.context-onboarding.start-with-materials", disabled: !!(busy || missing || (!total.count && !picked().some(s => s.kind === 'gmail'))) };
+      return { label: config.ai_available ? "workbench.context-onboarding.start-organizing" : "workbench.context-onboarding.start-with-materials", disabled: !!(busy || missing || (!total.count && !picked().some(s => s.kind === 'mail'))) };
     },
   };
   const refreshRight = () => render(undefined, 'right');
@@ -536,12 +548,16 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     }
   }
   async function connect(auto=false) {
-    if(!config.gmail_configured) { expanded='gmail';error=globalThis.t.text("workbench.context-onboarding.google-access-isn-t-ready-yet-use-other");render();return; }
-    source('gmail').selected=true;journey.auto_start=auto;await save();
-    const result=await api('/api/settings/connectors/methods/oauth/start',{service_id:config.mailbox.service_id,display_name:config.mailbox.title,onboarding_id:journey.id,desktop});
-    if(globalThis.molisWorkOpenExternalUrl){
-      await globalThis.molisWorkOpenExternalUrl(result.authorization_url);journey.oauth_status='pending';render();scheduleAuth(1500);
-    }else location.assign(result.authorization_url);
+    const mail = source('mail'), provider = mailProvider(mail);
+    if (!provider || !mailConfigured(mail)) { expanded='mail'; error=globalThis.t.text("workbench.context-onboarding.mail-provider-not-set-up", { provider: mailAccountTitle(mail) }); render(); return; }
+    mail.selected = true;
+    mail.service_id = provider.service_id;
+    journey.auto_start = auto;
+    await save();
+    const result = await api('/api/settings/connectors/methods/oauth/start', { service_id: provider.service_id, display_name: provider.title, onboarding_id: journey.id, desktop });
+    if (globalThis.molisWorkOpenExternalUrl) {
+      await globalThis.molisWorkOpenExternalUrl(result.authorization_url); journey.oauth_status='pending'; render(); scheduleAuth(1500);
+    } else location.assign(result.authorization_url);
   }
   async function pollAuthorization(gen = ++authGen) {
     clearTimeout(authTimer); authTimer = 0;
@@ -554,7 +570,7 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
       journey=latest;config=await readConfig();
       if (gen !== authGen || journey?.id !== id) return;
       if(latest.oauth_status==='connected'){error='';if(journey.auto_start&&journey.phase==='selecting')await prepare();else if(journey.phase==='reading'||journey.phase==='adopting')await poll();}
-      else error=journey.error||globalThis.t.text("workbench.context-onboarding.google-isn-t-connected-yet-try-again-use");
+      else error=journey.error||globalThis.t.text("workbench.context-onboarding.mail-not-connected-yet", { provider: mailAccountTitle(source('mail')) });
       render();
     }catch(e){if (gen !== authGen || journey?.id !== id) return; error=keepFailure(e);render();scheduleAuth(5000);}
   }
@@ -576,7 +592,7 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
       if(directory(s)&&native){if(grants[s.kind]?.state!=='ready')await authorize(s.kind);if(ready(s)&&!s.metadata?.cancelled)await metadata(s);}
     }
     preparing='';journey.previewed=true;reviewFiles=false;await save();
-    const gmail=source('gmail');if(gmail?.selected&&!ready(gmail)&&config.gmail_configured&&!connected().length&&journey.oauth_status!=='pending')await connect(true);
+    const mail=source('mail');if(mail?.selected&&!ready(mail)&&mailConfigured(mail)&&!mailConnections(mail).length&&journey.oauth_status!=='pending')await connect(true);
     }finally{preparing='';busy=wasBusy;render();}
   }
   async function start() {
@@ -617,7 +633,7 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     uploads.clear();pausedScan=null;
     journey=await api(contextPath,{id:crypto.randomUUID(),project_id:project||undefined});
     if(journey.existing)journey=await api(endpoint());
-    journey.sources=kinds.map(kind=>{const old=previous.find(s=>s.kind===kind);return {kind,selected:false,days:30,...(kind==='gmail'&&old?.connection_id?{connection_id:old.connection_id}:{})};});
+    journey.sources=kinds.map(kind=>{const old=previous.find(s=>s.kind===kind);return {kind,selected:false,days:30,...(kind==='mail'&&old?{...(old.service_id?{service_id:old.service_id}:{}),...(old.connection_id?{connection_id:old.connection_id}:{})}:{})};});
     const url=new URL(location.href);url.searchParams.set('journey',journey.id);url.searchParams.delete('oauth');history.replaceState(null,'',url);blank=false;error='';draftPicked=null;await save();
   }
   async function reopen() {
@@ -666,7 +682,7 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
       if(el.dataset.draftsTaker!==undefined){draftsPicked=el.dataset.draftsTaker;void save();return;}if(el.dataset.documentsTaker!==undefined){documentsPicked=el.dataset.documentsTaker;return;}if(el.dataset.take!==undefined){takePicked=el.checked?el.dataset.take:'';document.querySelectorAll('[data-take]').forEach(box=>{if(box!==el)box.checked=false;});return;}if(el.dataset.draft){if(el.checked)draftPicked.add(el.dataset.draft);else draftPicked.delete(el.dataset.draft);render();return;}
       if(el.id==='cx-project-title'||el.id==='cx-summary-editor'){preserveEdits();await saveDraft();return;}
       if(el.dataset.filesAll!==undefined){const s=source(el.dataset.filesAll);if(!s.metadata.files.length)s.selected=el.checked;else{const all=included(s).length===s.metadata.files.length;invalidateSourceForEdit(s);s.excluded=all?s.metadata.files.map(f=>f.path):[];}changed=true;}
-      else if(el.dataset.field){if(el.tagName!=='SELECT'){if(inputTimer){clearTimeout(inputTimer);inputTimer=0;await save();}return;}const s=source(el.dataset.kind);invalidateSource(s);s[el.dataset.field]=el.dataset.field==='days'?Number(el.value):el.value;if(el.dataset.field==='connection_id')s.selected=Boolean(el.value);changed=true;}
+      else if(el.dataset.field){if(el.tagName!=='SELECT'){if(inputTimer){clearTimeout(inputTimer);inputTimer=0;await save();}return;}const s=source(el.dataset.kind);invalidateSource(s);s[el.dataset.field]=el.dataset.field==='days'?Number(el.value):el.value;if(el.dataset.field==='service_id'){s.connection_id='';const conns=mailConnections(s);if(conns.length===1)s.connection_id=conns[0].connection_id;s.selected=Boolean(s.connection_id);}if(el.dataset.field==='connection_id'){s.selected=Boolean(el.value);if(s.kind==='mail'&&!s.service_id&&mailProvider(s))s.service_id=mailProvider(s).service_id;}changed=true;}
       else if(el.dataset.file||el.dataset.folder){
         const s=source(el.dataset.file||el.dataset.folder);invalidateSourceForEdit(s);const path=el.dataset.folder?el.dataset.path:s.metadata.files[Number(el.dataset.index)].path;
         let excluded=new Set(s.excluded||[]);
@@ -752,7 +768,7 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
       render();
       return;
     }
-    if(action==='choose-account'){source('gmail').selected=true;expanded='gmail';render('cx-account');try{await save();}catch(err){error=keepFailure(err);render();}return;}
+    if(action==='choose-account'){source('mail').selected=true;expanded='mail';render('cx-account');try{await save();}catch(err){error=keepFailure(err);render();}return;}
     if(action==='edit'){preserveEdits();if(editing){try{await saveDraft();}catch(err){error=keepFailure(err);render('cx-summary-editor');return;}}editing=!editing;render(editing?'cx-summary-editor':'cx-project-title');return;}
     if(action==='blank'||action==='materials-only'){materialsOnly=action==='materials-only';blank=true;error='';render('cx-blank-name');return;}
     if(action==='back'){blank=false;materialsOnly=false;error='';render();return;}
@@ -761,7 +777,7 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     if(action==='model'||action==='model-back'||action==='model-save'){await globalThis.molisWorkOnboardingModel?.act(action);return;}
     if(action==='take-continue'){location.assign(projectLocation());return;}
     busy=true;error='';b.disabled=true;
-    try{if(action==='new-journey')await restart();else if(action==='resume'){await save();const url=new URL(location.href);url.searchParams.set('journey',config.resume.id);url.searchParams.delete('oauth');location.assign(url);}else if(action==='skip-auth'){authGen+=1;clearTimeout(authTimer);authTimer=0;source('gmail').selected=false;journey.auto_start=false;journey.oauth_status=undefined;await save();if(picked().length)await prepare();}else if(action==='sources'){journey.previewed=false;await save();}else if(action==='prepare')await prepare();else if(action==='connect')await connect(journey.previewed===true);else if(action==='start'||action==='retry')await start();else if(action==='restart')await reopen();else if(action==='adopt')await adopt();}
+    try{if(action==='new-journey')await restart();else if(action==='resume'){await save();const url=new URL(location.href);url.searchParams.set('journey',config.resume.id);url.searchParams.delete('oauth');location.assign(url);}else if(action==='skip-auth'){authGen+=1;clearTimeout(authTimer);authTimer=0;source('mail').selected=false;journey.auto_start=false;journey.oauth_status=undefined;await save();if(picked().length)await prepare();}else if(action==='sources'){journey.previewed=false;await save();}else if(action==='prepare')await prepare();else if(action==='connect')await connect(journey.previewed===true);else if(action==='start'||action==='retry')await start();else if(action==='restart')await reopen();else if(action==='adopt')await adopt();}
     catch(err){error=keepFailure(err);}finally{busy=false;b.disabled=false;render();}
   });
   dialog.addEventListener('click',e=>{if(e.target.closest('[data-close]'))dialog.close();});dialog.addEventListener('close',()=>opener?.focus());
@@ -804,10 +820,10 @@ ${CONTEXT_ONBOARDING_BLANK_NAME_PART}
     if(id)journey=await api(contextPath+'/'+encodeURIComponent(id)+projectQuery);else await restart();
     if(journey.phase==='selecting'){journey.sources=kinds.map(kind=>journey.sources.find(s=>s.kind===kind)||({kind,selected:false,days:30}));await restoreUploadFiles();}
     await refreshSessions();if(journey.phase==='selecting'&&journey.existing&&params.get('sessions')==='1'){expanded='sessions';await useSessions();}
-    if(journey.phase==='selecting'){const gmail=source('gmail');if(gmail&&!gmail.connection_id&&connected().length===1)gmail.connection_id=connected()[0].connection_id;}
+    if(journey.phase==='selecting'){const mail=source('mail');if(mail){const provider=mailProvider(mail);if(!mail.service_id&&provider)mail.service_id=provider.service_id;const conns=mailConnections(mail);if(!mail.connection_id&&conns.length===1)mail.connection_id=conns[0].connection_id;}}
     if(params.get('start')==='blank'||params.get('name')){blank=true;blankName=(params.get('name')||'').trim();}
-    const oauth=params.get('oauth');if(oauth==='failed'||oauth==='cancelled'||journey.oauth_status==='failed'){error=journey.error||globalThis.t.text("workbench.context-onboarding.google-isn-t-connected-yet-reconnect-untick-gmail");expanded='gmail';}
-    render();if(desktop&&oauth&&!globalThis.molisWorkOpenExternalUrl){frame.dataset.screen='onboard';app.innerHTML='<div class="stage-single"><div class="stage-sheet"><div class="ob-error-page">'+empty({icon:oauth==='connected'?'check':'circle-alert',title:globalThis.t.text(oauth==='connected'?"workbench.context-onboarding.google-connected":"workbench.context-onboarding.google-not-connected"),body:globalThis.t.text("workbench.context-onboarding.return-molis-work-import-picks-up-where-was")})+'</div></div></div>';return;}if(journey.oauth_status==='pending'&&globalThis.molisWorkOpenExternalUrl)scheduleAuth(1000);if(journey.phase==='complete'){if(takeHeld()){render();}else location.assign(projectLocation());}else if(!journey.requires_reselection&&(journey.phase==='reading'||journey.phase==='adopting'))await poll();else if(oauth==='connected'&&journey.auto_start)await prepare();
+    const oauth=params.get('oauth');if(oauth==='failed'||oauth==='cancelled'||journey.oauth_status==='failed'){error=journey.error||globalThis.t.text("workbench.context-onboarding.mail-not-connected-yet", { provider: mailAccountTitle(source('mail')) });expanded='mail';}
+    render();if(desktop&&oauth&&!globalThis.molisWorkOpenExternalUrl){frame.dataset.screen='onboard';app.innerHTML='<div class="stage-single"><div class="stage-sheet"><div class="ob-error-page">'+empty({icon:oauth==='connected'?'check':'circle-alert',title:oauth==='connected'?globalThis.t.text("common.presentation.state.connected"):globalThis.t.text("workbench.context-onboarding.mail-not-connected-yet", { provider: mailAccountTitle(source('mail')) }),body:globalThis.t.text("workbench.context-onboarding.return-molis-work-import-picks-up-where-was")})+'</div></div></div>';return;}if(journey.oauth_status==='pending'&&globalThis.molisWorkOpenExternalUrl)scheduleAuth(1000);if(journey.phase==='complete'){if(takeHeld()){render();}else location.assign(projectLocation());}else if(!journey.requires_reselection&&(journey.phase==='reading'||journey.phase==='adopting'))await poll();else if(oauth==='connected'&&journey.auto_start)await prepare();
   }catch(e){loadError=e;error=keepFailure(e);render();}})();
 })();
 `;

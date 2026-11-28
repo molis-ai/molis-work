@@ -13,7 +13,7 @@ import { CONNECTION_NEED_AREA_STYLES } from "./styles/connection-need-area.js";
 type Say = (text: string, values?: Record<string, string | number>) => string;
 type View = Omit<ConnectionNeedView, "read"> & { read: NonNullable<ConnectionNeedView["read"]> };
 
-const SLOT = { kind: "slot", slot_id: "github", record_key: "feed-source-1" } as const;
+const SLOT = { kind: "slot", slot_id: "github", record_key: "specimen-source-1" } as const;
 const IMAGE = { kind: "image", slot_id: "openai", base_url: "https://api.openai.com/v1" } as const;
 const ACCOUNTS = [
   { connection_id: "specimen-a", account_label: "yijunw0212", display_name: "GitHub" },
@@ -36,25 +36,27 @@ function figure(_L: Say, caption: string, body: string): string {
 
 /** The section the board places after 平台区域. */
 export function renderConnectionNeedSection(readText: Say): string {
-  const feed = "Feed", images = uiText.text("workbench.connection-need-specimens.images"), github = { service_title: "GitHub", reason: readText("workbench.catalog-board.wb.cn-feed-reason"), connection: null };
+  const samplePlugin = uiText.text("workbench.connection-need-specimens.sample-plugin");
+  const images = uiText.text("workbench.connection-need-specimens.images");
+  const github = { service_title: "GitHub", reason: readText("workbench.catalog-board.wb.cn-source-reason"), connection: null };
   const signedIn = { ...github, connection: { label: "yijunw0212" } };
   const imageModel = { service_title: readText("workbench.catalog-board.wb.cn-image-model"), origin: "https://api.openai.com", connection: null };
   const stages: Array<[string, string, View]> = [
-    [uiText.text("workbench.connection-need-specimens.no-account-yet-sign-browser"), feed, view("ask", github)],
-    [uiText.text("workbench.connection-need-specimens.accounts-exist-which-one-uses"), feed, view("choose", github, { accounts: ACCOUNTS })],
-    [uiText.text("workbench.connection-need-specimens.waiting-browser-sign"), feed, view("running", github, { auth: { url: "https://github.com/login/oauth/authorize" } })],
+    [uiText.text("workbench.connection-need-specimens.no-account-yet-sign-browser"), samplePlugin, view("ask", github)],
+    [uiText.text("workbench.connection-need-specimens.accounts-exist-which-one-uses"), samplePlugin, view("choose", github, { accounts: ACCOUNTS })],
+    [uiText.text("workbench.connection-need-specimens.waiting-browser-sign"), samplePlugin, view("running", github, { auth: { url: "https://github.com/login/oauth/authorize" } })],
     [uiText.text("workbench.connection-need-specimens.service-key-saved-only-after-check"), "Linear", view("key", { service_title: "Linear", connection: null })],
     [uiText.text("workbench.connection-need-specimens.image-service-key-sent-one-address-only"), images, view("paste", imageModel, { target: IMAGE })],
     [uiText.text("workbench.connection-need-specimens.key-refused-another-can-be-used"), images, view("refused", { ...imageModel, connection: { label: "OpenAI" } }, { target: IMAGE, accounts: ACCOUNTS.slice(0, 1), danger: true, note: uiText.text("workbench.connection-need-specimens.not-connected-nothing-changed-here-can-try-again") })],
-    [uiText.text("workbench.connection-need-specimens.sign-expired"), feed, view("expired", signedIn, { accounts: ACCOUNTS.slice(1) })],
-    [uiText.text("workbench.connection-need-specimens.account-turned-off"), feed, view("disabled", signedIn, { accounts: ACCOUNTS.slice(1) })],
-    [uiText.text("workbench.connection-need-specimens.signed-another-account"), feed, view("other", signedIn, { other: { label: "molis-bot" } })],
+    [uiText.text("workbench.connection-need-specimens.sign-expired"), samplePlugin, view("expired", signedIn, { accounts: ACCOUNTS.slice(1) })],
+    [uiText.text("workbench.connection-need-specimens.account-turned-off"), samplePlugin, view("disabled", signedIn, { accounts: ACCOUNTS.slice(1) })],
+    [uiText.text("workbench.connection-need-specimens.signed-another-account"), samplePlugin, view("other", signedIn, { other: { label: "molis-bot" } })],
     [uiText.text("workbench.connection-need-specimens.not-one-click-yet"), "Salesforce", view("unsupported", { service_title: "Salesforce", connection: null })],
   ];
   const lines = [
-    card(readText, feed, view("line", github, { answered: true, line: uiText.text("workbench.connection-need-specimens.name-connected-account", { name: "GitHub", account: "yijunw0212" }) }), 560),
-    card(readText, feed, view("line", github, { answered: true, line: uiText.text("workbench.connection-need-specimens.not-connected-nothing-changed-here") }), 560),
-    card(readText, feed, view("line", github, { line: uiText.text("workbench.connection-need-specimens.not-connected") }), 375),
+    card(readText, samplePlugin, view("line", github, { answered: true, line: uiText.text("workbench.connection-need-specimens.name-connected-account", { name: "GitHub", account: "yijunw0212" }) }), 560),
+    card(readText, samplePlugin, view("line", github, { answered: true, line: uiText.text("workbench.connection-need-specimens.not-connected-nothing-changed-here") }), 560),
+    card(readText, samplePlugin, view("line", github, { line: uiText.text("workbench.connection-need-specimens.not-connected") }), 375),
   ].join("");
   const assistant = `<div class="mw-platform-area connection-need-area assistant-connection-need" data-connection-need-specimen="assistant" data-stage="ask" style="width:400px">${connectionNeedHtml(readText, uiText.text("workbench.connection-need-specimens.assistant"), view("ask", { service_title: "GitHub", connection: null }, {}, null))}</div>`;
   return `<section class="mw-catalog__section" id="connection-need" data-primitive="connection-need"><h2>${escapeHtml(uiText.text("workbench.connection-need-specimens.connection-card-place-platform-area"))}</h2>

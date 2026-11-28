@@ -20,7 +20,7 @@ test("Project navigation preserves the fixed Goal workspace, terminal instance, 
   assert.equal(await evaluate("document.querySelector('[data-work-surface=home]').hidden"), false);
   assert.equal(await evaluate("document.querySelector('[data-goal-canvas-shell]').hidden"), true);
   assert.deepEqual(await evaluate("window.__uiErrors"), []);
-  assert.equal(await evaluate("document.querySelector('#goal-tree-pane').dataset.desktopDirectory"), "root");
+  assert.equal(await evaluate("document.querySelector('#shell-directory-pane').dataset.desktopDirectory"), "root");
   const homeRail = await evaluate<Record<string, string>>(`(() => {
     const out = {};
     for (const node of document.querySelectorAll('.plugin-rail-items [data-plugin-id], [data-global-menu] [data-plugin-id]')) {
@@ -63,11 +63,11 @@ test("Project navigation preserves the fixed Goal workspace, terminal instance, 
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('[data-goal-node-workspace]')?.dataset.expandedGoal === " + JSON.stringify(goalId) + " && document.querySelector('[data-goal-node-workspace]')?.hidden === false");
   assert.equal(await evaluate("document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')"), true);
-  assert.equal(await evaluate("document.querySelector('#goal-tree-pane').dataset.desktopDirectory"), "root");
+  assert.equal(await evaluate("document.querySelector('#shell-directory-pane').dataset.desktopDirectory"), "root");
   assert.equal(await evaluate("document.querySelector('[data-tui-pane]').hidden"), false);
   assert.equal(await evaluate("window.__terminalInstance===document.querySelector('[data-tui-terminal]')"), true);
   assert.equal(await evaluate("document.querySelector('[data-plugin-heading]').hidden"), false);
-  assert.equal(await evaluate("document.querySelector('#goal-tree-pane').dataset.desktopDirectory"), "root");
+  assert.equal(await evaluate("document.querySelector('#shell-directory-pane').dataset.desktopDirectory"), "root");
   assert.equal(await evaluate("document.querySelector('[data-goal-node-workspace]').hidden"), false);
   await click('[data-goal-collapse]');
   assert.equal(await evaluate("document.querySelector('[data-graph-stage]').getAttribute('style')"), camera);
@@ -171,10 +171,10 @@ test("Bundled market adds to the selected project and Artifact versions stay in 
   await waitFor("document.body.dataset.desktopSurface === 'feed'");
   await feed.waitFor("document.querySelector('[data-feed-stage-directory]') && document.querySelector('[data-feed-list]')");
   assert.equal(await feed.evaluate("document.querySelector('[data-feed-views]')"), null);
-  assert.equal(await evaluate("document.querySelector('#goal-tree-pane')?.dataset.desktopDirectory"), "root");
+  assert.equal(await evaluate("document.querySelector('#shell-directory-pane')?.dataset.desktopDirectory"), "root");
   assert.ok(await feed.evaluate("Boolean(document.querySelector('[data-feed-add-toggle]'))"));
-  assert.equal(await evaluate("document.querySelector('#goal-tree-pane [data-feed-task=all]')"), null);
-  assert.equal(await evaluate("document.querySelector('#goal-tree-pane [data-feed-list]')"), null);
+  assert.equal(await evaluate("document.querySelector('#shell-directory-pane [data-feed-task=all]')"), null);
+  assert.equal(await evaluate("document.querySelector('#shell-directory-pane [data-feed-list]')"), null);
 });
 
 test("Project entry lands at home, while refresh preserves work and Goal links remain direct", { timeout: 60_000 }, async (t) => {

@@ -18,8 +18,10 @@ export { goalAction } from "./goal-action-definition.js";
 type GoalListActionInput = Omit<GoalEventDirectoryQuery, "project_id">;
 export interface GoalReadActionInput { goal_id: string }
 type BusinessInput<Input> = Omit<Input, "project_id" | "actor_id" | "actor_kind">;
-const goalInput = object({ goal_id: identifier });
-const base = { goal_id: identifier, idempotency_key: identifier }, required = Object.keys(base);
+const goalIdField = { ...identifier, title: "目标" };
+const goalInput = object({ goal_id: goalIdField });
+const base = { goal_id: goalIdField, idempotency_key: identifier };
+const required = Object.keys(base);
 
 
 /** Goals' complete shared contracts consumed by Coding and installed plugin clients. The action gateway checks who calls and what it holds; Goals keeps no list of plugins. */
@@ -38,7 +40,7 @@ export const goalPluginActions = {
       source: artifactSource, expected_goal_cursor: count }, [...required, "based_on_cursor", "summary"]),
     goalProgressResultSchema, true), "progress.record"),
   receipt: withContinuityRole(goalAction<GoalReadActionInput & { idempotency_key: string }, GoalEventProgressResult | null>("goals.progress.receipt", /* @version action.goals.progress.receipt */ 1, "读取进展保存回执", "按当前调用者和原幂等键读取此目标已保存的进展回执；未保存时返回 null，不新建记录", "query",
-    object({ goal_id: identifier, idempotency_key: identifier }), nullable(goalProgressResultSchema), true), "progress.receipt"),
+    object({ goal_id: goalIdField, idempotency_key: identifier }), nullable(goalProgressResultSchema), true), "progress.receipt"),
 } as const;
 
 function withContinuityRole<I, O>(definition: ActionDefinition<I, O>, role: WorkProgressContinuityRole): ActionDefinition<I, O> {

@@ -38,8 +38,8 @@
 //                       CONFLICTING_BOARD_ID) but not inside another word (dashboard_id, dashboardId, DASHBOARD_ID,
 //                       KEYBOARD_IDS). Also retired PG-097 platform names (`MOLIS_JELLY_`, `resolveFeedSecurityDirectory`),
 //                       CPK-08 deleted capability-pack symbols and `/skill-selection.(m)ts`, and WMD-13 retired Files plugin
-//                       references (`io.molis.work.files` outside the S-75 reservation in `apps/local-host/src/host-plugin-ids.ts`,
-//                       and any tracked file under `plugins/native/files/`). Beyond TypeScript sources, controlled non-TS
+//                       references (`io.molis.work.files` anywhere in platform sources, and any tracked file under
+//                       `plugins/native/files/`). Beyond TypeScript sources, controlled non-TS
 //                       files (`.rs`, `.swift`, `.sh`, `.yml`/`.yaml` except `pnpm-lock.yaml`, and `Makefile`, outside
 //                       top-level `docs/`/`specs/` and any nested `tests?/`/`dist/`/`node_modules/`) are also scanned for
 //                       `goalboard` and PG-097 retired names. `goal-board` (the kanban view's `.goal-board-switch` class and
@@ -70,9 +70,8 @@ const OLD_PLATFORM_NAME = /MOLIS_JELLY_|resolveFeedSecurityDirectory/g;
 // CPK-08: deleted capability-pack symbols from specs/capability-pack/spec.md §8.
 const CPK_08_DELETED = /\b(?:molis-coding-method|AgentSkillLibrary|UNREGISTERED_MODEL_CALLS|AgentRoleSkillsDeclaration|AgentSkillsCapability|agent\.skills\.(?:discover|install))\b/g;
 const CPK_08_DELETED_FILE = /\/skill-selection\.m?ts$/;
-// WMD-13: retired Files plugin identity (S-75 intentionally reserves it only in apps/local-host/src/host-plugin-ids.ts).
+// WMD-13: retired Files plugin identity (clean v1: `io.molis.work.files` is also removed from host-plugin-ids.ts).
 const WMD_13_DELETED_ID = /\bio\.molis\.work\.files\b/g;
-const WMD_13_RESERVED_ID_FILES = new Set(["apps/local-host/src/host-plugin-ids.ts"]);
 // POLISH-33: a timing curve written out with its numbers.
 const CURVE_LITERAL = /cubic-bezier\(\s*[-+.\d]/gi;
 const NON_TS_OLD_NAME_FILE = /^(?!docs\/|specs\/)(?!.*(?:^|\/)(?:tests?|dist|node_modules)\/)(?:.+\.(?:rs|swift|sh|ya?ml)|(?:.+\/)?Makefile)$/;
@@ -211,7 +210,7 @@ export const countFile = (file, text, { inSource = false } = {}) => {
     + (text.match(OLD_ID_NAME) ?? []).length
     + (text.match(OLD_PLATFORM_NAME) ?? []).length
     + (text.match(CPK_08_DELETED) ?? []).length
-    + (WMD_13_RESERVED_ID_FILES.has(file) ? 0 : (text.match(WMD_13_DELETED_ID) ?? []).length)
+    + (text.match(WMD_13_DELETED_ID) ?? []).length
     + (CPK_08_DELETED_FILE.test(file) ? 1 : 0)
     + (file.startsWith("plugins/native/files/") ? 1 : 0);
   // Parse only the files whose text can hold one of the shapes.
@@ -275,8 +274,10 @@ const measureSnapshot = (snapshot, { isSource }) => {
 // G1 (specs/plugin-specials-demotion/spec.md §5.1, 44B): the platform names no plugin. In the platform's sources (apps, packages,
 // horizontal, modules, server; the two generated plugin registries are not counted) each of these counts one: a plugin id as
 // `io.molis.work.<id>`, a plugin package `@molis-ai/molis-work-plugin-<id>`, a short id as a whole quoted string, a quoted string that
-// starts with the short id and `.` or `:` (a type `coding.report.v1`, an action `goals.create`, a permission `feed:read`, a prefix test
-// `startsWith("goals.")`; user 2026-11-24, 44B review P-08), a `.<id>-…` class and a `data-<id>-…` attribute; a file named after a plugin
+// starts with the short id and `.`, `:` or `_` (a type `coding.report.v1`, an action `goals.create`, a permission `feed:read`,
+// a subject kind `pages_document`, a prefix test `startsWith("goals.")`; user 2026-11-24, 44B review P-08, tightened in PR #2),
+// targeted legacy compound tokens (`"goal_id"`, `"goal_ids"`, `"feed_item"`, `"inbox_entry"`, `UNTRUSTED_FEED_ITEM_DATA`),
+// a `.<id>-…` class and a `data-<id>-…` attribute; a file named after a plugin
 // (`<id>-….ts`, `<id>.ts`) counts one more. An official integration counts
 // by its package `@molis-ai/molis-work-integration-<id>` and `io.molis.work.<id>` (its short ids, such as `catalog`, are platform words
 // too). The ids are read from the plugin directories of the same snapshot (plugins/native, plugins/content and
@@ -305,7 +306,8 @@ export const countPlatformPluginNames = (file, text, { plugins, integrations }) 
       new RegExp(`@molis-ai/molis-work-plugin-(?:${alternatives})(?![a-z0-9-])`, "g"),
       ...(integrations.length ? [new RegExp(`@molis-ai/molis-work-integration-(?:${either(integrations)})(?![a-z0-9-])`, "g")] : []),
       new RegExp(`(["'\`])(?:${alternatives})\\1`, "g"),
-      new RegExp(`(["'\`])(?:${alternatives})[.:](?:[a-z]|\\1)`, "g"),
+      new RegExp(`(["'\`])(?:(?:${alternatives})[.:_](?:[a-z]|\\1)|(?:goal_ids?|feed_item|inbox_entry)\\1)`, "g"),
+      /\bUNTRUSTED_FEED_ITEM_DATA\b/g,
       new RegExp(`(?<![\\w.-])\\.(?:${alternatives})-[a-z]`, "g"),
       new RegExp(`\\bdata-(?:${alternatives})-[a-z]`, "g"),
     ];

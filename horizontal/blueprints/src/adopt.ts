@@ -4,6 +4,7 @@ import { blueprintsErrors, type BlueprintAdoptionApplyInput, type BlueprintAdopt
   type BlueprintAdoptionUndoInput, type BlueprintAdoptionUndoResult, type BlueprintApplyStep, type BlueprintOwnerReceipt,
   type UndoResult, type UndoStep } from "@molis-ai/molis-work-contracts/services/blueprints";
 import { canonicalJsonText } from "@molis-ai/molis-work-plugin-sdk";
+import { tryUiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { AdoptionStore, DiscoveredSetting, SettingPlan, StepRecord } from "./store.js";
 import { readOwnerValues, sameBinding, type SettingsAccess } from "./preview.js";
 
@@ -25,7 +26,11 @@ async function beforeWrite(caller: Guard): Promise<void> {
 }
 
 function identity({ row, preview }: RecordView): Omit<BlueprintAdoptionApplyResult, "steps"> {
-  if (!row.adoption_id) throw blueprintsErrors.step_conflict("此预览还没有采用");
+  if (!row.adoption_id) {
+    throw blueprintsErrors.step_conflict("此预览还没有采用", undefined, {
+      key: "workbench.blueprints.error.preview-not-adopted",
+    });
+  }
   const target = row.project_id ? { kind: "project" as const, project_id: row.project_id } : { kind: "personal" as const };
   return { adoption_id: row.adoption_id, target, locale: preview.locale, source: preview.source };
 }
@@ -49,7 +54,10 @@ function verifiedStep(part_id: string, plan: SettingPlan, current?: EffectiveSet
   return { part_id, state: "applied", outcome: "reused" };
 }
 function knownFailure(error: unknown) {
-  if (error instanceof ActionError && ["invalid", "conflict", "forbidden", "not_found"].includes(error.kind ?? "")) return { code: error.code, message: error.message };
+  if (error instanceof ActionError && ["invalid", "conflict", "forbidden", "not_found"].includes(error.kind ?? "")) {
+    const localized = error.text_key ? tryUiText(error.text_key, error.text_args) : undefined;
+    return { code: error.code, message: localized ?? error.message };
+  }
   return undefined;
 }
 
@@ -81,7 +89,11 @@ export class AdoptionExecution {
 
   private async change(scope: Guard, record: RecordView, step: StepRecord, next: BlueprintApplyStep | UndoStep, operation: "apply" | "undo", current?: PendingOwnerStatus) {
     await beforeWrite(scope);
-    if (!this.store.writeStep(record.row.preview_id, step, next, operation)) throw blueprintsErrors.step_conflict("采用进度已变化，请重新读取");
+    if (!this.store.writeStep(record.row.preview_id, step, next, operation)) {
+      throw blueprintsErrors.step_conflict("采用进度已变化，请重新读取", undefined, {
+        key: "workbench.blueprints.error.adoption-progress-changed",
+      });
+    }
     step.revision++;
     const identity = { preview_id: record.row.preview_id, project_id: record.row.project_id, adoption_id: record.row.adoption_id! };
     const progress = withOwnerStatus(next, current);
@@ -93,11 +105,19 @@ export class AdoptionExecution {
     accessFor: (project: string | null) => Promise<SettingsAccess>, ensureProject: (id: string, name: string) => Promise<void>): Promise<BlueprintAdoptionApplyResult> {
     const preview = this.store.load(caller, "preview_id", input.preview_id).preview;
     const selected = new Set(input.part_ids);
-    if (selected.size !== input.part_ids.length || input.part_ids.some(id => !preview.parts.some(part => part.part_id === id))) throw blueprintsErrors.part_unsupported("请求包含未预览的部分");
+    if (selected.size !== input.part_ids.length || input.part_ids.some(id => !preview.parts.some(part => part.part_id === id))) {
+      throw blueprintsErrors.part_unsupported("请求包含未预览的部分", undefined, {
+        key: "workbench.blueprints.error.part-not-previewed",
+      });
+    }
     await beforeWrite(caller);
     const adoptionId = this.store.start(caller, preview, input.part_ids, input.request_id, now);
     const record = this.store.load(caller, "adoption_id", adoptionId);
-    if (record.row.undo_request) throw blueprintsErrors.step_conflict("这次采用已开始撤销，请查看进度");
+    if (record.row.undo_request) {
+      throw blueprintsErrors.step_conflict("这次采用已开始撤销，请查看进度", undefined, {
+        key: "workbench.blueprints.error.undo-already-started",
+      });
+    }
     this.notify(caller.actor_id, { kind: "accepted", preview_id: input.preview_id, project_id: record.row.project_id, adoption_id: adoptionId });
     if (preview.target.kind === "new_project") {
       await beforeWrite(caller);
@@ -192,7 +212,14 @@ export class AdoptionExecution {
           assertCurrent(caller);
           const failure = knownFailure(error);
           result = failure ? { ...base, state: "failed", error: failure } : writing ? pending
-            : { ...base, state: "failed", error: { code: "blueprints.dependency_unmet", message: "暂时读不到设置，可继续重试" } };
+            : {
+              ...base,
+              state: "failed",
+              error: {
+                code: "blueprints.dependency_unmet",
+                message: tryUiText("workbench.blueprints.error.setting-temporarily-unreadable-retry") ?? "暂时读不到设置，可继续重试",
+              },
+            };
         }
       }
       await this.change(caller, record, step, result, "apply", unavailable);
@@ -238,7 +265,9 @@ export class AdoptionExecution {
     const problem = (plan: SettingPlan | null) => ownerProblem(owners, plan);
     const pending = record.steps.filter(step => step.apply.state === "pending_verification");
     if (!record.row.undo_request && pending.length && pending.some(step => step.plan && !problem(step.plan))) {
-      throw blueprintsErrors.step_conflict("有一步的结果还没确认，请先继续核对，再撤销");
+      throw blueprintsErrors.step_conflict("有一步的结果还没确认，请先继续核对，再撤销", undefined, {
+        key: "workbench.blueprints.error.pending-verification-before-undo",
+      });
     }
     this.store.startUndo(caller, input.adoption_id, op, input.request_id);
     record.row.undo_operation = op;
@@ -266,7 +295,11 @@ export class AdoptionExecution {
         try {
           current = (await access.read(plan.binding, [plan.key]))[0];
           assertCurrent(caller);
-          if (!current || current.key !== plan.key) throw new ActionError("actions.output_invalid", "设置读回缺失");
+          if (!current || current.key !== plan.key) {
+            throw new ActionError("actions.output_invalid", "设置读回缺失", {
+              text_key: "workbench.blueprints.error.setting-readback-missing",
+            });
+          }
           if (!writing && apply.state === "applied" && !sameObservedLayer(plan, apply.receipt.revision, current, plan.applied_layer_revision)) result = { part_id, state: "skipped", reason: "revision_changed" };
           else if (!writing && current.state !== "ok") result = { part_id, state: "skipped", reason: "owner_unavailable" };
           else if (current.state === "ok" && (!writing || current.revision === plan.undo_expected_revision)
@@ -280,7 +313,11 @@ export class AdoptionExecution {
             writing = true;
             const saved = await access.write(plan.binding, { key: plan.key, layer: plan.layer, change: plan.previous,
               recovery: { undo_of: undoOf }, expected_revision: plan.undo_expected_revision ?? current.revision, request_id: requestId });
-            if (saved.key !== plan.key) throw new ActionError("actions.output_invalid", "主人没有回执这项设置");
+            if (saved.key !== plan.key) {
+              throw new ActionError("actions.output_invalid", "主人没有回执这项设置", {
+                text_key: "workbench.blueprints.error.owner-receipt-missing",
+              });
+            }
             result = { part_id, state: "restored", receipt: ownerReceipt(plan, saved) };
           }
         } catch (error) {

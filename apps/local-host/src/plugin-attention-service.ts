@@ -97,7 +97,7 @@ export function pluginAttentionFor(manifest: PluginManifest, context: PluginStar
   let actor = ports.actor_id;
   const attentionModule = new AttentionModule(connection as AttentionSqliteDatabase, { exists: () => true }, { eventSink: event => {
     if (!ports.journal) throw new ActionError("actions.service_unavailable", "这个项目库没有日志");
-    ports.journal.appendEvent({ eventId: `event-${randomUUID()}`, projectId: event.project_id, actorId: actor, objectType: "inbox_entry", objectId: event.entry_id,
+    ports.journal.appendEvent({ eventId: `event-${randomUUID()}`, projectId: event.project_id, actorId: actor, objectType: "attention_entry", objectId: event.entry_id,
       type: event.type, reason: event.reason, payload: event.payload, at: event.at });
   } });
   const reading = () => { gate.read(PLUGIN_ATTENTION_READ_PERMISSION); };

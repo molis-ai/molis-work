@@ -10,7 +10,7 @@ import { workBriefUiContribution } from "./ui.js";
  * apps/workbench/src/builtin-plugins.ts; change the entry here, then regenerate.
  */
 export const registration: PluginRegistration = {
-  project_plugin_id: WORK_BRIEF_PROJECT_PLUGIN_ID, catalog_order: 28,
+  project_plugin_id: WORK_BRIEF_PROJECT_PLUGIN_ID, catalog_order: 28, demo_seed: false,
   manifest: workBriefManifest,
   project_runtime: { create: createWorkBriefPlugin, package_name: "@molis-ai/molis-work-plugin-work-brief", factory_export: "createWorkBriefPlugin" },
   workbench: {

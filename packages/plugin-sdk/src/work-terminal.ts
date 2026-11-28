@@ -71,8 +71,6 @@ export function assembleWorkTerminalPrompt(input: {
     ? redactSecrets(sourceContext)
       .replaceAll("<UNTRUSTED_SOURCE_DATA>", "[external data marker]")
       .replaceAll("</UNTRUSTED_SOURCE_DATA>", "[external data marker]")
-      .replaceAll("<UNTRUSTED_FEED_ITEM_DATA>", "[external data marker]")
-      .replaceAll("</UNTRUSTED_FEED_ITEM_DATA>", "[external data marker]")
     : undefined;
   const title = input.title.trim() || input.subject.id;
   // A title may come from an external item, so when untrusted data is bound the trusted block never carries it unless the owner explicitly kept it out.

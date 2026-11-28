@@ -49,12 +49,13 @@ const shelfButton = (page: ImagesPage, job: ImageJob, item: GeneratedImage): HTM
   keep.addEventListener("click", async () => {
     keep.disabled = true;
     try {
-      const { item: kept } = await page.request<{ item: { item_id: string; name: string } }>("POST",
+      const saved = await page.request<{ item: { item_id: string; name: string }; surface?: string; subject_kind?: string }>("POST",
         `/jobs/${encodeURIComponent(job.id)}/images/${encodeURIComponent(item.id)}/shelf`, { filename: fileNameOf(page, job, item) });
-      // The card says where the copy went; its 打开 opens it where Shelf opens (the side panel, by declaration).
-      const shelved = { kind: "shelf_item", id: kept.item_id, project_id: null };
-      window.dispatchEvent(new CustomEvent("molis:placement-result", { detail: { verb: "received", title: kept.name, object: shelved,
-        open: { surface: "shelf", id: kept.item_id, project_id: null },
+      const { item: kept, surface, subject_kind } = saved;
+      // The card says where the copy went; its 打开 opens it at the receive provider's declared surface.
+      const received = { kind: subject_kind || "received_item", id: kept.item_id, project_id: null };
+      window.dispatchEvent(new CustomEvent("molis:placement-result", { detail: { verb: "received", title: kept.name, object: received,
+        ...(surface ? { open: { surface, id: kept.item_id, project_id: null } } : {}),
         note: `${uiText.text("images.result.from-source", { source: `${uiText.text("images.page.title")} · ${firstCharacters(job.prompt, 40)}` })} · ${uiText.text("images.result.you-can-use-it-in-a-project")}` } }));
     } catch (error) { page.say(messageOf(error) || uiText.text("images.error.shelf"), true); }
     finally { page.life.timeout(() => { keep.disabled = false; }, 1200); }

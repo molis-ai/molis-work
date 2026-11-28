@@ -7,7 +7,7 @@ import { diffBoardSpecimens } from "./board-specimens.js";
  * apps/workbench/src/builtin-plugins.ts; change the entry here, then regenerate.
  */
 export const registration: PluginRegistration = {
-  project_plugin_id: DIFF_PROJECT_PLUGIN_ID, catalog_order: 25,
+  project_plugin_id: DIFF_PROJECT_PLUGIN_ID, catalog_order: 25, demo_seed: false,
   manifest: diffManifest,
   project_runtime: { create: createDiffPlugin, package_name: "@molis-ai/molis-work-plugin-diff", factory_export: "createDiffPlugin" },
   workbench: { order: 23, contributions: [diffUiContribution], clientFactory: DIFF_CLIENT_FACTORY_SCRIPT, specimens: diffBoardSpecimens },

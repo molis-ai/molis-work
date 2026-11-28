@@ -408,6 +408,8 @@ const pages: Record<string, Draw> = {
 // The remaining page markup and all 36 fragment and settings records match the base byte for byte.
 // 44C PSD-06: the 16 full shells carry the Shelf receiver's own locale entry in data-ui-page-text. Their expected bytes
 // were derived from #2357's verified markup by inserting that one JSON script after the page-session meta tag.
+// 3-day audit platformization (PLAT-24, PR #2363): `apps/workbench/src/shell-page-renderer.ts` renamed `goal-tree-pane` -> `shell-directory-pane`
+// in `id`/`aria-controls` (+12) and `Goal 返回在左上` -> `项目返回在左上` (-3), uniformly shifting all 16 `page-*` records by +9 while all 36 fragment/settings records stayed byte-identical; re-recorded with MOLIS_WORK_GOLDEN_RECORD=1 and re-verified with RECORD unset.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }
 const recorded: Record<string, Recorded> = record ? {} : JSON.parse(readFileSync(RECORDED, "utf8"));

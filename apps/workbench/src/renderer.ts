@@ -1,6 +1,6 @@
 import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderIconSprite, THEME_BOOTSTRAP_SCRIPT as BASE_THEME_BOOTSTRAP_SCRIPT, VISUAL_FOUNDATION_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
-import { createWorkbenchGoalsPageRenderer } from "./shell-page-renderer.js";
+import { createWorkbenchShellPageRenderer } from "./shell-page-renderer.js";
 import { createWorkbenchOnboardingRenderer } from "./onboarding-renderer.js";
 import {
   renderMolisWorkArrivalStylesheet as renderArrivalCss,
@@ -69,7 +69,7 @@ export function createWorkbenchRenderer(ports: WorkbenchRendererPorts) {
   });
 
   const { renderMolisWorkWeb } =
-    createWorkbenchGoalsPageRenderer<MolisWorkWebView>({
+    createWorkbenchShellPageRenderer<MolisWorkWebView>({
       catalogTextPacks: ports.catalogTextPacks,
       readText, escapeHtml, icon, htmlLang, controlTokenMeta, themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT,
       renderIconSprite, prefixLocalLinks, renderWorkbenchDocument: createWorkbenchDocumentRenderer(accountRegistration, ports.environmentName),

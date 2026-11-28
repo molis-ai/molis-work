@@ -71,7 +71,7 @@ test("The project button holds settings and the account, and opens settings in t
   await waitFor("!document.querySelector('.account-dialog')");
   assert.equal(await evaluate("document.activeElement === document.querySelector('.bar-account [data-account-link]')"), true, "the focus goes back to the avatar that opened the account menu");
   await click(".bar-account [data-plugin-id=settings]");
-  await waitFor("document.querySelector('#goal-tree-pane').dataset.desktopDirectory==='settings' && document.querySelector('#goal-tree-pane').getBoundingClientRect().width>80 && document.querySelector('[data-tab-workspace]')?.dataset.exclusive==='settings' && document.querySelector('[data-work-surface=settings] [data-theme-option=dark]')");
+  await waitFor("document.querySelector('#shell-directory-pane').dataset.desktopDirectory==='settings' && document.querySelector('#shell-directory-pane').getBoundingClientRect().width>80 && document.querySelector('[data-tab-workspace]')?.dataset.exclusive==='settings' && document.querySelector('[data-work-surface=settings] [data-theme-option=dark]')");
   assert.equal(await evaluate("location.pathname"), "/projects/"+projectId+"/");
   assert.equal(await evaluate("document.body.classList.contains('settings-page')"), false);
   assert.equal(await evaluate("document.querySelector('.bar-account [data-plugin-id=settings]').getAttribute('aria-current')"), "page");
@@ -79,10 +79,10 @@ test("The project button holds settings and the account, and opens settings in t
   await evaluate("document.querySelector('[data-work-surface=settings] [data-theme-option=dark]').click()");
   await waitFor("document.documentElement.dataset.resolvedTheme==='dark'");
   await click("[data-plugin-id=goals]");
-  await waitFor("document.querySelector('#goal-tree-pane').dataset.desktopDirectory==='root' && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty') && !document.querySelector('[data-tab-workspace]').dataset.exclusive");
+  await waitFor("document.querySelector('#shell-directory-pane').dataset.desktopDirectory==='root' && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty') && !document.querySelector('[data-tab-workspace]').dataset.exclusive");
   assert.equal(await evaluate("document.querySelector('.bar-account [data-plugin-id=settings]').hasAttribute('aria-current')"), false);
   await click("[data-top-corner-list] [data-directory-open=project-settings]");
-  await waitFor("document.querySelector('#goal-tree-pane').dataset.desktopDirectory==='project-settings' && document.querySelector('#goal-tree-pane').getBoundingClientRect().width>80 && document.querySelector('[data-tab-workspace]')?.dataset.exclusive==='project-settings' && document.querySelector('[data-work-surface=project-settings] [data-project-rename]') && !document.body.dataset.navigationPending");
+  await waitFor("document.querySelector('#shell-directory-pane').dataset.desktopDirectory==='project-settings' && document.querySelector('#shell-directory-pane').getBoundingClientRect().width>80 && document.querySelector('[data-tab-workspace]')?.dataset.exclusive==='project-settings' && document.querySelector('[data-work-surface=project-settings] [data-project-rename]') && !document.body.dataset.navigationPending");
   assert.equal(await evaluate("location.pathname"), "/projects/"+projectId+"/");
   assert.equal(await evaluate("document.body.classList.contains('settings-page')"), false);
   assert.equal(await evaluate("document.querySelector('[data-top-corner-list] [data-directory-open=project-settings]').getAttribute('aria-current')"), "page");
@@ -90,7 +90,7 @@ test("The project button holds settings and the account, and opens settings in t
   await click('[data-directory-panel=project-settings] [data-settings-section="guidance"]');
   await waitFor("!!document.querySelector('[data-work-surface=project-settings] [data-guidance-form]')");
   await click("[data-plugin-id=goals]");
-  await waitFor("document.querySelector('#goal-tree-pane').dataset.desktopDirectory==='root' && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty') && !document.querySelector('[data-tab-workspace]').dataset.exclusive");
+  await waitFor("document.querySelector('#shell-directory-pane').dataset.desktopDirectory==='root' && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty') && !document.querySelector('[data-tab-workspace]').dataset.exclusive");
   assert.equal(await evaluate("document.querySelector('.navigator-project-settings').hasAttribute('aria-current')"), false);
 });
 

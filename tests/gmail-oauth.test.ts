@@ -165,7 +165,7 @@ test("RAC-2477: an onboarding journey that starts Gmail returns to onboarding on
   const f = await served(t);
   const remote = google(t, { sub: "sub-1", email: "me@example.test" });
   const journey = (id: string) => withContextJourneys(f.home, store => {
-    const row = store.create(id); row.sources = [{ kind: "gmail", selected: true }]; row.auto_start = true; return store.save(row);
+    const row = store.create(id); row.sources = [{ kind: "mail", service_id: "gmail", selected: true }]; row.auto_start = true; return store.save(row);
   });
   const read = (id: string) => withContextJourneys(f.home, store => store.get(id));
   const begin = async (id: string, extra: Record<string, unknown> = {}) => (await (await f.post("/api/settings/connectors/methods/oauth/start",

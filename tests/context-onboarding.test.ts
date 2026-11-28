@@ -209,7 +209,7 @@ test('local scope → grounded summary → one real project and editable source 
   await new MolisWorkLocalHost({ homeDirectory: dir, completeText: null }).close();
   await mkdir(folder);await writeFile(join(folder,'brief.md'),'# Brief\nLaunch October 8');await writeFile(join(folder,'.secret.txt'),'private hidden');await symlink(join(folder,'brief.md'),join(folder,'link.md'));
   const id=randomUUID();withContextJourneys(dir,s=>s.create(id));
-  selectContextSources(dir,id,{sources:[{kind:'directory',selected:true,files:[await staged(dir,id,'brief.md','# Brief\nLaunch October 8')]},{kind:'gmail',selected:true,days:7}]});
+  selectContextSources(dir,id,{sources:[{kind:'directory',selected:true,files:[await staged(dir,id,'brief.md','# Brief\nLaunch October 8')]},{kind:'mail',service_id:'gmail',selected:true,days:7}]});
   let calls=0;
   const ports={...pagesPorts(dir),model:async()=>({runtimeLabel:'test model',completeText:async(input:ModelPromptInput)=>{const prompt=modelPromptText(input);calls++;assert.match(prompt,/Launch October 8/);assert.doesNotMatch(prompt,/private hidden/);return '# 秋季发布\n## 当前进展\n计划于 10 月 8 日发布。[S1]\n## 下一步\n建议核对发布物料。[S1]';}})};
   startContextJourney(dir,id,ports);startContextJourney(dir,id,ports);
@@ -353,7 +353,7 @@ test('Gmail reads only chosen account/time with real MIME body parsing; network 
   await runWithMolisWorkHome(dir,async()=>{
     const connection=withConnectorConnections(dir,s=>s.createToken({serviceId:'gmail',displayName:'Fixture account',token:'fixture-token',accountLabel:'fixture@example.com'}));
     const calls:string[]=[];
-    const result=await readOnboardingMail(dir,{kind:'gmail',selected:true,connection_id:connection.connection_id,days:7},async(input,init)=>{
+    const result=await readOnboardingMail(dir,{kind:'mail',service_id:'gmail',selected:true,connection_id:connection.connection_id,days:7},async(input,init)=>{
       const url=new URL(String(input));calls.push(url.href);assert.equal(url.origin,'https://gmail.googleapis.com');assert.equal((init!.headers as Record<string,string>).Authorization,'Bearer fixture-token');
       if(url.pathname.endsWith('/messages')){assert.equal(url.searchParams.get('q'),'newer_than:7d -in:spam -in:trash');assert.equal(url.searchParams.get('maxResults'),'20');return Response.json({messages:[{id:'abc123'}]});}
       assert.equal(url.searchParams.get('format'),'full');return Response.json({payload:{mimeType:'multipart/mixed',headers:[{name:'Subject',value:'Launch details'}],parts:[{mimeType:'text/plain',body:{data:Buffer.from('Real full body content').toString('base64url')}},{mimeType:'text/plain',filename:'secret.txt',body:{data:Buffer.from('Attachment excluded').toString('base64url')}}]}});
@@ -410,7 +410,7 @@ for (const mode of ["expired", "401", "401-repeated", "disconnect"] as const) {
     };
     const a = await authorize("a"), b = await authorize("b");
     if (mode === "expired") runWithMolisWorkHome(dir, () => createFileSecretStore().put(b.expires_ref!, "1"));
-    const source = { kind: "gmail" as const, selected: true, connection_id: b.connection_id, days: 7 as const };
+    const source = { kind: "mail" as const, service_id: "gmail", selected: true, connection_id: b.connection_id, days: 7 as const };
     if (mode === "disconnect") {
       const pending = readOnboardingMail(dir, source, transport);
       await entered.promise;
@@ -563,8 +563,8 @@ test('HTTP control gate, persisted selection, Google PKCE start, cancellation an
   const start=async(name:string)=>{const response=await post('/api/settings/connectors/methods/oauth/start',{service_id:'gmail',display_name:name,client_id:'fixture.apps.googleusercontent.com',client_secret:'fixture-only',onboarding_id:id});assert.equal(response.status,200);const begun=await response.json() as {authorization_url:string;connection_id:string};return {...begun,state:new URL(begun.authorization_url).searchParams.get('state')!};};
   const callback='/api/feed/connectors/gmail/oauth/callback';
   assert.equal((await fetch(origin+'/api/onboarding/context',{method:'POST',body:'{}'})).status,403);
-  await post('/api/onboarding/context',{id});await post('/api/onboarding/context/'+id+'/selection',{sources:[{kind:'gmail',selected:true,days:7}],auto_start:true});
-  const metadata=await(await fetch(origin+'/api/onboarding/context')).json();assert.equal(metadata.resume.id,id);assert.equal(metadata.resume.title,null);
+  await post('/api/onboarding/context',{id});await post('/api/onboarding/context/'+id+'/selection',{sources:[{kind:'mail',service_id:'gmail',selected:true,days:7}],auto_start:true});
+  const metadata=await(await fetch(origin+'/api/onboarding/context')).json();assert.equal(metadata.resume.id,id);assert.equal(metadata.resume.title,null);assert.ok(Array.isArray(metadata.mailboxes) && metadata.mailboxes.some((m: { service_id: string }) => m.service_id === 'gmail'));assert.equal(metadata.gmail_configured, undefined);
   const begun=await start('One');
   const consent=new URL(begun.authorization_url);assert.equal(consent.hostname,'accounts.google.com');assert.equal(consent.searchParams.get('code_challenge_method'),'S256');assert.equal(consent.searchParams.get('redirect_uri'),origin+callback);
   const cancelled=await fetch(origin+callback+'?error=access_denied&state='+begun.state,{redirect:'manual'});assert.equal(cancelled.status,302);assert.match(cancelled.headers.get('location')!,new RegExp('journey='+id+'&oauth=cancelled'));assert.equal(readContextJourney(dir,id).auto_start,false);/* A late code for a finished state is refused before any exchange; the browser returns to settings with the reason. */const late=await fetch(origin+callback+'?code=late-code&state='+begun.state,{redirect:'manual'});assert.equal(late.status,302);assert.match(late.headers.get('location')!,/connection_error=failed/);assert.equal(readContextJourney(dir,id).auto_start,false);assert.equal(readContextJourney(dir,id).oauth_status,'cancelled');
@@ -581,7 +581,7 @@ test('HTTP control gate, persisted selection, Google PKCE start, cancellation an
   const newer=await start('Five');
   await fetch(origin+callback+'?error=access_denied&state='+older.state,{redirect:'manual'});
   assert.equal(readContextJourney(dir,id).oauth_state,newer.state);assert.equal(readContextJourney(dir,id).oauth_status,'pending');
-  await post('/api/onboarding/context/'+id+'/selection',{sources:[{kind:'gmail',selected:false,days:7}],auto_start:false});
+  await post('/api/onboarding/context/'+id+'/selection',{sources:[{kind:'mail',service_id:'gmail',selected:false,days:7}],auto_start:false});
   await fetch(origin+callback+'?code=unused&state='+newer.state,{redirect:'manual'});
   assert.equal(readContextJourney(dir,id).oauth_status,'cancelled');assert.equal(readContextJourney(dir,id).sources[0]!.selected,false);
 });

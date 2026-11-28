@@ -1,4 +1,5 @@
 import { agentErrors } from "../errors.js";
+import { promptIncludesCache } from "../inference.js";
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentImageMaterial, AgentRunHandle, AgentRunRef, AgentRunView, AgentRuntimeDescriptor, AgentStartExecution, AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { STEP_TOOLS } from "../execution-plan.js";
@@ -161,7 +162,7 @@ export async function startPrologueRun(context: RunStartContext, request: AgentS
 
   if (started.instructions) frozen.instructions = structuredClone(started.instructions);
   if (started.code_intelligence) frozen.code_intelligence = structuredClone(started.code_intelligence);
-  const state = runStreamState(model.protocol.startsWith("openai"), started);
+  const state = runStreamState(promptIncludesCache(model.protocol), started);
   const ref: AgentRunRef = {
     run_id: started.run.ref.id,
     session_id: request.session.session_id,

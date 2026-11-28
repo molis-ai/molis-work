@@ -18,7 +18,7 @@ function generators(views: readonly ActionView[]): Generator[] {
   const groups = new Map<string, Partial<ImageRoles>>();
   for (const view of views) {
     const role = imageGenerationRoleOf(view.action);
-    if (!role || view.provider.kind !== 'plugin' || !view.provider.plugin_install_id) continue;
+    if (!view.availability.available || !role || view.provider.kind !== 'plugin' || !view.provider.plugin_install_id) continue;
     const key = JSON.stringify([view.provider.project_id ?? null, view.provider.plugin_install_id, view.provider.provider_id]);
     const group = groups.get(key) ?? {};
     group[role] ??= view;
@@ -39,7 +39,10 @@ export function studioImages(options: AgentStudioOptions, installed: Awaited<Ret
   const person = (permissions: readonly string[], signal?: AbortSignal): ActionCallContext => ({
     actor_id: options.actorId ?? 'web-user', project_id: actions.project_id, audience: 'user', permissions, signal,
   });
-  const catalog = async () => generators(options.actions?.inspect ? await options.actions.inspect(person([])) : []);
+  const catalog = async (signal?: AbortSignal) => {
+    signal?.throwIfAborted();
+    return generators(options.actions?.inspect ? await options.actions.inspect(person([], signal)) : []);
+  };
   const recordOf = (scope: 'project' | 'home', id: string) => scope === 'home' ? options.homeInstallation?.(id)
     : currentProjectPlatform(options.store, options.projectId)?.runtime.list().find(record => record.install_id === id)
       ?? installed.platform.runtime.list().find(record => record.install_id === id);
@@ -62,7 +65,7 @@ export function studioImages(options: AgentStudioOptions, installed: Awaited<Ret
     return result as T;
   }
   async function* choices(signal?: AbortSignal) {
-    for (const group of await catalog()) {
+    for (const group of await catalog(signal)) {
       const provider = group.roles.generate.provider, scope = provider.project_id ? 'project' : 'home';
       if (provider.project_id && provider.project_id !== options.projectId) continue;
       const record = recordOf(scope, provider.plugin_install_id!);
@@ -70,9 +73,8 @@ export function studioImages(options: AgentStudioOptions, installed: Awaited<Ret
       const owner = { ...installedStageIdentity(scope, record), provider_id: provider.provider_id, project_id: options.projectId, connection_id: '' };
       let listed: { connections: Service[] };
       try { listed = await invoke<{ connections: Service[] }>(group, 'services.list', {}, owner, signal); }
-      catch (error) {
+      catch {
         signal?.throwIfAborted();
-        if (!(error instanceof ActionError)) throw error;
         continue;
       }
       for (const connection of listed.connections.filter(item => item.available !== false)) {
@@ -90,7 +92,7 @@ export function studioImages(options: AgentStudioOptions, installed: Awaited<Ret
   }
   async function bound(owner: StudioImageBinding, signal?: AbortSignal) {
     assertOwner(owner);
-    const group = (await catalog()).find(({ roles }) => {
+    const group = (await catalog(signal)).find(({ roles }) => {
       const p = roles.generate.provider;
       return p.provider_id === owner.provider_id && p.plugin_install_id === owner.install_id && (p.project_id ?? null) === (owner.scope === 'project' ? owner.project_id : null);
     });

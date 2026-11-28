@@ -7,13 +7,15 @@ import type { PluginInstalledView } from "@molis-ai/molis-work-contracts/platfor
 import type { SandboxPluginContract, SandboxSchema } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import { effectsFromContract, sandboxPluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { pluginComponentChoices, type PluginComponentPlan } from "@molis-ai/molis-work-design-system";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
+import { MemoryPluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
 import { readRecords } from "@molis-ai/molis-work-service-observation";
 import { partitionRoot } from "@molis-ai/molis-work-module-projects";
-import { attachConversationFile, holdsConversationAttachment, pluginInstallActions, readSandboxPackage, sandboxImageNamespace, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { attachConversationFile, holdsConversationAttachment, PluginInstallService, pluginInstallActions, readSandboxPackage, sandboxImageNamespace, SandboxPackageStore, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { newPublisher, signedPackage, type PackageFiles } from "./fixtures/sandbox-package.js";
 import { fixture, mac, operate, operationsOf, person, ref, refused } from "./fixtures/home-sandbox.js";
 import { serveTestHost } from "./fixtures/test-home.js";
@@ -438,6 +440,100 @@ test("B47-K4 confirmed dual reinstall clears only its two databases, restoring b
   assert.equal(replaced.version, "5.0.0");
   await served.web.post(otherBase + "/installed/uninstall", {plugin_id: DUAL_PLUGIN_ID, keep_data: false, target: replaced.uninstall_target});
   assert.equal(holdsConversationAttachment(h.home, owner, attachment.ref), false);
+});
 
+test("B47-K4 rollback of a Home DB discard preserves the user DB in staging backup if ledger INSERT fails", mac, async t => {
+  const h = await fixture(t), served = await serveTestHost(null, { home: h.home, host: h.host });
+  t.after(() => served.close());
+  const project = (await served.createProject("Restore safe")).reference;
+  const base = "/projects/" + encodeURIComponent(project.project_id) + "/api/plugin-trust";
+  const publisher = newPublisher(), original = dualPackage(publisher);
+  const storeName = readSandboxPackage(original.payload).manifest.databases!.home!.store_name;
+  const preview = (bundle: PluginPackageBundle) =>
+    served.web.post<{ preview_id: string; kept_data_incompatible: boolean }>(base + "/install/preview", { bundle });
+  const confirm = (preview_id: string, discard?: boolean) =>
+    served.web.post(base + "/install/confirm", { preview_id, consent: true, pin_label: "Dual publisher", discard_kept_data: discard });
+  const homeCaller = { ...h.homeCaller(), permissions: HOME_DB_PERMS };
+  await confirm((await preview(original)).preview_id);
+  await h.switchOn(DUAL_PLUGIN_ID, "home-database:read", "home-database:write");
+  await operate(h.homeClient(), homeCaller, await operationsOf(h.homeClient(), homeCaller, DUAL_PLUGIN_ID), "home.add", { text: "Keep my home note" });
+  const primary = await served.web.get<{ plugins: PluginInstalledView[] }>(base + "/overview");
+  const personal = await served.web.post<{ plugins: PluginInstalledView[] }>("/api/settings/plugin-permissions/list", {});
+  for (const [url, plugins] of [[base + "/installed/uninstall", primary.plugins], ["/api/settings/plugin-permissions/uninstall", personal.plugins]] as const) {
+    const target = plugins.find(p => p.plugin_id === DUAL_PLUGIN_ID)!.uninstall_target;
+    await served.web.post(url, { plugin_id: DUAL_PLUGIN_ID, keep_data: true, target });
+  }
+  const conflict = dualPackage(publisher, { version: "2.0.0", freshDatabase: true, projectConflict: true });
+  const conflictPreview = await preview(conflict);
+  const ledger = new DatabaseSync(homeSqlitePath(h.home, "plugin-libraries"));
+  try {
+    ledger.exec("CREATE TRIGGER fail_ledger_insert BEFORE INSERT ON plugin_home_libraries BEGIN SELECT RAISE(ABORT, 'disk full'); END");
+    await assert.rejects(confirm(conflictPreview.preview_id, true), { code: "actions.execution_failed" });
+    ledger.exec("DROP TRIGGER fail_ledger_insert");
+  } finally {
+    ledger.close();
+  }
+  const backupDirs = readdirSync(join(h.home, "plugin-libraries")).filter(name => name.startsWith(".discard-"));
+  assert.equal(backupDirs.length, 1, "user Home DB is preserved in staging backup instead of being rmSync-deleted");
+  const preservedPath = join(h.home, "plugin-libraries", backupDirs[0]!, storeName, `${storeName}.db`);
+  assert.equal(existsSync(preservedPath), true);
+  const preserved = new DatabaseSync(preservedPath, { readOnly: true });
+  try {
+    assert.deepEqual(
+      preserved.prepare("SELECT text FROM home_notes").all().map(row => ({ text: row.text })),
+      [{ text: "Keep my home note" }],
+    );
+  } finally {
+    preserved.close();
+  }
+});
 
+test("PluginInstallService dual-instance confirm wraps Home upgrade in installOtherHalf and forwards secrets", async () => {
+  const home = mkdtempSync(join(tmpdir(), "dual-confirm-wrap-"));
+  try {
+    const publisher = newPublisher();
+    const v1 = dualPackage(publisher, { version: "1.0.0" });
+    const v2 = dualPackage(publisher, { version: "2.0.0", upgradesFrom: ["1.0.0"] });
+    const ledger = new MemoryPluginConsentLedger();
+    ledger.pinPublisher({ key_id: publisher.identity, public_key_spki_base64: v1.publisher_key!.spki_base64, label: "Dual", pinned_at: "2026-11-27T00:00:00.000Z", pinned_by: LOCAL_PERSON_ACTOR_ID });
+    const packages = new SandboxPackageStore(home);
+    const parsedV1 = readSandboxPackage(v1.payload);
+    packages.save(v1, parsedV1);
+    const events: string[] = [];
+    const service = new PluginInstallService({
+      ledger, packages, now: () => "2026-11-27T00:00:00.000Z",
+      installed: async () => [],
+      homeInstalled: async () => [{
+        record: {
+          install_id: "inst-dual", plugin_id: DUAL_PLUGIN_ID, version: "1.0.0", state: "running",
+          execution: "sandbox", publisher_id: parsedV1.manifest.publisher.publisher_id,
+          publisher_trust: "pinned", publisher_signature: publisher.identity,
+          manifest_digest: "d1", installation_generation: "g1", deployment: "local",
+          selected_entrypoint: "plugin.mjs", grants: [], recovery_count: 0, last_error_code: null,
+          installed_at: "2026-11-27T00:00:00.000Z", updated_at: "2026-11-27T00:00:00.000Z",
+          uninstalled_at: null, retain_private_data: false,
+        },
+        manifest: parsedV1.manifest,
+      }],
+      installInHome: async (_release, _assertCurrent, _complete, choices) => {
+        events.push("home-start");
+        assert.ok(choices?.installOtherHalf, "Home upgrade must wrap project installation via installOtherHalf so Home rolls back if Project fails");
+        try {
+          await choices.installOtherHalf(() => { events.push("home-commit"); });
+        } catch (error) {
+          events.push("home-rollback");
+          throw error;
+        }
+      },
+      installInProject: async () => {
+        events.push("project-fail");
+        throw new Error("project half failed");
+      },
+      control: async () => ({ state: "disabled" }),
+    });
+    const who = { project_id: "proj-1", actor_id: LOCAL_PERSON_ACTOR_ID };
+    const preview = await service.preview({ bundle: v2 }, who);
+    await assert.rejects(service.confirm({ preview_id: preview.preview_id, consent: true }, who), /project half failed/u);
+    assert.deepEqual(events, ["home-start", "project-fail", "home-rollback"], "Home upgrade rolls back when project half fails");
+  } finally { rmSync(home, { recursive: true, force: true }); }
 });

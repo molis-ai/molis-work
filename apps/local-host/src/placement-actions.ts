@@ -107,7 +107,7 @@ export function createPlacementHost(ports: PlacementHostPorts): PlacementHost {
   const carrying = new CarrySettling({
     pendingCarryRecords: () => (closed || !db.isOpen ? [] : service.pendingCarryRecords()),
     settleCarries: () => (closed || !db.isOpen ? Promise.resolve(0) : service.settleCarries()),
-  }, { settled: pass => {
+  }, { isClosed: () => closed || !db.isOpen, settled: pass => {
     // The pass in the work records (batch 108): the carries themselves are the ledger's own history, so only the counts and how it ended.
     liveObservation(ports.homeDirectory)?.sink("home").bind({ kind: "background", entry: "background", actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null })
       .record({ fact: "home.placement_carry_settle", outcome: pass.failed ? "failed" : pass.left < pass.pending ? "succeeded" : "no_action",
@@ -142,6 +142,7 @@ export function createPlacementHost(ports: PlacementHostPorts): PlacementHost {
     },
     close: () => {
       closed = true;
+      carrying.close();
       dispose();
       return closing ??= (async () => {
         await carrying.idle().catch(() => undefined);

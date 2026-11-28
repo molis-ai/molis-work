@@ -12,6 +12,8 @@ import { bindLocalWebActions } from "./local-web-actions.js";
 import { withProtectedHostAction } from "./plugin-consent-settings-entry.js";
 import { pluginPageRequest, pluginPagesFor } from "./plugin-page-authority.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
+import { readWorkbenchText } from "./ui-error-words.js";
+import { projectActionLocaleReaders, resolveActionLibraryWords } from "./web-capabilities.js";
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
 
 const SMALL_BODY_BYTES = 256 * 1024;
@@ -121,6 +123,8 @@ export async function handleHomePagesHttp(
         permissions: LOCAL_OWNER_PERMISSIONS,
         signal: controller.signal,
       }, project);
+      const projectReaders = await projectActionLocaleReaders(host, project);
+      const words = resolveActionLibraryWords(directory, { host, projectReaders });
       const actions = loaded.version.actions.map(ref => {
         const view = directory.find(
           item => item.capability_id === ref.capability_id && item.version === ref.version && item.provider.provider_id === ref.provider_id,
@@ -136,9 +140,9 @@ export async function handleHomePagesHttp(
               : "disabled";
         return {
           ...ref,
-          title: view?.action.title ?? ref.capability_id,
-          description: view?.action.description ?? "",
-          provider_title: view?.provider.title ?? ref.provider_id,
+          title: (view && words.titles.get(view)) ?? view?.action.title ?? ref.capability_id,
+          description: (view && words.descriptions.get(view)) ?? view?.action.description ?? "",
+          provider_title: (view && words.providers.get(view)) ?? view?.provider.title ?? ref.provider_id,
           operation: view?.operation ?? "unknown",
           effect: view?.action.effect ?? (view?.operation === "query" ? "read" : "write"),
           external: Boolean(view?.action.external),
@@ -147,12 +151,12 @@ export async function handleHomePagesHttp(
           audience_denied: audienceDenied,
           unavailable_code: unavailableCode,
           unavailable_reason: !view
-            ? "找不到这项动作，对应插件可能未安装"
+            ? readWorkbenchText("workbench.home-pages.action-missing")
             : audienceDenied
-              ? "这项动作未对页面开放"
+              ? readWorkbenchText("workbench.home-pages.action-audience-denied")
               : view.availability.available
                 ? null
-                : (view.availability.reason ?? "对应插件当前已停用或不可用"),
+                : (view.availability.reason ?? readWorkbenchText("workbench.home-pages.action-disabled")),
         };
       });
       const pruned = homePageReads(homeDirectory, project.project_id).pruned(pageId);

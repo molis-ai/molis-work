@@ -50,9 +50,9 @@ export function materialRequest(value: SandboxJson | undefined, keys: ReadonlyAr
   if (timeoutMs !== undefined && (!Number.isSafeInteger(timeoutMs) || (timeoutMs as number) <= 0 || (timeoutMs as number) > 30 * 60_000)) throw invalid('timeoutMs is a positive number of milliseconds');
   if (textFormat !== undefined && textFormat !== 'text' && textFormat !== 'markdown') throw invalid('textFormat is text or markdown');
   if (pdfMode !== undefined && pdfMode !== 'text' && pdfMode !== 'ocr') throw invalid('pdfMode is text or ocr');
-  if (ocrLanguages !== undefined && (!Array.isArray(ocrLanguages) || ocrLanguages.length > OCR_LANGUAGES.length || ocrLanguages.some(item => !OCR_LANGUAGES.includes(item as string)))) throw invalid('ocrLanguages names zh-Hans, zh-Hant, en-US or ja-JP');
+  if (ocrLanguages !== undefined && (!Array.isArray(ocrLanguages) || !ocrLanguages.length || ocrLanguages.length > OCR_LANGUAGES.length || ocrLanguages.some(item => !OCR_LANGUAGES.includes(item as string)))) throw invalid('ocrLanguages names zh-Hans, zh-Hant, en-US or ja-JP');
   return { ...(timeoutMs !== undefined ? { timeoutMs: timeoutMs as number } : {}), ...(textFormat !== undefined ? { textFormat } : {}),
-    ...(pdfMode !== undefined ? { pdfMode } : {}), ...(ocrLanguages !== undefined ? { ocrLanguages: ocrLanguages as SandboxMaterialRequest['ocrLanguages'] } : {}) };
+    ...(pdfMode !== undefined ? { pdfMode } : {}), ...(ocrLanguages !== undefined ? { ocrLanguages: [...new Set(ocrLanguages)] as SandboxMaterialRequest['ocrLanguages'] } : {}) };
 }
 
 /** What a reader answers, as the plain JSON the channel carries: a field it left `undefined` is not there. */

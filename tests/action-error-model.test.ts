@@ -354,8 +354,9 @@ test("Host error edge preserves English errors with unquoted CJK user titles whi
   const server = await serveNativeHttp(async (_request, response, url) => {
     const locale = (url.searchParams.get("locale") ?? "en") as "zh" | "en" | "ja";
     const message = url.searchParams.get("message") ?? "";
+    const status = Number(url.searchParams.get("status") ?? "409");
     if (url.pathname !== "/check") return false;
-    runWithLocale(locale, () => sendLocalWebJson(response, 409, { error: message, code: "projects.conflict" }));
+    runWithLocale(locale, () => sendLocalWebJson(response, status, { error: message, code: "projects.conflict" }));
     return true;
   });
   try {
@@ -370,6 +371,23 @@ test("Host error edge preserves English errors with unquoted CJK user titles whi
     }
     const jaInZh = await server.post(`/check?locale=zh&message=${encodeURIComponent("この操作を行う権限がありません。")}`, "{}");
     assert.doesNotMatch(String(jaInZh.body.error), /[\p{Script=Hiragana}\p{Script=Katakana}]/u);
+    // IUI-01 + F-hc2-27: unexpected 5xx raw English prose is caught in zh (clean 4xx refusals preserved),
+    // localized zh with unquoted katakana titles is preserved, concise pure-kanji ja errors are preserved,
+    // and Chinese prose (even with unquoted kana) is replaced in ja.
+    const enProseInZh = await server.post(`/check?locale=zh&status=500&message=${encodeURIComponent("The requested resource could not be loaded")}`, "{}");
+    assert.notEqual(enProseInZh.body.error, "The requested resource could not be loaded");
+    assert.match(String(enProseInZh.body.error), /\p{Script=Han}/u);
+    const zhWithKanaTitle = "无法读取プロジェクト详情";
+    const zhKanaRes = await server.post(`/check?locale=zh&message=${encodeURIComponent(zhWithKanaTitle)}`, "{}");
+    assert.equal(zhKanaRes.body.error, zhWithKanaTitle);
+    const kanjiOnlyJa = "権限不足";
+    const kanjiJaRes = await server.post(`/check?locale=ja&message=${encodeURIComponent(kanjiOnlyJa)}`, "{}");
+    assert.equal(kanjiJaRes.body.error, kanjiOnlyJa);
+    for (const zhMessage of ["无法读取此项目，请检查权限", "无法读取プロジェクト，请检查权限"]) {
+      const res = await server.post(`/check?locale=ja&message=${encodeURIComponent(zhMessage)}`, "{}");
+      assert.notEqual(res.body.error, zhMessage, `should replace Chinese prose in ja: ${zhMessage}`);
+      assert.match(String(res.body.error), /[\p{Script=Hiragana}\p{Script=Katakana}]/u);
+    }
   } finally {
     await server.close();
   }

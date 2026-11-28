@@ -189,7 +189,7 @@ test("sessions hand work over, tell everyone whose work overlaps, and are stoppe
     assert.deepEqual(woke.map(view => [view.wait?.conditions.map(one => [one.kind, one.last.status, one.last.note]), view.wait?.state, view.continuation?.state]),
       [[[["envelope", "failed", "cancelled"]], "failed", "eligible"]]);
     const letter = (await adapter.messages!.read("b", j.session.session_id))[0]!;
-    assert.deepEqual([letter.state, letter.history!.at(-1)!.event, letter.history!.at(-1)!.note], ["cancelled", "failed", "收信的会话那一轮失败了，没有答复"]);
+    assert.deepEqual([letter.state, letter.history!.at(-1)!.event, letter.history!.at(-1)!.note], ["cancelled", "failed", "mail.recipient_failed"]);
     // A claim left quiet: A's round is over and step-1 has not moved for three hours — it reads as expired, nothing is
     // taken back.
     const realNow = Date.now(), later = realNow + 3 * 60 * 60 * 1000;

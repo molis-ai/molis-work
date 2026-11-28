@@ -11,7 +11,7 @@ import type { SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plu
 import type { PluginRetainedItem, PluginUninstallTarget } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
 import { stageSandboxOwnerFiles } from './plugin-sandbox-owner-files.js';
 import { stageSandboxImageBindings } from './sandbox-image-generation.js';
-import { forgetRetainedInstallationRecords } from './plugin-installation-cleanup.js';
+import { currentDiscardCleanup, flushPreExposeDiscardCleanup, forgetRetainedInstallationRecords } from './plugin-installation-cleanup.js';
 import { collectRetained } from './uninstall-retained.js';
 import { sameInstalledRelease, type InstalledPackageControl, type InstalledRelease } from './installed-release.js';
 import { assertUpgradeOf } from './package-upgrade.js';
@@ -196,6 +196,8 @@ export function installedLifecycle(c: InstalledLifecycleContext): InstalledLifec
     };
     let startedGeneration: number | undefined;
     const activationChanged = () => platform.supervisor.generation(pluginId) !== startedGeneration;
+    const discardCtx = kept && earlier && discard ? currentDiscardCleanup() : undefined;
+    let standaloneCleanupError: unknown;
     try {
       const { install } = platform.runtime.install({ ...entry, deployment: 'local', ...(discard ? { discard_kept_data: true } : {}) }, stageDiscard);
       candidate = install;
@@ -207,9 +209,7 @@ export function installedLifecycle(c: InstalledLifecycleContext): InstalledLifec
       if (state?.status !== 'running') throw new ActionError('actions.execution_failed', '安装没有完成：' + (state?.message ?? '插件未能启动'), { details: { install_phase: 'start' } });
       assertCurrent();
       startedGeneration = platform.supervisor.generation(pluginId);
-      // Exposure leaves cleanup to the install owner, as it does for a version switch.
-      await c.expose(release, 'caller');
-      await finishInstalledPackage(grants, () => {
+      const verifyCommit = () => {
         assertCurrent();
         const current = c.recordFor(pluginId);
         const changed = activationChanged();
@@ -219,12 +219,36 @@ export function installedLifecycle(c: InstalledLifecycleContext): InstalledLifec
           throw new ActionError('actions.provider_replaced', '原插件安装或启用状态已变化，请重新查看');
         }
         if (!c.trusted(current)) throw pluginErrors.publisher_revoked('插件发布者已经被撤销');
-      }, () => {
+      };
+      const publish = () => {
         if (activationChanged()) return;
         c.registerPrompts(release, 'enabled');
         c.recoveryErrors.delete(pluginId);
-      });
-
+      };
+      if (kept && earlier && discard) {
+        // Clear retained records after replacement startup succeeds and before exposure so no live caller can race under the same install_id.
+        const clearRecords = () => forgetRetainedInstallationRecords(c.home, c.project_id, earlier, { excludeScopes: discardCtx?.excludeScopes });
+        if (discardCtx) discardCtx.preExpose.push(clearRecords);
+        if (grants.installOtherHalf) {
+          await finishInstalledPackage(grants, verifyCommit, publish);
+          if (discardCtx) await flushPreExposeDiscardCleanup();
+          else { try { await clearRecords(); } catch (err) { standaloneCleanupError = err; } }
+          if (!activationChanged()) {
+            await c.expose(release, 'caller');
+            if (grants.refresh) await grants.refresh();
+          }
+        } else {
+          if (discardCtx) await flushPreExposeDiscardCleanup();
+          else { try { await clearRecords(); } catch (err) { standaloneCleanupError = err; } }
+          await c.expose(release, 'caller');
+          await finishInstalledPackage(grants, verifyCommit, publish);
+        }
+      } else {
+        // Exposure leaves cleanup to the install owner, as it does for a version switch.
+        if (!grants.installOtherHalf && discardCtx) await flushPreExposeDiscardCleanup();
+        await c.expose(release, 'caller');
+        await finishInstalledPackage(grants, verifyCommit, publish);
+      }
     } catch (error) {
       // A separate stop or enable can run during exposure. Leave that later activation choice standing.
       if (startedGeneration !== undefined && activationChanged()) {
@@ -257,7 +281,7 @@ export function installedLifecycle(c: InstalledLifecycleContext): InstalledLifec
     if (kept && earlier && discard) {
       const clear = async () => {
         const results = await Promise.allSettled([
-          async () => forgetRetainedInstallationRecords(c.home, c.project_id, earlier),
+          ...(standaloneCleanupError !== undefined ? [async () => { throw standaloneCleanupError; }] : []),
           ...staged.map(part => () => part.close?.()),
         ].map(async remove => remove()));
         const failed = results.flatMap(result => result.status === 'rejected' ? [result.reason] : []);

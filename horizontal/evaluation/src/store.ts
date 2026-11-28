@@ -356,8 +356,8 @@ export class EvaluationStore {
     const rows = version !== undefined
       ? rowsAs<StoredSampleRow>(db.prepare("SELECT * FROM evaluation_samples WHERE sample_id = ? AND version = ?").all(sampleId, version))
       : rowsAs<StoredSampleRow>(db.prepare("SELECT * FROM evaluation_samples WHERE sample_id = ? ORDER BY version ASC").all(sampleId));
-    // Run-time holds in older samples were committed to observation but omitted from the sample row.
-    // Historical runs survive deleting a sample and identify versions for an explicit retry of cleanup.
+    // Historical runs survive deleting a sample row and still identify sample versions whose holds
+    // may need an explicit cleanup retry (e.g. after a revoked or interrupted hold release).
     const versionRuns = db.prepare("SELECT DISTINCT sample_version FROM evaluation_runs WHERE sample_id = ? AND (? IS NULL OR sample_version = ?)").all(sampleId, version ?? null, version ?? null);
     const targets = new Map<number, ReturnType<typeof sampleHoldTarget>>();
     for (const run of versionRuns) {

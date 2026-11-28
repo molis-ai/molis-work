@@ -51,7 +51,7 @@ export function partitionDeletionProblems(path: string, value: unknown): string[
   if (value === undefined) return [];
   if (!isRecord(value)) return [`${path} 必须为对象`];
   const unknown = Object.keys(value).filter(field => field !== "label" && field !== "order");
-  return [...unknown.length > 0 ? [`${path} 不认这些字段：${unknown.join("、")}`] : [], ...deletionLineProblems(path, value)];
+  return [...unknown.length > 0 ? [`${path} 不认这些字段：${unknown.join(", ")}`] : [], ...deletionLineProblems(path, value)];
 }
 
 function artifactJoinProblems(path: string, value: unknown, tables: readonly unknown[]): string[] {

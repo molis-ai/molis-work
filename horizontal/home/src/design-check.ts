@@ -35,13 +35,44 @@ export interface HomePageDesignCheckReport {
 
 const INLINE_STYLE_RE = /\sstyle\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/iu;
 const INLINE_HANDLER_RE = /\son[a-z]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/iu;
-const EXTERNAL_URL_RE = /(?:src|href)\s*=\s*(?:"|')\s*(?:https?:|\/\/)/iu;
+const EXTERNAL_URL_RE = /(?:src|href)\s*=\s*(?:"|')?\s*(?:https?:|\/\/)/iu;
 const CSS_EXTERNAL_URL_RE = /(?:url\s*\(\s*(?:"|')?\s*(?:https?:|\/\/)|@import\s*(?:"|')\s*(?:https?:|\/\/))/iu;
 const NESTED_EMBED_RE = /<\s*(?:iframe|object|embed|base)\b/iu;
 const DYNAMIC_EVAL_RE = /\b(?:eval|Function)\s*\(|new\s+Function\b/u;
-const LITERAL_COLOR_VALUE_RE = /#[0-9a-f]{3,8}\b|\brgba?\s*\(|\bhsla?\s*\(|\boklch\s*\(|\boklab\s*\(/iu;
+const LITERAL_COLOR_VALUE_RE = /#[0-9a-f]{3,8}\b|\brgba?\s*\(|\bhsla?\s*\(|\boklch\s*\(|\boklab\s*\(|\bcolor-mix\s*\(|\bhwb\s*\(|\blch\s*\(|\blab\s*\(|\bcolor\s*\(/iu;
+const COLOR_PROPERTY_RE = /^(?:color|background(?:-color)?|border(?:-(?:top|right|bottom|left|block|inline)(?:-(?:start|end))?)?(?:-color)?|outline(?:-color)?|fill|stroke|caret-color|accent-color|text-decoration-color|column-rule-color|box-shadow|text-shadow)$/iu;
+// Standard CSS Color 4 named colors (excluding transparent / currentColor / inherit keywords).
+const CSS_NAMED_COLORS = new Set<string>([
+  "aliceblue", "antiquewhite", "aqua", "aquamarine", "azure", "beige", "bisque", "black", "blanchedalmond", "blue",
+  "blueviolet", "brown", "burlywood", "cadetblue", "chartreuse", "chocolate", "coral", "cornflowerblue", "cornsilk",
+  "crimson", "cyan", "darkblue", "darkcyan", "darkgoldenrod", "darkgray", "darkgreen", "darkgrey", "darkkhaki",
+  "darkmagenta", "darkolivegreen", "darkorange", "darkorchid", "darkred", "darksalmon", "darkseagreen", "darkslateblue",
+  "darkslategray", "darkslategrey", "darkturquoise", "darkviolet", "deeppink", "deepskyblue", "dimgray", "dimgrey",
+  "dodgerblue", "firebrick", "floralwhite", "forestgreen", "fuchsia", "gainsboro", "ghostwhite", "gold", "goldenrod",
+  "gray", "green", "greenyellow", "grey", "honeydew", "hotpink", "indianred", "indigo", "ivory", "khaki", "lavender",
+  "lavenderblush", "lawngreen", "lemonchiffon", "lightblue", "lightcoral", "lightcyan", "lightgoldenrodyellow",
+  "lightgray", "lightgreen", "lightgrey", "lightpink", "lightsalmon", "lightseagreen", "lightskyblue",
+  "lightslategray", "lightslategrey", "lightsteelblue", "lightyellow", "lime", "limegreen", "linen", "magenta",
+  "maroon", "mediumaquamarine", "mediumblue", "mediumorchid", "mediumpurple", "mediumseagreen", "mediumslateblue",
+  "mediumspringgreen", "mediumturquoise", "mediumvioletred", "midnightblue", "mintcream", "mistyrose", "moccasin",
+  "navajowhite", "navy", "oldlace", "olive", "olivedrab", "orange", "orangered", "orchid", "palegoldenrod", "palegreen",
+  "paleturquoise", "palevioletred", "papayawhip", "peachpuff", "peru", "pink", "plum", "powderblue", "purple",
+  "rebeccapurple", "red", "rosybrown", "royalblue", "saddlebrown", "salmon", "sandybrown", "seagreen", "seashell",
+  "sienna", "silver", "skyblue", "slateblue", "slategray", "slategrey", "snow", "springgreen", "steelblue", "tan",
+  "teal", "thistle", "tomato", "turquoise", "violet", "wheat", "white", "whitesmoke", "yellow", "yellowgreen",
+]);
 const PILL_RADIUS_RE = /border-radius\s*:\s*(?:999|9999)px/iu;
 const CROSS_PROJECT_PATH_RE = /\/projects\/[^/\s"']+\//u;
+
+function hasNamedCssColor(property: string, value: string): boolean {
+  if (!COLOR_PROPERTY_RE.test(property)) return false;
+  // Strip var(...) references and quoted strings so token names like var(--paper) or font names never false-match.
+  const cleaned = value.replace(/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/gu, " ").replace(/var\s*\([^)]*\)/giu, " ");
+  for (const match of cleaned.matchAll(/(?<![a-z0-9_-])[a-z]+(?![a-z0-9_-])/giu)) {
+    if (CSS_NAMED_COLORS.has(match[0].toLowerCase())) return true;
+  }
+  return false;
+}
 
 /**
  * Strips CSS block comments while respecting quoted strings and backslash escapes, replacing comments with a single
@@ -227,7 +258,9 @@ export function inspectHomePageDesign(
       }
       const colors = new Map<string, { ink?: string; paper?: string }>();
       let amberMisused = false;
+      let literalNamedColor = false;
       const declValues = extractCssDeclarationValues(stripped, (selector, prop, value) => {
+        if (hasNamedCssColor(prop, value)) literalNamedColor = true;
         if (prop !== "color" && prop !== "background" && prop !== "background-color") return;
         const role = /^\s*var\(\s*--([a-z0-9-]+)\s*\)\s*(?:!important)?\s*$/iu.exec(value)?.[1];
         if (!role) return;
@@ -244,7 +277,7 @@ export function inspectHomePageDesign(
           break;
         }
       }
-      if (declValues.some(val => LITERAL_COLOR_VALUE_RE.test(val))) {
+      if (literalNamedColor || declValues.some(val => LITERAL_COLOR_VALUE_RE.test(val))) {
         designIssues.push({
           code: "literal_color",
           path: file.path,

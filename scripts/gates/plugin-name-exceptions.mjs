@@ -12,13 +12,11 @@ export const PLUGIN_NAME_EXCEPTIONS_FILE = "tooling/gates/plugin-name-exceptions
  * - `same-word`: an ordinary or platform word that is spelt like a plugin's short id (`form`, `issues`, `pages`, `todo`, `diff` as a
  *   format, the `git` program, an icon name); not a plugin.
  * - `batch-109`: the workspace Git, Diff and Coding code that batch 109 moves into its plugins (decision D6=B); not split in 44C.
- * - `batches-106-109`: Feed and Work Brief's `dual_instance` and `HomePluginHost`, handed to batches 106～109 (44B record).
- * - `upgrade-step`: a storage upgrade step for values a released version wrote, kept with the upgrade chain.
  * - `vendor-name`: a name the vendored Prologue SDK gives (its official packs and their tools).
  * - `deferred`: a plugin named on purpose until a backlog item the user put off lands; the reason names the item.
  * - `qa-tool`: an isolated QA script that drives real plugins to show them; not loaded by the product.
  */
-export const PLUGIN_NAME_EXCEPTION_KINDS = ["same-word", "batch-109", "batches-106-109", "upgrade-step", "vendor-name", "deferred", "qa-tool"];
+export const PLUGIN_NAME_EXCEPTION_KINDS = ["same-word", "batch-109", "vendor-name", "deferred", "qa-tool"];
 const FIELDS = ["count", "kind", "reason", "decided"];
 const MIN_REASON_CHARACTERS = 12;
 const DATE = /^\d{4}-\d{2}-\d{2}$/u;

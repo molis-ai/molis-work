@@ -328,6 +328,46 @@ test("BL492-08 a list read of an approved name that the proxy answers with 198.1
   } finally { t.mock.restoreAll(); syncBuiltinESMExports(); }
 });
 
+test("Xiaohongshu and Bilibili rethrow SSRF, forbidden, and cancellation errors instead of downgrading them to issues", async () => {
+  const xhsUrl = "https://www.xiaohongshu.com/explore/abc123";
+  const xhsHtml = noteHTML("abc123", {
+    title: "图文笔记",
+    desc: "第一段正文",
+    imageList: [{ urlDefault: "https://sns-webpic-qc.xhscdn.com/pic1.jpg" }],
+  });
+  for (const refusalError of [
+    new ActionError("material.source.private_address", "不允许访问内网地址"),
+    new ActionError("actions.forbidden", "调用已撤权"),
+    new ActionError("material.cancelled", "已取消提取"),
+  ]) {
+    await assert.rejects(
+      readMaterialSource(xhsUrl, {
+        async fetch(target) {
+          if (target === xhsUrl) return page(xhsUrl, xhsHtml);
+          throw refusalError;
+        },
+        async extractMaterial() { return material("never"); },
+      }),
+      error => error === refusalError,
+      `Xiaohongshu must rethrow ${refusalError.code}`,
+    );
+  }
+  const biliUrl = "https://www.bilibili.com/video/BVexample";
+  const biliHtml = '<script>__INITIAL_STATE__={"videoData":{"bvid":"BVexample","cid":123,"title":"视频标题"}}</script>';
+  const ssrfError = new ActionError("material.source.private_address", "不允许访问内网地址");
+  await assert.rejects(
+    readMaterialSource(biliUrl, {
+      async fetch(target) {
+        if (target === biliUrl) return page(biliUrl, biliHtml);
+        throw ssrfError;
+      },
+      async extractMaterial() { return material("never"); },
+    }),
+    error => error === ssrfError,
+    "Bilibili must rethrow material.source.private_address",
+  );
+});
+
 test("F-hc-10: Bilibili and Xiaohongshu source readers rethrow authority, cancellation and policy refusals without degrading", async () => {
   const controlErrors = (): Array<{ label: string; error: Error }> => [
     { label: "actions.forbidden", error: new ActionError("actions.forbidden", "authority withdrawn") },

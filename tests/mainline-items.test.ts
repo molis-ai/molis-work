@@ -63,6 +63,7 @@ test("BL-b36-review-followups item revisions follow renames and conversion; empt
   const other = await me.invoke(mainlineItemActions.create, { name: "另一件事项" });
   const moved = await me.invoke(mainlineItemActions.move, { item_id: other.item.item_id, expected_revision: other.mainline.revision, group_id: "next", index: 0 });
   const unchanged = await me.invoke(mainlineItemActions.rename, { item_id, expected_revision: moved.mainline.revision, name: " 初稿 " });
+  assert.equal(unchanged.mainline.revision, moved.mainline.revision, "AP-15: a trimmed, unchanged name does not bump the mainline arrangement revision");
   assert.deepEqual(await read(), first, "unrelated changes and a trimmed, unchanged name preserve this item's revision");
   const renamed = await me.invoke(mainlineItemActions.rename, { item_id, expected_revision: unchanged.mainline.revision, name: "定稿" });
   const second = await read();

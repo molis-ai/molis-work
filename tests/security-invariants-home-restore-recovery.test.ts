@@ -2,12 +2,14 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
-import { chmodSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import { isDeepStrictEqual } from "node:util";
-import { createHomeSnapshot, recoverHomeRestore, type HomeSnapshotManifest } from "@molis-ai/molis-work-app-local-host";
-import { inspectMolisWorkProjectCatalogSnapshot } from "@molis-ai/molis-work-app-desktop";
+import { createHomeSnapshot, openPartitionPluginLibrary, partitionPluginScope, recoverHomeRestore, type HomeSnapshotManifest } from "@molis-ai/molis-work-app-local-host";
+import { inspectMolisWorkProjectCatalogSnapshot, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { installIdentity } from "@molis-ai/molis-work-plugin-runtime";
+import { todoManifest } from "@molis-ai/molis-work-plugin-todo";
 import { acquireStorageOwner, HOME_RESTORE_JOURNAL, initializeMemoryForgetting } from "@molis-ai/molis-work-storage";
 import { restoreCli, restoreFixture } from "./fixtures/home-restore.js";
 import { inspectMemoryLedger } from "@molis-ai/molis-work-storage";
@@ -215,4 +217,71 @@ test("RAC-2917: changed committed preferences remain untouched with their barrie
   assert.deepEqual(homeBusinessTree(f.home), before); assert.deepEqual(readFileSync(marker), markerBytes);
   const after = inspectMemoryLedger({ homeDirectory: f.home, actorId: LOCAL_PERSON_ACTOR_ID });
   assert.ok(after.state === "complete"); assert.deepEqual(after.personal, changed);
+});
+
+test("S-12 AP-05 committed restore recovery rejects orphan partition libraries and project databases missing projects/catalog.db", { timeout: 60_000 }, async t => {
+  const f = await restoreFixture(t);
+  const project = await withMolisWorkProjectCatalog({ homeDirectory: f.home }, async catalog => {
+    const created = await catalog.createProject({ display_name: "恢复项目", actor_id: LOCAL_PERSON_ACTOR_ID });
+    catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "todo", actor_id: LOCAL_PERSON_ACTOR_ID });
+    return created;
+  });
+  const todoLib = openPartitionPluginLibrary(
+    partitionPluginScope(f.home, project.project_id, todoManifest.plugin_id, installIdentity(todoManifest)),
+    f.home,
+    todoManifest.databases!.partition!,
+  );
+  todoLib.close();
+  await createHomeSnapshot({ homeDirectory: f.home, destination: f.snapshot });
+  writeFileSync(join(f.home, "plugin-files", "original.bin"), "force actual publication");
+  const fault = await faultRestore(t, f.home, f.snapshot, "clear-failure");
+  assert.equal(fault.code, 1);
+  assert.match(fault.stderr, /published_unconfirmed/u);
+
+  const marker = join(f.root, HOME_RESTORE_JOURNAL);
+  const committed = JSON.parse(readFileSync(marker, "utf8")) as {
+    phase: string;
+    directories: Array<{ path: string; mode: number; original?: unknown }>;
+    files: Array<{ path: string; mode: number; size: number; sha256: string; sqlite?: unknown }>;
+  };
+  assert.equal(committed.phase, "committed");
+  const todoPath = `projects/${project.project_id}/libraries/todo.db`;
+  const todoEntry = committed.files.find(file => file.path === todoPath);
+  assert.ok(todoEntry, "committed journal includes the project's partition library");
+
+  // 1. Orphan partition library not listed in projects/catalog.db must be refused.
+  const orphanDir = join(f.home, "projects", "orphan-proj");
+  const orphanLibraries = join(orphanDir, "libraries");
+  const orphanFile = join(orphanLibraries, "todo.db");
+  mkdirSync(orphanDir, { mode: 0o700 });
+  chmodSync(orphanDir, 0o700);
+  mkdirSync(orphanLibraries, { mode: 0o700 });
+  chmodSync(orphanLibraries, 0o700);
+  copyFileSync(join(f.home, todoPath), orphanFile);
+  chmodSync(orphanFile, todoEntry.mode);
+  const withOrphan = structuredClone(committed);
+  withOrphan.directories.push({ path: "projects/orphan-proj", mode: 0o700 }, { path: "projects/orphan-proj/libraries", mode: 0o700 });
+  withOrphan.files.push({ ...todoEntry, path: "projects/orphan-proj/libraries/todo.db" });
+  writeFileSync(marker, JSON.stringify(withOrphan), { mode: 0o600 });
+  await assert.rejects(
+    recoverHomeRestore({ homeDirectory: f.home, inspectCatalog: inspectMolisWorkProjectCatalogSnapshot }),
+    { code: "host.home_restore.changed" },
+    "committed recovery refuses partition library whose partition is absent from projects/catalog.db",
+  );
+  rmSync(orphanDir, { recursive: true, force: true });
+
+  // 2. Project DB / partition library without projects/catalog.db must be refused.
+  const withoutCatalog = structuredClone(committed);
+  withoutCatalog.files = withoutCatalog.files.filter(file => file.path !== "projects/catalog.db");
+  writeFileSync(marker, JSON.stringify(withoutCatalog), { mode: 0o600 });
+  await assert.rejects(
+    recoverHomeRestore({ homeDirectory: f.home, inspectCatalog: inspectMolisWorkProjectCatalogSnapshot }),
+    { code: "host.home_restore.changed" },
+    "committed recovery refuses project databases and partition libraries when projects/catalog.db is absent",
+  );
+
+  // Restore the original committed journal so clean recovery still succeeds.
+  writeFileSync(marker, JSON.stringify(committed), { mode: 0o600 });
+  const finished = await recoverHomeRestore({ homeDirectory: f.home, inspectCatalog: inspectMolisWorkProjectCatalogSnapshot });
+  assert.equal(finished.status, "finished");
 });

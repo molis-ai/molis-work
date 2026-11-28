@@ -481,7 +481,12 @@ export function mountMainlineSwitcher(host: MainlineSwitcherHost) {
 
   document.addEventListener("molis-work:language-changed", () => {
     mountShell();
-    if (hydrated) void refresh(true);
+    if (document.querySelector("[data-mainline-organize-dialog][open]")) organize.repaint();
+    if (hydrated) {
+      void refresh(true).then(() => {
+        if (document.querySelector("[data-mainline-organize-dialog][open]")) organize.repaint();
+      });
+    }
   });
   document.addEventListener("molis-work:plugins-changed", () => { if (hydrated) void refresh(true); });
   window.addEventListener("molis:placement-changed", () => { if (hydrated) void refresh(true); });

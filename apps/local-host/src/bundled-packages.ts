@@ -62,7 +62,8 @@ export function releasePackages(directory: string, ids: ReadonlySet<string>, loc
         const draft = readReleaseFile(path.join(directory, pluginId + DRAFT_SUFFIX));
         if (draft === undefined) return false;
         const { manifest } = readKeptPackage(completeContentPackagePayload(draftOf(JSON.parse(draft)), UNSIGNED));
-        return manifest.plugin_id === pluginId && manifest.kind === 'content' && localKey() === signature;
+        const key = localKey();
+        return key !== null && manifest.plugin_id === pluginId && manifest.kind === 'content' && key === signature;
       } catch { return false; }
     },
   };

@@ -74,6 +74,8 @@
     "shelf.material.saved-to-project-knowledge": "已存到项目资料",
     "shelf.material.saving": "正在保存…",
     "shelf.model.ai-model": "AI 模型",
+    "shelf.ocr.no-text": "没有识别到文字。",
+    "shelf.ocr.uncertain": "{text}（待确认）",
     "shelf.panes.back-to-materials-then-retry": "返回材料重试",
     "shelf.panes.choose-a-material": "选择一份材料",
     "shelf.panes.choose-my-file": "选择我的文件",

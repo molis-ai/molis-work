@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { reviewDecisionStorage } from "./fixtures/review-decision-storage.js";
-import { ActionError, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, SUBJECT_CONTEXT_TYPE, SUBJECT_REFERENCE_TYPE, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ASSISTANT_PERSONAL_OWNER } from "@molis-ai/molis-work-contracts/services/assistant";
 import { assistantAuthority, AssistantStore, installHostUiText, LocalHost, stopOriginalRun, stopOriginalRunWithSettlement } from "@molis-ai/molis-work-app-local-host";
 import { AssistantService, presentActivity } from "../apps/local-host/dist/assistant/assistant-service.js";
@@ -239,6 +239,198 @@ test("stopOriginalRunWithSettlement guarantees exact-once handoff across post-ti
     for (const listener of [...listeners]) listener({ phase: "stopped", ended_at: new Date().toISOString() });
     assert.equal(onSettledCalls, 1, "onSettled fires exactly once when deferred run settles");
     assert.equal(unsubscribed, 1, "observer self-unsubscribes after deferred settlement");
+  }
+
+  // Case 4 (CORE-02): onDispose detaches a handed-off observer cleanly when a subsequent step fails.
+  {
+    let unsubscribed = 0;
+    let onSettledCalls = 0;
+    let dispose: (() => void) | undefined;
+    const listeners = new Set<(view: { phase: string; ended_at: string | null }) => void>();
+    const adapter = {
+      read: async () => ({ ref: run, phase: "running", ended_at: null }),
+      observe: (_ref: unknown, listener: (view: { phase: string; ended_at: string | null }) => void) => {
+        listeners.add(listener);
+        return () => {
+          if (listeners.delete(listener)) unsubscribed += 1;
+        };
+      },
+      control: async () => {},
+    };
+    const settled = await stopOriginalRunWithSettlement(adapter as never, run, control, {
+      deferRunningSettlement: true,
+      runningWaitMs: 20,
+      onSettled: () => { onSettledCalls += 1; },
+      onDispose: fn => { dispose = fn; },
+    });
+    assert.equal(settled, false);
+    assert.ok(dispose, "onDispose registered on handoff");
+    dispose!();
+    assert.equal(unsubscribed, 1, "observer detached immediately by onDispose");
+    for (const listener of [...listeners]) listener({ phase: "stopped", ended_at: new Date().toISOString() });
+    assert.equal(onSettledCalls, 0, "disposed observer never triggers onSettled");
+  }
+});
+
+test("S-partition-isolation AP-02 AssistantService rejects personal objects for project work while accepting personal objects for personal work", async () => {
+  const store = new AssistantStore(new DatabaseSync(":memory:"));
+  const projectWork = store.create({
+    actor_id: "web-user", title: "Project", scope: { kind: "project", project_id: "proj-a" },
+    project_ref: { project_id: "proj-a", storage_key: "memory:proj-a" }, origin: null,
+  });
+  const personalWork = store.create({ actor_id: "web-user", title: "Personal", scope: { kind: "personal" }, origin: null });
+  store.relations.link({ work_id: projectWork.work_id, project_id: "proj-a" }, "origin", { kind: "todo_item", id: "t1", revision: "1" }, "test");
+  store.relations.link({ work_id: personalWork.work_id, project_id: null }, "origin", { kind: "todo_item", id: "t1", revision: "1" }, "test");
+
+  let returnedProjectId: string | null | undefined = "personal";
+  const readerView = {
+    capability_id: "todo.read", version: 1,
+    provider: { provider_id: "todo", title: "Todo", kind: "plugin" as const },
+    availability: { available: true as const },
+    action: {
+      title: "Read todo", description: "Read todo", scope: "project" as const, kind: "query" as const,
+      permissions: [], audiences: ["user" as const], subject_kinds: ["todo_item"],
+      input_type: SUBJECT_REFERENCE_TYPE, output_type: SUBJECT_CONTEXT_TYPE,
+      input_schema: { type: "object" }, output_schema: { type: "object" },
+    },
+  };
+  const service = new AssistantService(store, {
+    pages: async () => ["home"],
+    host: async () => { throw new Error("unused"); },
+    authority: async () => { throw new Error("unused"); },
+    projectTitle: async () => null,
+    scopeActions: async () => ({
+      discover: async () => [readerView],
+      invoke: async () => ({
+        subject: { kind: "todo_item", id: "t1" }, revision: "1", title: "Todo", content: "", truncated: false,
+        ...(returnedProjectId !== undefined ? { project_id: returnedProjectId } : {}),
+      }),
+    }) as never,
+  }, "web-user");
+  try {
+    const stateOf = async (work: typeof projectWork, projectId: string | null | undefined) => {
+      returnedProjectId = projectId;
+      const objects = await service.reads.workObjects(work);
+      assert.equal(objects.length, 1);
+      return objects[0]!.state;
+    };
+    assert.equal(await stateOf(projectWork, "personal"), "moved", "project work must reject personal-partition objects");
+    assert.equal(await stateOf(projectWork, "proj-b"), "moved", "project work must reject another project's objects");
+    assert.equal(await stateOf(projectWork, "proj-a"), "current", "project work accepts its own project's objects");
+    assert.equal(await stateOf(projectWork, null), "current", "unscoped home objects are not treated as elsewhere");
+    assert.equal(await stateOf(personalWork, "personal"), "current", "personal work accepts personal-partition objects");
+    assert.equal(await stateOf(personalWork, "proj-a"), "moved", "personal work rejects project objects");
+    assert.equal(await stateOf(personalWork, null), "current");
+  } finally {
+    service.continuations.close();
+  }
+});
+
+test("CORE-02 AssistantService.control deferred stop settles remaining child delegations even when parent assertCurrent fails", async () => {
+  const now = new Date().toISOString();
+  const store = new AssistantStore(new DatabaseSync(":memory:"));
+  const createdParent = store.create({ actor_id: "web-user", title: "Parent", scope: { kind: "personal" }, origin: null });
+  const parent = store.update("web-user", createdParent.work_id, null, { graph_id: "g-core02", session_id: "s-parent" }, false);
+  store.addRound(parent.work_id, { run_id: "r-parent", text: "go", materials: [], context: null, started_at: now });
+  const createdChild1 = store.create({
+    actor_id: "web-user", title: "Child 1", scope: { kind: "personal" }, origin: null,
+    delegated_by: { graph_id: "g-core02", node_id: "n-1", title: "Parent", acceptance: "done" },
+  });
+  const child1 = store.update("web-user", createdChild1.work_id, null, { session_id: "s-child1" }, false);
+  store.addRound(child1.work_id, { run_id: "r-child1", text: "sub1", materials: [], context: null, started_at: now });
+  const createdChild2 = store.create({
+    actor_id: "web-user", title: "Child 2", scope: { kind: "personal" }, origin: null,
+    delegated_by: { graph_id: "g-core02", node_id: "n-2", title: "Parent", acceptance: "done" },
+  });
+  const child2 = store.update("web-user", createdChild2.work_id, null, { session_id: "s-child2" }, false);
+  store.addRound(child2.work_id, { run_id: "r-child2", text: "sub2", materials: [], context: null, started_at: now });
+
+  const listeners = new Set<(view: { phase: string; ended_at: string | null }) => void>();
+  let parentStopped = false;
+  const finished: string[] = [];
+  let parentRejected = false;
+  const queue = new AgentReviewQueue({ decisions: reviewDecisionStorage().store });
+  const host = new AgentHost({ reviews: queue });
+  host.register({
+    descriptor: { runtime_id: "prologue", title: "Prologue", capabilities: { pause: true, stop: true, cancel: true, steer: true } },
+    openSession: async () => { throw new Error("unused"); },
+    start: async () => { throw new Error("unused"); },
+    read: async (ref: { session_id: string; run_id: string }) => ({
+      ref,
+      phase: ref.run_id === "r-parent" && !parentStopped ? "running" : "stopped",
+      turns: [], activity: [], awaiting_input: [], command_outputs: [],
+      usage: { tokens: { input: 0, output: 0, cached_input: 0, cache_creation: 0 } },
+      frozen: { title: "t", role_id: "assistant", directory: null },
+      started_at: now,
+      ended_at: ref.run_id === "r-parent" && !parentStopped ? null : now,
+    }),
+    readSession: async (ref: { session_id: string }) => {
+      const runId = ref.session_id === "s-parent" ? "r-parent" : ref.session_id === "s-child1" ? "r-child1" : "r-child2";
+      const runRef = { session_id: ref.session_id, run_id: runId };
+      const running = runId === "r-parent" && !parentStopped;
+      return {
+        ref, title: "t", workspace: "none", owner: { project_id: "home", plugin_id: "assistant" },
+        runs: [runRef],
+        latest_run: {
+          ref: runRef,
+          phase: running ? "running" : "stopped",
+          turns: [], activity: [], awaiting_input: [], command_outputs: [],
+          usage: { tokens: { input: 0, output: 0, cached_input: 0, cache_creation: 0 } },
+          frozen: { title: "t", role_id: "assistant", directory: null },
+          started_at: now,
+          ended_at: running ? null : now,
+        },
+      };
+    },
+    observe: (_ref: unknown, listener: (view: { phase: string; ended_at: string | null }) => void) => {
+      listeners.add(listener);
+      return () => { listeners.delete(listener); };
+    },
+    control: async () => {},
+    collaboration: {
+      read: async () => [],
+      works: {
+        hold: async () => {},
+        read: async () => [],
+        onReady: () => () => {},
+      },
+    },
+    delegations: {
+      read: async () => null,
+      beginEnd: async (subject: { work: { id: string } }) => ({ epoch: `ep-${subject.work.id}` }),
+      finishEnd: async (subject: { work: { id: string } }, _epoch: string, control: { beforeEffect(): Promise<void>; assertCurrent(): void }) => {
+        try {
+          await control.beforeEffect();
+          control.assertCurrent();
+        } catch (error) {
+          if (subject.work.id === parent.work_id) parentRejected = true;
+          throw error;
+        }
+        finished.push(subject.work.id);
+      },
+    },
+    close: async () => {},
+  } as never);
+
+  const service = new AssistantService(store, {
+    pages: async () => ["home"], host: async () => host,
+    authority: async () => { throw new Error("unused"); }, projectTitle: async () => null,
+  }, "web-user");
+  try {
+    await service.control(parent.work_id, { kind: "stop" });
+    assert.equal(listeners.size, 1, "parent running stop handed off to deferred settlement observer");
+    assert.deepEqual(finished, [], "finishEnd waits until deferred run settles");
+    // Mutate parent work before deferred settlement fires so parent's assistantEndControl throws.
+    store.update("web-user", parent.work_id, null, {
+      delegated_by: { graph_id: "mutated", node_id: "n-mut", title: "Mutated", acceptance: "x" },
+    }, false);
+    parentStopped = true;
+    for (const listener of [...listeners]) listener({ phase: "stopped", ended_at: now });
+    await until(() => finished.length === 2, "child delegations finishEnd");
+    assert.equal(parentRejected, true, "parent end control rejected after mutation");
+    assert.deepEqual(finished.sort(), [child1.work_id, child2.work_id].sort(), "both child delegations still complete finishEnd despite parent failure");
+  } finally {
+    service.continuations.close();
   }
 });
 

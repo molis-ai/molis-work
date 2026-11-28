@@ -74,6 +74,8 @@
     "shelf.material.saved-to-project-knowledge": "プロジェクト資料に保存しました",
     "shelf.material.saving": "保存しています…",
     "shelf.model.ai-model": "AI モデル",
+    "shelf.ocr.no-text": "文字は認識されませんでした。",
+    "shelf.ocr.uncertain": "{text}（要確認）",
     "shelf.panes.back-to-materials-then-retry": "資料に戻って再試行",
     "shelf.panes.choose-a-material": "資料を選ぶ",
     "shelf.panes.choose-my-file": "ファイルを選ぶ",

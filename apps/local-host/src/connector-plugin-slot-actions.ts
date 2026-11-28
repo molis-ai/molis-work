@@ -1,7 +1,7 @@
-import { ActionError, defineErrorCodes, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionHandler, defineErrorCodes, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PLUGIN_CONNECTION_RECORD_KEY_MAX } from "@molis-ai/molis-work-contracts/platform/plugin-connections";
 import { PLUGIN_ID_PATTERN, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { defineConnectorUsagesAction, defineConnectorUsagesSwitchAction, type ConnectorConnectionView, type ConnectorUsage, type ConnectorUsagesInput, type ConnectorUsagesSwitchInput, type ConnectorUsagesSwitchResult } from "@molis-ai/molis-work-contracts/services/connector-host";
+import { defineConnectorUsagesAction, defineConnectorUsagesSwitchAction, type ConnectorConnectionView, type ConnectorUsage, type ConnectorUsagesSwitchResult } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { type ConnectorConnectionStore, lastConnectorCheck, withConnectorConnections } from "./connector-connection-store.js";
 import { CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE } from "./connector-management-actions.js";
 import { pinnedToAnother, pluginSlotScope, targetScope } from "./connector-plugin-requests.js";
@@ -100,22 +100,18 @@ function assertSlotSwitchTarget(home: string, store: ConnectorConnectionStore, c
 
 export function connectorPluginSlotHandlers(home: string, directory: PluginSlotDirectory = noInstallations): ActionHandlerBinding[] {
   return [
-    { capability_id: connectorPluginSlotActions.read.capability_id, version: connectorPluginSlotActions.read.version, handle: (_caller, input) => ({ connection: bound(home, input as SlotInput) }) },
-    { capability_id: connectorPluginSlotActions.bind.capability_id, version: connectorPluginSlotActions.bind.version, handle: async (caller, value) => {
-      const input = value as SlotInput & { service_id: string; connection_id: string | null };
+    bindActionHandler(connectorPluginSlotActions.read, input => ({ connection: bound(home, input) })),
+    bindActionHandler(connectorPluginSlotActions.bind, async (input, caller) => {
       if (input.connection_id !== null) await assertDeclared(directory, caller, input, "installation");
       await caller.beforeEffect();
       withConnectorConnections(home, store => input.connection_id === null
         ? store.unbind(pluginSlotScope(input.install_id), input.plugin_id, input.slot_id)
         : store.bind({ scopeId: pluginSlotScope(input.install_id), pluginId: input.plugin_id, slotId: input.slot_id, serviceId: input.service_id, connectionId: input.connection_id }));
       return { connection: bound(home, input) };
-    } },
-    { capability_id: connectorPluginSlotActions.readRecord.capability_id, version: connectorPluginSlotActions.readRecord.version, handle: (caller, value) => {
-      const input = value as RecordInput;
-      return { connection: bound(home, input, recordScope(caller, input)) };
-    } },
-    { capability_id: connectorPluginSlotActions.bindRecord.capability_id, version: connectorPluginSlotActions.bindRecord.version, handle: async (caller, value) => {
-      const input = value as RecordBindInput, scope = recordScope(caller, input);
+    }),
+    bindActionHandler(connectorPluginSlotActions.readRecord, (input, caller) => ({ connection: bound(home, input, recordScope(caller, input)) })),
+    bindActionHandler(connectorPluginSlotActions.bindRecord, async (input, caller) => {
+      const scope = recordScope(caller, input);
       if (input.expected_connection_id !== undefined && input.connection_id === null) throw new ActionError("actions.input_invalid", "换用时请选择新账号");
       if (input.connection_id !== null) await assertDeclared(directory, caller, input, "per_record");
       await caller.beforeEffect();
@@ -125,7 +121,7 @@ export function connectorPluginSlotHandlers(home: string, directory: PluginSlotD
         store.bind({ expectedConnectionId: input.expected_connection_id, scopeId: scope, pluginId: input.plugin_id, slotId: input.slot_id, serviceId: input.service_id, connectionId: input.connection_id });
       });
       return { connection: bound(home, input, scope) };
-    } },
+    }),
   ];
 }
 
@@ -159,8 +155,8 @@ function slotUses(home: string, caller: ActionCallContext, connectionId: string)
  * Each installation's Manifest is read once however many uses it has; an id is shown only where its name cannot be read.
  */
 export function connectorPluginSlotUsagesHandler(home: string, directory: PluginSlotDirectory = noInstallations): ActionHandlerBinding {
-  return { ...connectorPluginSlotUsages, handle: async (caller, value) => {
-    const found = slotUses(home, caller, (value as ConnectorUsagesInput).connection_id);
+  return bindActionHandler(connectorPluginSlotUsages, async (input, caller) => {
+    const found = slotUses(home, caller, input.connection_id);
     if (!found) return { usages: [] };
     const manifests = new Map<string, Promise<PluginManifest | null>>();
     // The project list is opened only when a use is counted per project.
@@ -179,7 +175,7 @@ export function connectorPluginSlotUsagesHandler(home: string, directory: Plugin
         detail: project === undefined ? "插件这个安装发出的请求都用这个账号" : `项目「${project}」里 ${use.scopes.length} 条记录用这个账号` };
     }));
     return { usages };
-  } };
+  });
 }
 
 /**
@@ -191,8 +187,7 @@ export function connectorPluginSlotUsagesHandler(home: string, directory: Plugin
 export const connectorPluginSlotSwitch = defineConnectorUsagesSwitchAction("connectors.plugin_slot.switch", /* @version action.connectors.plugin_slot.switch */ 1, "换用插件连接槽的账号", [CONNECTOR_MANAGEMENT_WRITE], "home");
 
 export function connectorPluginSlotSwitchHandler(home: string, directory: PluginSlotDirectory = noInstallations): ActionHandlerBinding {
-  return { ...connectorPluginSlotSwitch, handle: async (caller, value) => {
-    const input = value as ConnectorUsagesSwitchInput;
+  return bindActionHandler(connectorPluginSlotSwitch, async (input, caller) => {
     const { to } = switchTarget(home, input.from_connection_id, input.to_connection_id);
     const found = slotUses(home, caller, input.from_connection_id), uses = found?.uses ?? new Map<string, SlotUse>();
     const pinned = withConnectorConnections(home, store => new Set([...uses.values()].filter(use => pinnedToAnother(store, to.connection_id, use.install_id)).map(use => use.usage_id)));
@@ -226,5 +221,5 @@ export function connectorPluginSlotSwitchHandler(home: string, directory: Plugin
       } catch (error) { result.refused.push({ usage_id: use.usage_id, code: refusalCode(error, pluginSlotErrors.switch_failed) }); }
     }
     return result;
-  } };
+  });
 }

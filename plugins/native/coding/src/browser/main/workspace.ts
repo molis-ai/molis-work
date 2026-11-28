@@ -3,16 +3,51 @@ import { errorMessage } from "../dom.js";
 import { status } from "./request.js";
 import type { Page } from "./page.js";
 
+interface WorkspaceSyncState {
+  seq: number;
+  syncedId: string | undefined;
+}
+
+const syncByPage = new WeakMap<Page, WorkspaceSyncState>();
+
+function syncStateOf(page: Page): WorkspaceSyncState {
+  let entry = syncByPage.get(page);
+  if (!entry) {
+    entry = { seq: 0, syncedId: undefined };
+    syncByPage.set(page, entry);
+  }
+  return entry;
+}
+
+/** Whether embedded Files and Git on `page` are already synced to `workspaceId`. */
+export function isWorkspaceSynced(page: Page, workspaceId: string): boolean {
+  return Boolean(workspaceId) && syncStateOf(page).syncedId === workspaceId;
+}
+
+/** Forget the synced directory and supersede any in-flight workspace switch on `page`. */
+export function clearWorkspaceSync(page: Page): void {
+  const sync = syncStateOf(page);
+  sync.seq += 1;
+  sync.syncedId = undefined;
+}
+
 /**
  * The embedded Files and Git show the folder the page's new rounds run in. Which folder they show is this page's own state: the
  * project keeps no browsing choice, and rounds the Assistant starts run in the project's output (SSC-17).
  */
 export async function useProjectWorkspace(page: Page, id: string) {
   const { host, lifetime } = page;
+  const sync = syncStateOf(page);
+  const seq = ++sync.seq;
+  sync.syncedId = undefined;
   try {
     await host.selectWorkspace(id);
-    page.refs.filesFace?.follow(id);
+    if (lifetime.alive && seq === sync.seq) {
+      sync.syncedId = id;
+      page.refs.filesFace?.follow(id);
+    }
   } catch (error) {
+    if (seq === sync.seq) sync.syncedId = undefined;
     throw new Error(uiText.text("coding.workspace.switch-failed-why", { reason: errorMessage(error) }));
   }
   lifetime.assertCurrent();
@@ -27,11 +62,26 @@ export async function followWorkspace(page: Page) {
   const target = s.state.workspaces?.find(item => item.workspace_id === s.workspaceId && item.realpath_verified);
   // A state read can already describe this directory while the embedded Git still shows the output folder.
   if (!target) return;
+  const sync = syncStateOf(page);
+  const targetId = target.workspace_id;
+  if (sync.syncedId === targetId) {
+    s.state.workspace = target;
+    return;
+  }
+  const seq = ++sync.seq;
+  sync.syncedId = undefined;
   try {
-    await useProjectWorkspace(page, target.workspace_id);
+    await page.host.selectWorkspace(targetId);
+    page.lifetime.assertCurrent();
+    if (seq !== sync.seq || s.workspaceId !== targetId) return;
+    sync.syncedId = targetId;
+    page.refs.filesFace?.follow(targetId);
     s.state.workspace = target;
   } catch (error) {
-    status(page, uiText.text("coding.workspace.files-git-unchanged", { reason: errorMessage(error) }), true);
+    if (seq === sync.seq) sync.syncedId = undefined;
+    if (!page.lifetime.alive || seq !== sync.seq || s.workspaceId !== targetId) return;
+    const detail = uiText.text("coding.workspace.switch-failed-why", { reason: errorMessage(error) });
+    status(page, uiText.text("coding.workspace.files-git-unchanged", { reason: detail }), true);
   }
 }
 

@@ -12,7 +12,7 @@ import type { MolisWorkProjectCatalog } from "./project-catalog.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { checkWorkspaceFile } from "./workspace-files.js";
 import { changedProjectPluginEnablement, type ProjectPluginRefreshResult } from "./project-plugin-enablement.js";
-import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { builtinPluginByManifestId, builtinPluginByProjectKey } from "./plugin-registry.js";
 import { disposeWorkTerminalsForHomePluginInProject } from "./work-terminal-service.js";
 import { partitionPluginRemoved } from "./partition-plugin-host.js";
 import { hostErrors } from "./host-errors.js";
@@ -134,9 +134,9 @@ export function projectPluginMembershipActionProvider(catalogOwner: ProjectCatal
           ...before.plugins.filter(id => !savedPlugins.has(id)),
         ]);
         for (const key of disabledKeys) {
-          const entry = PLATFORM_PLUGIN_REGISTRATIONS.find(item => item.project_plugin_id === key || item.manifest.plugin_id === key);
+          const entry = builtinPluginByProjectKey(key) ?? builtinPluginByManifestId(key);
           disposeWorkTerminalsForHomePluginInProject(home, entry?.manifest.plugin_id ?? key, projectId);
-          // A plugin with a library in each partition: its due entries and overview rows there go, though the partition may not be open.
+          // Per-partition and overview-declaring plugins: their due entries and overview rows (including main-DB plugin_overview_rows) go now, even if the partition is closed.
           partitionPluginRemoved(home, entry?.manifest.plugin_id ?? key, projectId);
         }
       }

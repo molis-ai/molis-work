@@ -329,6 +329,9 @@ test("SPC-10 ONB-25 ONB-26 ONB-27 WBR-26: home page lifecycle — draft save, bl
     ["quoted comment tokens hiding external url", `.a { --a: "/*"; background: url(https://evil.example/x); --b: "*/"; }`, "external_asset"],
     ["spaceless @import quote", `@import"https://evil.example/a.css";`, "external_asset"],
     ["comment-separated @import quote", `@import/**/"https://evil.example/a.css";`, "external_asset"],
+    ["CSS named color", `.card { color: tomato; }`, "literal_color"],
+    ["modern CSS color-mix()", `.card { background: color-mix(in srgb, var(--paper) 80%, black); }`, "literal_color"],
+    ["modern CSS hwb()", `.card { color: hwb(120 10% 20%); }`, "literal_color"],
   ] as const) {
     const rep = inspectHomePageDesign([
       { path: "index.html", media_type: "text/html", text: `<main></main>` },
@@ -337,6 +340,11 @@ test("SPC-10 ONB-25 ONB-26 ONB-27 WBR-26: home page lifecycle — draft save, bl
     assert.equal(rep.ok, false, `${label}: must fail design check`);
     assert.ok(rep.issues.some(i => i.code === expectedCode), `${label}: must report ${expectedCode}`);
   }
+  const unquotedExternalHtml = inspectHomePageDesign([
+    { path: "index.html", media_type: "text/html", text: `<main><img src=https://evil.example/a.png></main>` },
+  ]);
+  assert.equal(unquotedExternalHtml.ok, false, "unquoted external HTML src must fail design check");
+  assert.ok(unquotedExternalHtml.issues.some(i => i.code === "external_asset"));
 
   // 9. Retention (>20 versions protects active + based_on + last approved & prunes oldest unpinned; >20 pages refuses).
   // Seed other project so we also prove project deletion does not affect it.

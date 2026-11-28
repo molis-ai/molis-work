@@ -264,6 +264,14 @@ test("the plugin routes of the settings tell a missing project from every other 
   assert.deepEqual([unknown.status, unknown.body.code], [400, "catalog.plugin_not_found"]);
   const removed = await call("DELETE", "/api/settings/projects/no-such-project/plugins", { plugin_id: "goals", expected_revision: await projectPluginRevisionAt(origin, project.project_id) });
   assert.deepEqual([removed.status, removed.body.code], [404, "catalog.project_not_found"]);
+  // IUI-02: pre-runWithLocale 404 (inner platform-part route) responds in the request's resolved locale (en/ja), never leaking Chinese.
+  for (const [acceptLanguage, match] of [["en-US", /not found|endpoint|doesn.?t exist/iu], ["ja-JP", /[\p{Script=Hiragana}\p{Script=Katakana}]/u]] as const) {
+    const res = await fetch(`${origin}/api/plugins/system.shelf/ping`, { headers: { "accept-language": acceptLanguage } });
+    assert.equal(res.status, 404);
+    const body = await res.json() as { error?: string };
+    assert.match(String(body.error ?? ""), match);
+    if (acceptLanguage === "en-US") assert.doesNotMatch(String(body.error ?? ""), /\p{Script=Han}/u);
+  }
 });
 
 // ---- 3. The artifact edge --------------------------------------------------------------------------------------------
@@ -410,6 +418,16 @@ test("every refusal of the Host, Origin and control-token checks answers the one
   for (const [what, answer] of refusals) {
     assert.equal(answer.status, 403, what);
     assert.equal(answer.body, expected, `${what}: the same body whichever check failed`);
+  }
+  // IUI-02: foreign request refusals localize to Accept-Language (en/ja) without leaking Chinese.
+  for (const [acceptLanguage, expectNonZh] of [["en-US", true], ["ja-JP", false]] as const) {
+    const refused = await send(complete({ origin: "http://evil.example", "accept-language": acceptLanguage }));
+    assert.equal(refused.status, 403);
+    const parsed = JSON.parse(refused.body) as { error: string; code: string };
+    assert.equal(parsed.code, "host.request_refused");
+    assert.notEqual(parsed.error, CHINESE_REFUSAL);
+    if (expectNonZh) assert.doesNotMatch(parsed.error, /\p{Script=Han}/u);
+    else assert.match(parsed.error, /[\p{Script=Hiragana}\p{Script=Katakana}]/u);
   }
   // Past the checks that name the person's machine, the one-time key has its own answers; they do not say a check failed.
   assert.equal((await send(complete({ "x-molis-work-idempotency-key": undefined }))).status, 400);

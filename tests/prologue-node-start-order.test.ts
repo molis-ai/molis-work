@@ -5,7 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createRequire } from "node:module";
 import test from "node:test";
-import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
+import { fileURLToPath } from "node:url";
+import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter, languageServersFrom } from "@molis-ai/molis-work-service-agent-host";
 import { codingAgentManifest, codingPrompts } from "@molis-ai/molis-work-plugin-coding";
 
 const requireSdk = createRequire(new URL("../horizontal/agent-host/package.json", import.meta.url));
@@ -77,20 +78,52 @@ test("RT-1/2 the Node adapter releases each round once, including a terminal eve
       surface: { noteRun() {}, release: async (phase: string) => { releases.push(["surface", phase]); } },
       actionReviews: { releaseRun: () => true }, codeIntelligence: { close: async () => { releases.push("lsp"); } }, onAborted() {} };
     const lifecycle = watchRoundLifecycle(deps as never, input as never, at as never);
+    assert.equal(lifecycle.isSettled(), false);
     emit();
     await attachStartedRound(deps as never, input as never, { title: "fixture" } as never, at as never);
     assert.equal(state.liveSessions.get("holder"), projectDirectory ? "round" : undefined);
     const workStarted = registration === "registered" || registration === "handoff-fails";
     assert.equal(state.runWork.has("round"), workStarted, registration);
     lifecycle.markReady(); emit(); lifecycle.dispose("cancelled");
+    assert.equal(lifecycle.isSettled(), true);
     await new Promise<void>(resolve => setImmediate(resolve));
+    assert.equal(listeners.size, 0, "CORE-11: lifecycle and round-facts subscriptions detach after terminal event");
     assert.deepEqual(releases, ["lsp", "board", ["graph", type], ["surface", end], "surface-run", ...(workStarted ? [["project", "job", end]] : [])], type);
     assert.equal(actionController.signal.aborted, true);
     assert.deepEqual([state.liveSessions.size, state.runWork.size, state.activeRuns.size, state.runRefs.size, state.actionControllers.size], [0, 0, 0, 0, 0]);
     if (type === "completed") assert.equal(endedOnPromise(state, "round", "holder"), true, "the completed view consumes its final guard facts");
     assert.deepEqual([state.roundFacts.size, guard.runs.size], [0, 0]);
     assert.equal(letterEvent, projectDirectory ? letterEnd : "delivered", registration);
-    if (projectDirectory && type === "tripped") assert.match(note, /护栏叫停/);
-    if (projectDirectory && type === "circuit-tripped") assert.match(note, /连续尝试没有进展/);
+    if (projectDirectory && type === "failed") assert.equal(note, "mail.recipient_failed");
+    if (projectDirectory && type === "tripped") assert.equal(note, "mail.recipient_tripped");
+    if (projectDirectory && type === "circuit-tripped") assert.equal(note, "mail.recipient_circuit_tripped");
   }
+});
+
+test("CORE-01 CORE-16: setup failure before startAgentRun cleans up code-intelligence extension and write-check hook", { timeout: 15_000 }, async () => {
+  const root = await mkdtemp(join(tmpdir(), "molis-start-setup-cleanup-")), parent = join(root, "parent"), storageRoot = join(root, "runtime");
+  await mkdir(parent);
+  const fakeLsp = join(fileURLToPath(new URL(".", import.meta.url)), "fixtures/fake-format-lsp-server.mjs");
+  const app = { appId: "io.molis.work.start-setup-cleanup", appVersion: "1.0.0" };
+  let credentialCalls = 0;
+  const adapter = await createPrologueNodeAdapter({
+    app,
+    storageRoot,
+    reviewQueue: new AgentReviewQueue(),
+    codeIntelligence: { servers: languageServersFrom({ servers: [{ extensions: [".go"], command: process.execPath, args: [fakeLsp], languageId: "go" }] }) },
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }),
+    resolveCredential: () => { credentialCalls++; throw new Error("setup-credential-boom"); },
+  });
+  try {
+    const host = new AgentHost(); host.register(adapter);
+    const owner = { project_id: "b", plugin_id: "io.molis.work.coding", install_id: "i", actor_id: "user" }, directory = { canonical_path: parent, realpath_verified: true };
+    const session = await adapter.createSession({ ...owner, directory, title: "Failed setup" });
+    await assert.rejects(
+      host.start("prologue", { ...owner, session, directory, role_id: "builder", task: "Check setup cleanup." },
+        { manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [parent] }),
+      /setup-credential-boom/,
+    );
+    assert.equal(credentialCalls, 1, "setup progressed past roundGateway and roundSurface before failing at credential exchange");
+    assert.deepEqual((await adapter.readSession(session)).runs, [], "failed setup leaves no run and cleanly tears down round extensions");
+  } finally { await adapter.close(); await rm(root, { recursive: true, force: true }); }
 });

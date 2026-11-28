@@ -278,12 +278,13 @@ export function renderCompareChromeParts(options: {
   readonly draft: HomePageVersionSummary;
   readonly inspect: InspectResponse;
   readonly diff: HomePageDiffResult | null;
-  readonly hasManualConflict: boolean;
+  readonly conflictBase: HomePageVersionSummary | null;
   readonly conflictChoice: "mine" | "new" | "merge" | null;
   readonly blocker: "check" | "conflict" | null;
   readonly checksOpen: boolean;
 }): { issuesHtml: string; barHtml: string } {
-  const { draft, inspect, diff, hasManualConflict, conflictChoice, blocker, checksOpen } = options;
+  const { draft, inspect, diff, conflictBase, conflictChoice, blocker, checksOpen } = options;
+  const hasManualConflict = conflictBase !== null;
   const checks = buildCheckItems(inspect);
   const hasMissingDep = inspect.actions.some(a => !a.available);
   const summaryLabel =
@@ -297,15 +298,24 @@ export function renderCompareChromeParts(options: {
   const summaryTone = blocker === "check" ? "blocked" : blocker === "conflict" ? "attention" : hasMissingDep ? "hold" : "done";
   const summaryState = blocker === "check" ? "failed" : blocker === "conflict" ? "conflict" : hasMissingDep ? "waiting" : "done";
 
+  const listSep = uiText.text("common.list.separator");
+  const diffMatchesBase = Boolean(diff && conflictBase && diff.page_id === conflictBase.page_id && diff.from_version === conflictBase.version);
+  const mineFiles = diffMatchesBase && diff!.files.length > 0
+    ? diff!.files.map(f => f.path).join(listSep)
+    : conflictBase
+      ? conflictBase.files.map(f => f.path).join(listSep) || conflictBase.title
+      : "";
+  const nextChangedCount = diffMatchesBase ? diff!.files.length : draft.files.length;
+
   const conflictHtml =
-    hasManualConflict && diff
+    conflictBase
       ? renderEditConflict({
           title: uiText.text("workbench.home-pages.conflict-title", { v: draft.version }),
-          body: uiText.text("workbench.home-pages.conflict-body", { base: draft.based_on ?? 1 }),
-          mineLabel: uiText.text("workbench.home-pages.conflict-mine", { base: draft.based_on ?? 1 }),
-          mineValue: diff.files.map(f => f.path).join(uiText.text("common.list.separator")),
+          body: uiText.text("workbench.home-pages.conflict-body", { base: conflictBase.version }),
+          mineLabel: uiText.text("workbench.home-pages.conflict-mine", { base: conflictBase.version }),
+          mineValue: mineFiles,
           nextLabel: uiText.text("workbench.home-pages.conflict-next", { v: draft.version }),
-          nextValue: uiText.text("workbench.home-pages.conflict-next-summary", { title: draft.title, n: diff.files.length }),
+          nextValue: uiText.text("workbench.home-pages.conflict-next-summary", { title: draft.title, n: nextChangedCount }),
           choices: [
             { label: uiText.text("workbench.home-pages.conflict-keep"), variant: "secondary", attrs: { "data-hp-act": "conflict-pick", "data-hp-pick": "mine" } },
             { label: uiText.text("workbench.home-pages.conflict-use-new"), variant: "secondary", attrs: { "data-hp-act": "conflict-pick", "data-hp-pick": "new" } },
@@ -357,7 +367,7 @@ export function renderCompareChromeParts(options: {
     }),
     primary: renderButton({
       label: hasManualConflict && conflictChoice === "mine"
-        ? uiText.text("workbench.home-pages.conflict-confirm-mine", { base: draft.based_on ?? 1 })
+        ? uiText.text("workbench.home-pages.conflict-confirm-mine", { base: conflictBase.version })
         : uiText.text("workbench.home-pages.adopt-ellipsis"),
       variant: "primary",
       size: "sm",
@@ -475,6 +485,27 @@ export function relabelComparison(compareHost: HTMLElement, overview: HomePageOv
   }
   const previewNote = compareHost.querySelector<HTMLElement>(".hp-preview-note");
   if (previewNote) previewNote.textContent = uiText.text("workbench.home-pages.preview-readonly-note");
+}
+
+/** Relabel an open merge editor in place on language switch without disturbing textarea edits, checkboxes, or select choice (IUI-08). */
+export function relabelMergeEditor(compareHost: HTMLElement): void {
+  const section = compareHost.querySelector<HTMLElement>("[data-hp-merge]");
+  if (!section) return;
+  const heading = section.querySelector<HTMLElement>(":scope > h3");
+  if (heading) heading.textContent = uiText.text("workbench.home-pages.merge-edit");
+  section.querySelectorAll<HTMLElement>("details > summary").forEach(summary => {
+    summary.textContent = uiText.text("workbench.home-pages.draft");
+  });
+  section.querySelectorAll<HTMLButtonElement>("details > button").forEach(btn => {
+    btn.textContent = uiText.text("workbench.home-pages.conflict-use-new");
+  });
+  for (const label of section.querySelectorAll<HTMLLabelElement>(":scope > label")) {
+    if (label.querySelector(".mw-select") && label.firstChild?.nodeType === Node.TEXT_NODE) {
+      label.firstChild.textContent = uiText.text("workbench.home-pages.merge-details");
+    }
+  }
+  const saveBtn = section.querySelector<HTMLButtonElement>("[data-hp-merge-save]");
+  if (saveBtn) saveBtn.textContent = uiText.text("workbench.home-pages.merge-save");
 }
 
 export function updateComparison(compareHost: HTMLElement, compareView: "now" | "draft", issuesHtml: string, barHtml: string): void {

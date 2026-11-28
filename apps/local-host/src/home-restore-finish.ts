@@ -26,6 +26,9 @@ export function verifyCommittedHomeRestore(journal: HomeRestoreJournal, registry
   }
   const space = journalStorageSpace(journal);
   assertRestoreDependencies(home, registry, journal.dependencies); assertHomeRestoreOriginalsAvailable(journal);
+  let sawCatalog = false;
+  let projectIds: ReadonlySet<string> = new Set();
+  const partitionLibraries: string[] = [];
   for (const file of journal.files) {
     control.assertCurrent();
     const path = join(home, file.path), identity = inspectRestoreNode(path);
@@ -37,28 +40,43 @@ export function verifyCommittedHomeRestore(journal: HomeRestoreJournal, registry
     let options = snapshotDatabaseOptions(store, relative);
     if (!!options !== !!file.sqlite) throw invalidRestore();
     if (options && file.sqlite) {
-      if (file.path === "projects/catalog.db") options = { ...options, inspect: db => {
-        const metadata = inspectCatalog(db); inspectRestoreProjectReferences(db, home, incoming); return metadata;
-      } };
-      else if (store.path === "projects") {
+      if (file.path === "projects/catalog.db") {
+        sawCatalog = true;
+        options = { ...options, inspect: db => {
+          const metadata = inspectCatalog(db);
+          projectIds = inspectRestoreProjectReferences(db, home, incoming);
+          return metadata;
+        } };
+      } else if (store.path === "projects") {
         const project = /^([^/]+)\/molis-work\.db$/u.exec(relative);
         const library = /^([^/]+)\/libraries\/[^/]+\.db$/u.exec(relative);
-        // A partition's own plugin library (`<id>/libraries/<store>.db`) is the plugin's, not the project database: it is checked as a
-        // SQLite file like any other, and its partition was already required to be among the restored projects.
-        const partition = project?.[1] ?? library?.[1];
-        if (!partition || partition === PERSONAL_SPACE_PROJECT_ID || partition.startsWith(".")) throw invalidRestore();
-        if (project) options = { ...options, inspect: db => inspectRestoreProjectDatabase(db, file.path, project[1]!) };
+        if (library) {
+          if (library[1] === PERSONAL_SPACE_PROJECT_ID || library[1]!.startsWith(".")) throw invalidRestore();
+          partitionLibraries.push(library[1]!);
+        } else if (!project || project[1] === PERSONAL_SPACE_PROJECT_ID || project[1]!.startsWith(".")) {
+          throw invalidRestore();
+        } else {
+          options = { ...options, inspect: db => inspectRestoreProjectDatabase(db, file.path, project[1]!) };
+        }
       } else {
         const personal = restorePersonalSpaceDatabase(store.path, relative);
         const personalLibrary = restorePersonalSpaceLibrary(store.path, relative);
         if (personal) options = { ...options, inspect: db => inspectRestoreProjectDatabase(db, file.path, personal) };
-        else if (!personalLibrary && store.path === PERSONAL_SPACE_DIRECTORY) throw invalidRestore();
+        else if (personalLibrary) partitionLibraries.push(personalLibrary);
+        else if (store.path === PERSONAL_SPACE_DIRECTORY) throw invalidRestore();
       }
       if (!isDeepStrictEqual(inspectSnapshotSqlite(path, { ...options, space, signal: control.signal }), file.sqlite)) throw invalidRestore();
     }
     const installation = /^runtime\/connectors\/installs\/([^/]+)\/installation\.json$/u.exec(file.path);
     if (installation) readManagedConnectorTool(home, installation[1]!);
   }
+  if (!sawCatalog && [...incoming].some(filePath =>
+    /^projects\/[^/]+\/molis-work\.db$/u.test(filePath)
+    || /^projects\/[^/]+\/libraries\/[^/]+\.db$/u.test(filePath)
+    || filePath === `${PERSONAL_SPACE_DIRECTORY}/molis-work.db`
+    || new RegExp(`^${PERSONAL_SPACE_DIRECTORY}/libraries/[^/]+\\.db$`, "u").test(filePath)
+  )) throw invalidRestore();
+  if (partitionLibraries.some(partition => !projectIds.has(partition))) throw invalidRestore();
   for (const directory of journal.directories) {
     const actual = inspectRestoreNode(join(home, directory.path));
     if (actual?.kind !== "directory" || actual.mode !== directory.mode || directory.original && !sameRestoreInode(actual, directory.original)) throw invalidRestore();

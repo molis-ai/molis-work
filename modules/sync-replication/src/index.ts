@@ -10,10 +10,13 @@ import {pinSyncProtection} from './local-protection.js';
 export type SyncSelection = SpaceSyncPolicy['selections'][number];
 export {syncNamespace} from './namespace.js';
 import {syncNamespace} from './namespace.js';
+export type SyncRestoreTier = 'catalog' | 'version-store' | 'reference-owner' | 'default';
 export interface SyncRegistration {
   selection:SyncSelection; title:string;
   /** Host-declared collection group used by settings UI without prefix guessing. */
   group?:'platform'|'plugin';
+  /** Declarative restore ordering tier (`catalog` -> `version-store` -> `reference-owner` -> `default`). Defaults to `reference-owner` when `hasReference` is provided, else `default`. */
+  restoreTier?:SyncRestoreTier;
   /** Passive current owner reference check; separate from cloud selection. */
   hasReference?(projectId:string,assetId:string,version?:number):boolean;
   /** Synchronous lifecycle projection only; false is unavailable, never a successful empty replica. */
@@ -442,24 +445,28 @@ async function replayDeferred(namespace:string,failures:ReturnType<typeof syncIt
   }
 }
 
-const isProjectCatalogSelection = (selection: SyncSelection) =>
-  selection.collection_id === 'projects' && selection.plugin_id.startsWith('io.molis.work.module.projects.');
+const RESTORE_TIER_RANK: Record<SyncRestoreTier, number> = {
+  catalog: 0,
+  'version-store': 1,
+  'reference-owner': 2,
+  default: 3,
+};
 
-/** Group selected registrations into topological layers so independent collections sync in parallel. */
+const restoreTierOf = (registration: SyncRegistration): SyncRestoreTier =>
+  registration.restoreTier ?? (typeof registration.hasReference === 'function' ? 'reference-owner' : 'default');
+
+/** Group selected registrations into topological layers by declared `restoreTier` and explicit `dependencies` so independent collections sync in parallel. */
 function partitionSyncLayers(registrations:readonly SyncRegistration[]):SyncRegistration[][]{
   if(registrations.length<=1)return registrations.length?[[...registrations]]:[];
   const byNs=new Map(registrations.map(r=>[syncNamespace(r.selection),r]));
-  const catalog=registrations.filter(r=>isProjectCatalogSelection(r.selection)).map(r=>syncNamespace(r.selection));
-  const artifacts=registrations.filter(r=>r.selection.plugin_id==='system.artifacts').map(r=>syncNamespace(r.selection));
-  const refOwners=registrations.filter(r=>!isProjectCatalogSelection(r.selection)&&r.selection.plugin_id!=='system.artifacts'&&typeof r.hasReference==='function').map(r=>syncNamespace(r.selection));
+  const tierRank=new Map(registrations.map(r=>[syncNamespace(r.selection),RESTORE_TIER_RANK[restoreTierOf(r)]]));
   const deps=new Map<string,Set<string>>();
   for(const r of registrations){
     const ns=syncNamespace(r.selection);
+    const rank=tierRank.get(ns)!;
     const set=new Set<string>();
     for(const dep of r.dependencies??[]){const d=syncNamespace(dep);if(d!==ns&&byNs.has(d))set.add(d);}
-    if(!isProjectCatalogSelection(r.selection))for(const c of catalog)if(c!==ns)set.add(c);
-    if(!isProjectCatalogSelection(r.selection)&&r.selection.plugin_id!=='system.artifacts')for(const a of artifacts)if(a!==ns)set.add(a);
-    if(!isProjectCatalogSelection(r.selection)&&r.selection.plugin_id!=='system.artifacts'&&typeof r.hasReference!=='function')for(const o of refOwners)if(o!==ns)set.add(o);
+    for(const [otherNs,otherRank] of tierRank)if(otherNs!==ns&&otherRank<rank)set.add(otherNs);
     deps.set(ns,set);
   }
   const layers:SyncRegistration[][]=[];

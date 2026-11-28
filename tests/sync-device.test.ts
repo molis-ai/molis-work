@@ -6,7 +6,7 @@ import {mkdtempSync,rmSync,readFileSync,writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {setImmediate} from 'node:timers/promises';
-import {PersonalSync,SYNC_STORE_BASELINE,syncNamespace} from '@molis-ai/molis-work-module-sync-replication';
+import {PersonalSync,SYNC_STORE_BASELINE,syncNamespace,type SyncRegistration} from '@molis-ai/molis-work-module-sync-replication';
 import {ensureStorageSpace,homeSqlitePath,personalStorageSpace} from '@molis-ai/molis-work-storage';
 import {DatabaseSync} from 'node:sqlite';
 
@@ -161,6 +161,7 @@ test('PCSYNC-OPT-07 independent collections sync in bounded parallel layers whil
   };
   const registrations=selections.map((selection,i)=>({
     selection,title:`Col ${i}`,
+    ...(i===0?{restoreTier:'catalog' as const}:{}),
     ...(i===6?{dependencies:[selections[1]!]}:{}),
     async refresh(){},
     async prepare(){},
@@ -186,6 +187,52 @@ test('PCSYNC-OPT-07 independent collections sync in bounded parallel layers whil
   assert.equal(peak,3,'bounded concurrency runs 3 independent collections at once');
   assert.deepEqual(waves.map(wave=>wave.length),[1,3,2,1],'seven downloads take four network round trips');
   assert.equal(completed.size,7,'all collections applied their remote changes');
+});
+
+test('CORE-13 declarative restoreTier orders catalog -> version-store -> reference-owner -> default without hardcoded plugin IDs', async t => {
+  t.mock.timers.reset();
+  const root = mkdtempSync(join(tmpdir(), 'molis-sync-tiers-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const space = personalStorageSpace('https://auth.example.test', 'work', 'alice');
+  ensureStorageSpace(root, space);
+  const makeSel = (id: string) => ({ plugin_id: `com.example.${id}`, publisher_id: 'example', publisher_signature: 'sig', collection_id: 'items', schema_version: 1 });
+  const sDefault = makeSel('consumer');
+  const sRef = makeSel('owner');
+  const sVersion = makeSel('versions');
+  const sCatalog = makeSel('directory');
+  const order: string[] = [];
+  const makeReg = (selection: ReturnType<typeof makeSel>, extra: Partial<SyncRegistration> = {}): SyncRegistration => ({
+    selection, title: selection.plugin_id, ...extra,
+    async refresh() {}, async prepare() {},
+    withReplica: run => run({
+      cursor: () => 0, next: () => null, acknowledge() {}, counts: () => ({ pending: 0, conflicts: 0 }), conflicts: () => [], resolve() {},
+      receive() { order.push(selection.plugin_id); },
+    }),
+  });
+  const selections = [sDefault, sRef, sVersion, sCatalog];
+  const sync = new PersonalSync({
+    home: root, spaceId: space.spaceId, endpoint: 'http://127.0.0.1:8788',
+    authority: { signal: new AbortController().signal, assertCurrent() {}, async accessToken() { return 'synthetic'; } },
+    registrations: [
+      makeReg(sDefault),
+      makeReg(sRef, { hasReference: () => true }),
+      makeReg(sVersion, { restoreTier: 'version-store' }),
+      makeReg(sCatalog, { restoreTier: 'catalog' }),
+    ],
+    fetch: async input => {
+      const url = new URL(String(input));
+      if (url.pathname === '/v1/round') {
+        return Response.json({ format: 1, policy: { spaceId: space.spaceId, revision: 1, selections }, quota: { limitBytes: 100000000, usedBytes: 0 },
+          heads: selections.map(s => ({ namespace: syncNamespace(s), revision: 1 })) });
+      }
+      const ns = url.searchParams.get('namespace')!;
+      return Response.json({ events: [{ operationId: 'op-' + ns, key: 'k', base: 0, revision: 1, value: { ok: true } }], more: false });
+    },
+  });
+  t.after(() => sync.close());
+  await sync.run();
+  assert.equal(sync.status().error, null);
+  assert.deepEqual(order, ['com.example.directory', 'com.example.versions', 'com.example.owner', 'com.example.consumer']);
 });
 
 test('PCSYNC-OPT-09 indicatorStatus reflects local edits when automatic sync is off without refreshCatalog scans',async t=>{

@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
+import { OVERVIEW_ROW_LIMIT, OVERVIEW_TABLE } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { installTextForTest, parseLocalePack } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { ENDED_SHOWN_MS, imagesBackgroundTasksOf, imagesOverviewRow } from "@molis-ai/molis-work-plugin-images";
+import { ENDED_SHOWN_MS, IMAGES_DATABASE, ImagesService, imagesBackgroundTasksOf, imagesOverviewRow } from "@molis-ai/molis-work-plugin-images";
 import type { ImageJob } from "@molis-ai/molis-work-plugin-images/contract";
+import { memoryPluginDatabase } from "./fixtures/plugin-database.js";
 
 const packOf = (file: string) => { const pack = parseLocalePack(readFileSync(new URL(`../${file}`, import.meta.url), "utf8"), { file }); assert.ok(pack.ok); return pack.value; };
 const NOW = Date.parse("2026-11-15T10:00:00.000Z");
@@ -42,4 +44,28 @@ test("UPP-37 Images' overview rows: a running generation and one ended in the la
     null, null,
   ]);
   assert.equal(rows[1]!.updated_at, ago(60_000));
+});
+
+test("AP-14 writeImagesOverview bounds plugin_overview_rows to OVERVIEW_ROW_LIMIT by evicting oldest rows instead of throwing", async () => {
+  const database = memoryPluginDatabase(IMAGES_DATABASE.schema);
+  try {
+    const insert = database.raw.prepare(`INSERT INTO jobs
+      (id, request_id, input_hash, connection_id, connection_name, api_format, model, prompt, size, aspect_ratio, status, images_json, error, created_at, finished_at)
+      VALUES (?, ?, ?, 'c', '厂商', 'openai-images', 'm1', ?, '1024x1024', '1:1', 'running', '[]', '', ?, NULL)`);
+    const baseMs = Date.now() - 120_000;
+    for (let i = 0; i <= OVERVIEW_ROW_LIMIT; i += 1) {
+      const id = `job-${String(i).padStart(4, "0")}`;
+      insert.run(id, `req-${id}`, `hash-${id}`, `画 ${id}`, new Date(baseMs + i * 100).toISOString());
+    }
+    const service = new ImagesService({
+      projectId: "p", database, connections: {} as never, files: {} as never, imageGeneration: {} as never, background: {} as never,
+    });
+    await service.recover({ beforeEffect: async () => {} });
+    const rows = database.raw.prepare(`SELECT row_id FROM ${OVERVIEW_TABLE} WHERE kind = 'background_task' ORDER BY row_id`).all() as Array<{ row_id: string }>;
+    assert.equal(rows.length, OVERVIEW_ROW_LIMIT, "overview rows stay bounded at OVERVIEW_ROW_LIMIT");
+    assert.equal(rows.some(row => row.row_id === "job-0000"), false, "oldest ended row is evicted");
+    assert.equal(rows.some(row => row.row_id === `job-${String(OVERVIEW_ROW_LIMIT).padStart(4, "0")}`), true, "501st row is persisted");
+  } finally {
+    database.close();
+  }
 });

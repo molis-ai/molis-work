@@ -187,7 +187,8 @@ const PROJECT_ROUTES: readonly WebRoute<ProjectRequestContext>[] = [
       await context.localHost.withProject(context.hostReference, runtime =>
         dispatchWebRoutes(PROJECT_RUNTIME_ROUTES, projectRuntimeContext(context, runtime)));
     } catch (error) {
-      if (sqliteErrorName(error) !== "SQLITE_CANTOPEN" || fs.existsSync(context.options.databasePath) || !await respondIfProjectDeleted(context)) throw error;
+      const missing = sqliteErrorName(error) === "SQLITE_CANTOPEN" || (error as NodeJS.ErrnoException | null)?.code === "ENOENT";
+      if (!missing || fs.existsSync(context.options.databasePath) || !await respondIfProjectDeleted(context)) throw error;
     }
     return true;
   } },

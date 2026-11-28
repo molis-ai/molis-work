@@ -39,7 +39,9 @@ import { sandboxProjectedPermissions, sandboxRequestedPermissions } from '@molis
 import { assertConnectorText, connectorWords } from "./connector-words.js";
 import { validateSandboxHomeSchema } from './plugin-sandbox-home-library.js';
 import { assertSurfacePresentation, withSurfacePresentationCheck, type SurfaceInstallCatalog } from './surface-installation.js';
-import { readBundledPackages } from './bundled-packages.js';
+import { bundledPackagesDirectory, readBundledPackages, releasePackageIds } from './bundled-packages.js';
+import type { InstallScope } from './plugin-holders.js';
+import { withDiscardCleanup } from './plugin-installation-cleanup.js';
 import type { PackageControlOutcome } from './uninstall-retained.js';
 
 /** A preview waits this long for its confirmation, and at most this many wait at once. */
@@ -235,13 +237,13 @@ const nested = (a: string, b: string): boolean => a.startsWith(`${b}.`) || b.sta
  * A plugin id the Host's build ships, or one on its dotted path (`io.a.b` and `io.a.b.c`), is the Host's (S-75.2): a package takes neither,
  * in either range. The Runtime refuses it again when it installs; here it is refused at the preview, before anything is written (S-84).
  */
-const assertNotHostId = (pluginId: string, fromRelease: boolean): void => {
+const assertNotHostId = (pluginId: string, fromRelease: boolean, releaseIds: ReadonlySet<string> = RELEASE_PACKAGE_IDS): void => {
   const reserved = [...HOST_PLUGIN_IDS].find(id => id === pluginId || nested(id, pluginId));
   if (reserved) throw pluginErrors.id_namespace_conflict(`插件 ID ${pluginId} 与随宿主发布的 ${reserved} 冲突`);
   // S-reserved-host-prefix: the Host's prefix is taken only by what the release itself carries, and only from its own bundled folder.
   if (pluginId.startsWith(PLATFORM_ID_PREFIX))
     throw pluginErrors.id_namespace_conflict(`插件 ID ${pluginId} 用了平台自己的前缀 ${PLATFORM_ID_PREFIX}，请换成你自己的名字`);
-  if (pluginId.startsWith(HOST_PLUGIN_ID_PREFIX) && !(fromRelease && RELEASE_PACKAGE_IDS.has(pluginId)))
+  if (pluginId.startsWith(HOST_PLUGIN_ID_PREFIX) && !(fromRelease && releaseIds.has(pluginId)))
     throw pluginErrors.id_namespace_conflict(`插件 ID ${pluginId} 用了只给随宿主发布的插件的前缀 ${HOST_PLUGIN_ID_PREFIX}，请换成你自己的名字`);
 };
 
@@ -339,7 +341,9 @@ export class PluginInstallService {
     this.assertScopeKept(manifest, message => pluginErrors.declaration_invalid(message));
     if (manifest.integrations?.length) assertConnectorText(manifest, { reader: pkg.localePacks });
     await this.assertIntegrationsFree(manifest);
-    assertNotHostId(manifest.plugin_id, 'bundled' in input);
+    const releaseIds = this.ports.bundledDirectory && this.ports.bundledDirectory !== bundledPackagesDirectory()
+      ? releasePackageIds(this.ports.bundledDirectory) : RELEASE_PACKAGE_IDS;
+    assertNotHostId(manifest.plugin_id, 'bundled' in input, releaseIds);
     const homes = runtime_scope === 'home' ? await this.ports.homeInstalled?.(manifest.plugin_id) ?? [] : [];
     const projects = runtime_scope === 'project' || dual ? await this.ports.installed(who.project_id, manifest.plugin_id) : [];
     const rows = runtime_scope === 'home' ? homes : projects;
@@ -544,24 +548,29 @@ export class PluginInstallService {
       // A first installation starts with the switches the person chose; an upgrade keeps its own and moves the ones that differ afterwards.
       const cleanup: Array<() => Promise<void>> = [];
       const afterInstall = (clear: () => Promise<void>) => { cleanup.push(clear); };
-      const choices: PackageInstallChoices = { afterInstall, expectedKeptGeneration: inHome ? held.kept.home : held.kept.project, ...(chosen.secrets.length ? { secrets: chosen.secrets } : {}), ...(!present && chosen.optional?.length ? { optional: chosen.optional } : {}) };
-      if (dual) {
-        const dualSecrets = chosen.secrets.length ? { secrets: chosen.secrets } : {};
-        const installProjectHalf = (commit?: () => void) => this.ports.installInProject(held.project_id, release, assertCurrent, commit, { afterInstall, expectedKeptGeneration: held.kept.project, ...dualSecrets });
-        if (!homePresent) {
-          await this.ports.installInHome(release, assertCurrent, complete, { afterInstall, expectedKeptGeneration: held.kept.home, ...dualSecrets, installOtherHalf: installProjectHalf });
-        } else if (held.kept.project && homePresent.record.version !== held.pkg.manifest.version) {
-          // Prove the replacement project works before moving an existing, possibly shared Home database.
-          await this.ports.installInProject(held.project_id, release, assertCurrent, complete, {
-            afterInstall, expectedKeptGeneration: held.kept.project, ...dualSecrets,
-            installOtherHalf: commitProject => this.ports.installInHome(release, assertCurrent, commitProject, chosen.secrets.length ? dualSecrets : undefined),
-          });
-        } else {
-          const homeAlreadySame = homePresent.record.version === held.pkg.manifest.version;
-          if (!homeAlreadySame) await this.ports.installInHome(release, assertCurrent, undefined, chosen.secrets.length ? dualSecrets : undefined);
-          try { await installProjectHalf(complete); }
-          catch (error) {
-            if (!homeAlreadySame) {
+      const sharedSecrets = chosen.secrets.length ? { secrets: chosen.secrets } : {};
+      const choices: PackageInstallChoices = { afterInstall, expectedKeptGeneration: inHome ? held.kept.home : held.kept.project, ...sharedSecrets, ...(!present && chosen.optional?.length ? { optional: chosen.optional } : {}) };
+      const discardScopes: InstallScope[] = [
+        ...(held.kept.home ? [{ kind: 'home' as const }] : []),
+        ...(held.kept.project ? [{ kind: 'project' as const, project_id: held.project_id }] : []),
+      ];
+      let preExposeErrors: unknown[] = [];
+      await withDiscardCleanup(discardScopes, async discardCtx => {
+        if (dual) {
+          const homeOptional = !homePresent && chosen.optional?.length ? { optional: chosen.optional } : {};
+          const projectOptional = !projectPresent && chosen.optional?.length ? { optional: chosen.optional } : {};
+          const homeChoices: PackageInstallChoices = { afterInstall, expectedKeptGeneration: held.kept.home, ...sharedSecrets, ...homeOptional };
+          const projectChoices: PackageInstallChoices = { afterInstall, expectedKeptGeneration: held.kept.project, ...sharedSecrets, ...projectOptional };
+          const installProjectHalf = (commit?: () => void) => this.ports.installInProject(held.project_id, release, assertCurrent, commit, projectChoices);
+          if (!homePresent) await this.ports.installInHome(release, assertCurrent, complete, { ...homeChoices, installOtherHalf: installProjectHalf });
+          else if (held.kept.project && homePresent.record.version !== held.pkg.manifest.version) {
+            // Prove the replacement project works before moving an existing, possibly shared Home database.
+            await this.ports.installInProject(held.project_id, release, assertCurrent, complete, {
+              ...projectChoices,
+              installOtherHalf: commitProject => this.ports.installInHome(release, assertCurrent, commitProject, sharedSecrets),
+            });
+          } else if (homePresent.record.version !== held.pkg.manifest.version) {
+            const wrapDualPartialError = (error: unknown): never => {
               let previousHomeManifest: PluginManifest | undefined;
               try {
                 previousHomeManifest = this.ports.packages.load(homePresent.record.plugin_id, homePresent.record.publisher_signature, homePresent.record.version).packaged?.manifest;
@@ -589,13 +598,55 @@ export class PluginInstallService {
                 throw new ActionError(error.code, partialMessage, { kind: error.kind, details: partialDetails, cause: error });
               }
               throw pluginErrors.upgrade_activation_failed(partialMessage, partialDetails);
+            };
+            let projectAttempted = false;
+            let projectError: unknown;
+            let completed = false;
+            const runComplete = complete
+              ? () => {
+                  if (completed) return;
+                  completed = true;
+                  complete();
+                }
+              : undefined;
+            try {
+              await this.ports.installInHome(release, assertCurrent, runComplete, {
+                ...sharedSecrets,
+                installOtherHalf: async commitHome => {
+                  projectAttempted = true;
+                  try {
+                    await installProjectHalf(commitHome);
+                  } catch (error) {
+                    projectError = error;
+                    throw error;
+                  }
+                },
+              });
+            } catch (error) {
+              if (projectError !== undefined && error instanceof ActionError && error.code === 'plugin.upgrade_activation_failed') {
+                wrapDualPartialError(projectError);
+              }
+              throw error;
             }
-            throw error;
+            if (!projectAttempted) {
+              try {
+                await installProjectHalf(runComplete);
+              } catch (error) {
+                wrapDualPartialError(error);
+              }
+            }
+          } else {
+            await installProjectHalf(complete);
           }
-        }
-      } else if (inHome) await this.ports.installInHome(release, assertCurrent, complete, choices);
-      else await this.ports.installInProject(held.project_id, release, assertCurrent, complete, choices);
+        } else if (inHome) await this.ports.installInHome(release, assertCurrent, complete, choices);
+        else await this.ports.installInProject(held.project_id, release, assertCurrent, complete, choices);
+        preExposeErrors = discardCtx.errors;
+      });
       const installed: PluginInstallConfirmResult = { plugin_id: held.pkg.manifest.plugin_id, version: held.pkg.manifest.version, publisher_key_id: key_id };
+      if (preExposeErrors.length) {
+        hostLog.warn("plugins", "retained_cleanup_incomplete", preExposeErrors.length === 1 ? preExposeErrors[0] : new AggregateError(preExposeErrors, "部分旧数据未能删除"));
+        installed.retained_cleanup_incomplete = true;
+      }
       for (const clear of cleanup) {
         try { await clear(); }
         catch (error) {

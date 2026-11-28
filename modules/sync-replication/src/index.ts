@@ -95,7 +95,7 @@ export class PersonalSync {
     this.registry=syncRegistrations(options.registrations,options.discover,()=>this.assert());
     this.history=cloudHistory({home:options.home,run:()=>this.run(),scope:namespace=>{
       const registration=this.selected(namespace),policyRevision=this.policy().revision,signal=this.controller.signal;
-      const check=()=>{assertSyncRegistration(registration,()=>this.assert());this.selected(namespace);if(signal.aborted||this.policy().revision!==policyRevision)throw syncError('scope','同步状态已变化，原件已保留');};
+      const check=()=>{if(signal.aborted||this.policy().revision!==policyRevision)throw syncError('scope','同步状态已变化，原件已保留');assertSyncRegistration(registration,()=>this.assert());this.selected(namespace);};
       return {registration,policyRevision,channel:this.createBlobChannel(check)};
     }});
   }
@@ -386,7 +386,8 @@ export class PersonalSync {
   async resolve(namespace:string,key:string,choice:'local'|'remote',revision?:number,state?:string){
     await this.exclusive(async()=>{
       const registration=this.selected(namespace),policyRevision=this.policy().revision,signal=this.controller.signal;
-      const check=()=>{assertSyncRegistration(registration,()=>this.assert());this.selected(namespace);if(signal.aborted||this.policy().revision!==policyRevision)throw syncError('scope','同步状态已变化，原件已保留');};
+      // An operation the person started before a stop or policy change says its original was kept, before the generic stop.
+      const check=()=>{if(signal.aborted||this.policy().revision!==policyRevision)throw syncError('scope','同步状态已变化，原件已保留');assertSyncRegistration(registration,()=>this.assert());this.selected(namespace);};
       await registration.refresh();check();
       const {onProgress,finish}=this.trackTransfer('conflict');
       try{

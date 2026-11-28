@@ -361,6 +361,8 @@ for(const change of ['edit','device-stop'] as const)test('PCSYNC-15 delayed rete
   const {f,page,namespace,conflict}=await conflictedPages(t);
   f.onRetention(async()=>{if(change==='edit')f.withStore(1,s=>s.update(page.id,{title:'newer local C'}));else await f.clients[1].setDevice(false);return undefined;});
   await assert.rejects(()=>f.clients[1].resolve(namespace,conflict.key,'remote',conflict.revision,conflict.state),/内容已变化|状态已变化/);
+  // A stop cancels the request at once (#2345 serialises the stop behind the resolve); the cloud still finishes its retention afterwards.
+  if(change==='device-stop')await new Promise(resolve=>setImmediate(resolve));
   assert.equal(f.withStore(1,s=>s.get(page.id).title),change==='edit'?'newer local C':'local B');assert.equal(f.withReplica(1,r=>r.conflicts().length),1);
   assert.equal(f.retained.length,1,'a retained backup does not claim that the user choice committed');assert.deepEqual(f.retained[0]!.mutation.value,conflict.local);
   assert.equal(f.clients[1].recoveries(namespace).length,0);

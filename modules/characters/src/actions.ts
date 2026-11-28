@@ -30,6 +30,8 @@ export const charactersActions = {
   /** A published character as the 成果库 and side panel show it (artifact-positioning A4): Markdown of its instructions and tools. */
   artifactPreview: characterArtifactPreviewAction,
   /** The roles (role-service-design §3), defined in the contracts where the Assistant, Coding and plugins find them. */
+  signedTemplates: characterRoleActions.signedTemplates,
+  adoptSigned: characterRoleActions.adoptSigned,
   fromTemplate: characterRoleActions.fromTemplate,
   rolesRead: characterRoleActions.read,
   rolesList: characterRoleActions.list,

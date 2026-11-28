@@ -403,12 +403,13 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     await Promise.all([...this.#store.runs.values()].map(record => record.timingCommit));
     try {
       await this.#runtime.shutdown();
-    } finally {
+      // After a failed shutdown, a run can still deliver a receipt before the Host retries.
       for (const record of this.#store.runs.values()) {
         clearNotifyTimer(record);
         record.unsubscribe();
         record.listeners.clear();
       }
+    } finally {
       await Promise.all([...this.#store.runs.values()].map(record => record.timingCommit));
       await this.#memoryUsage.flush();
     }

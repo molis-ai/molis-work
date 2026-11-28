@@ -137,6 +137,14 @@ export function assertContributionMatchesManifest(
 ): void {
   assertKind(manifest, contribution);
   const problems = [...assertActions(manifest, contribution, scope), ...assertStateMachines(manifest, contribution, scope)];
+  if (contribution.kind === "app") {
+    const owesSource = Boolean(manifest.integrations?.length) && scope.outside_project === true;
+    const source = contribution.home_source;
+    if (owesSource !== Boolean(source) || source && (source.kind !== "integration" || typeof source.bind !== "function"
+      || Boolean(manifest.source_presentations?.length) !== (typeof source.presentSource === "function"))) {
+      problems.push("个人来源须由声明它的应用在 Home 实例兑现");
+    }
+  }
   if (contribution.kind === "integration" && Boolean(manifest.source_presentations?.length) !== (typeof contribution.presentSource === "function")) {
     problems.push("source_presentations 声明与 presentSource 必须一同兑现");
   }

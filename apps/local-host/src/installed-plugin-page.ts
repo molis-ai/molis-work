@@ -3,7 +3,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { usesPluginFieldWords } from "@molis-ai/molis-work-design-system";
 import { projectDirectoryWords } from "@molis-ai/molis-work-ui-host";
 import type { InstalledRelease } from "./installed-release.js";
-import { installedVersion } from "./installed-release.js";
+import { installedInstanceOperations, installedVersion } from "./installed-release.js";
 import { pluginPagesFor, type installedPageSelection } from "./plugin-page-authority.js";
 import type { SurfaceInstallationRef } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import { assertStageInstallation } from "./installed-stage-identity.js";
@@ -43,6 +43,6 @@ export function installedPluginPage(input: { home: string; actorId: string; proj
   });
   const { design } = release, words = installedWords(release);
   const view = { contract: design.contract, nodes: inDesignOrder(design, release.nodes), presentation: design.presentation,
-    connected: design.contract.operations.map(item => item.id), deriveFieldWords: usesPluginFieldWords(design.contract, words?.pack(words.default)) };
+    connected: installedInstanceOperations(release, input.scope).map(item => item.id), deriveFieldWords: usesPluginFieldWords(design.contract, words?.pack(words.default)) };
   return { authorization, page: { mode: "installed", plugin_id: release.pluginId, call: prefix + "/api/plugins/" + release.pluginId + "/call", view } };
 }

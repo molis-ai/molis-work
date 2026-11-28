@@ -385,7 +385,7 @@ test("UPP-34 the overview table: the SDK checks each row's format and its limit,
 
 // S-partition-wake-scope for due entries (§6.1): the one due timer wakes the (plugin, partition) an entry belongs to and nothing else.
 const DUE_OWNER = { install_id: "todo-install", plugin_id: "io.molis.work.todo", partition_id: "personal" };
-test("UPP-34 S-partition-wake-scope the due timer wakes only the (plugin, partition) an entry belongs to", async () => {
+test("UPP-32 S-partition-wake-scope the due timer wakes only the (plugin, partition) an entry belongs to", async () => {
   const home = await mkdtemp(join(tmpdir(), "molis-work-due-wake-"));
   let now = new Date("2026-11-24T10:00:00.000Z");
   const due = openDueRegistry(home, { now: () => now });
@@ -405,9 +405,9 @@ test("UPP-34 S-partition-wake-scope the due timer wakes only the (plugin, partit
 
 /** Waits for a condition the Host reaches on its own (a timer firing), reading it again every 50 ms; fails after `ms`. */
 async function until(what: string, ready: () => boolean, ms = 20_000): Promise<void> {
-  const end = Date.now() + ms;
+  const end = performance.now() + ms;
   while (!ready()) {
-    if (Date.now() > end) assert.fail(`timed out waiting: ${what}`);
+    if (performance.now() > end) assert.fail(`timed out waiting: ${what}`);
     await new Promise(resolve => setTimeout(resolve, 50));
   }
 }
@@ -415,11 +415,13 @@ async function until(what: string, ready: () => boolean, ms = 20_000): Promise<v
 // Batch 108 item 2 ④: the same rule on the real Host with the real plugins. Todo's reminder (read from its overview table into the due
 // registry) and Images' generation deadline (its own due entry) fall due while every partition sleeps; each wakes only its own (plugin,
 // partition), opening that partition and no other. Jelly's events join this case when Jelly moves to partitions.
-test("UPP-34 S-partition-wake-scope batch 108 on the Host: a Todo reminder and an Images deadline that fall due wake only their own (plugin, partition); the rest stay asleep", { timeout: 120_000 }, async t => {
+test("UPP-32 S-partition-wake-scope batch 108 on the Host: a Todo reminder and an Images deadline that fall due wake only their own (plugin, partition); the rest stay asleep", { timeout: 120_000 }, async t => {
   const f = await serveHomeRuntime(t);
   const a = await f.project("提醒 A", ["todo", "images"]), b = await f.project("提醒 B", ["todo", "images"]), c = await f.project("提醒 C", ["todo", "images"]);
   const host = existingPartitionPluginHost(f.home), services = host?.services;
   assert.ok(host && services, "the Host started the partition services");
+  // Advance the due clock only once all three projects have really gone to sleep. Native Host timers still run.
+  t.mock.timers.enable({ apis: ["Date"], now: Date.now() });
   const soon = new Date(Date.now() + 3_000).toISOString(), later = new Date(Date.now() + 86_400_000).toISOString();
   const remind = (p: typeof a, title: string, at: string) => f.host.actionClient(p.reference).invoke(runtimePerson(TODO_ACTION_PERMISSIONS, p.project_id), todoActions.create, { title, remind_at: at });
   await remind(a, "A 到点", soon);
@@ -439,6 +441,7 @@ test("UPP-34 S-partition-wake-scope batch 108 on the Host: a Todo reminder and a
   assert.deepEqual(f.host.projects(), [], "and no project is open");
 
   const fallen = (p: typeof a, plugin: string) => services.due.entries(p.project_id).filter(entry => entry.plugin_id === plugin && Date.parse(entry.due_at) <= Date.parse(soon));
+  t.mock.timers.setTime(Date.parse(soon));
   await until("both fallen-due entries are settled", () => fallen(a, todoManifest.plugin_id).length === 0 && fallen(b, imagesManifest.plugin_id).length === 0);
   assert.deepEqual(host.assembly.instances().map(item => `${item.plugin_id}@${item.partition_id}`).sort(),
     [`${imagesManifest.plugin_id}@${b.project_id}`, `${todoManifest.plugin_id}@${a.project_id}`].sort(),

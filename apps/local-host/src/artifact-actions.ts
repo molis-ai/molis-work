@@ -2,7 +2,8 @@ import { LOCAL_PERSON_ACTOR_ID, type ActionClient, type ActionDefinition, type A
 import { logLinkSubjectsFailure, logPreviewFailure } from "./host-log.js";
 import { ARTIFACTS_PLUGIN_ID, ARTIFACTS_PROVIDER_ID, ARTIFACTS_PROVIDER_TITLE, ARTIFACT_ACTIONS, createArtifactActionHandlers, openArtifactProjectReference, type ArtifactActionPorts, type ArtifactLinkKinds } from "@molis-ai/molis-work-module-artifacts";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
-import { artifactLinkKinds, artifactLinkSubjectActions, artifactProducerSources, artifactTypeDeclarations } from "./artifact-type-registry.js";
+import { artifactLinkKinds, artifactLinkSubjectActions, artifactProducerSources } from "./artifact-type-registry.js";
+import { projectArtifactDeclaration } from "./declared-types.js";
 import { readProjectReference } from "./project-file-reference.js";
 import { hostErrors } from "./host-errors.js";
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
@@ -56,14 +57,15 @@ export function artifactActionProvider(runtime: MolisWorkProjectRuntime, options
       ledger: createContextLedger(runtime.store.db, { authorize: (access, operation) => operation === "read" && access.scope.kind === "personal" && access.scope.id === runtime.project_id }).query,
       linkKinds: dynamicArtifactLinkKinds(runtime.project_id),
       linkSubjects: artifactLinkSubjectsPort(client, () => artifactLinkSubjectActions(sources())),
-      typeTitle: typeId => artifactTypeDeclarations(sources()).get(typeId)?.title ?? null,
-      searchableFields: typeId => artifactTypeDeclarations(sources()).get(typeId)?.searchable_fields,
+      typeTitle: (_, record) => projectArtifactDeclaration(runtime.store.db, record)?.title ?? null,
+      searchableFields: (_, record) => projectArtifactDeclaration(runtime.store.db, record)?.searchable_fields,
       // The owner's preview, with the caller's own authority; a version the caller may not read through it has no text here.
       previewText: async (artifact, caller) => {
-        const preview = artifactTypeDeclarations(sources()).get(artifact.artifact_type_id)?.preview;
+        const declaration = projectArtifactDeclaration(runtime.store.db, artifact);
+        const preview = declaration?.preview;
         if (!preview || !client) return null;
         try {
-          const content = await client.invoke(caller, preview, { artifact }) as FileContent;
+          const content = await client.invoke(caller, { ...preview, provider_id: declaration.provider_id }, { artifact }) as FileContent;
           return content.encoding === "utf8" ? content.data : null;
         } catch (error) { logPreviewFailure(error, artifact.artifact_type_id); return null; }
       },

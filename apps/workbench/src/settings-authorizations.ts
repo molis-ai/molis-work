@@ -112,10 +112,10 @@ globalThis.molisWorkBindAuthorizationSettings = (container = document) => {
       return label;
     };
     if (current.categories?.length) {
-      const category = item => JSON.stringify([item.provider_id, item.group_id]);
+      const category = item => JSON.stringify([item.provider_id, item.group_id, item.installation]);
       for (const item of current.categories) scope.append(check(item.title, allowed(category(item)), on => setAllowed(category(item), on)));
       selection = () => current.categories.filter(item => allowed(category(item)))
-        .map(({ provider_id, group_id }) => ({ provider_id, ...(group_id ? { group_id } : {}) }));
+        .map(({ provider_id, group_id, installation }) => ({ provider_id, ...(group_id ? { group_id } : {}), ...(installation ? { installation } : {}) }));
     } else if (current.candidates?.length) {
       const operationKey = (item, index) => item.scope_index + ":" + index;
       const valueKey = (key, target, value) => JSON.stringify([key, target.key, value.id]);

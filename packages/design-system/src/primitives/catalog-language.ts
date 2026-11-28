@@ -79,7 +79,7 @@ export function pairingSection(say: Say): string {
 /** 布局分区：桌面上每个区回答哪个问题，用哪一层面、哪一种动效。 */
 export function zonesSection(say: Say): string {
   const diagram = `<div class="mw-lang-zones" aria-hidden="true">
-    <div class="mw-lang-zones__title"><i></i><i></i><b>${say("workbench.catalog.language.zones-diagram-title")}</b><span>Pages</span><span>${say("workbench.catalog.language.todo")}</span><em>${say("workbench.catalog.language.zones-diagram-titlebar")}</em></div>
+    <div class="mw-lang-zones__title"><i></i><i></i><b>${say("workbench.catalog.language.zones-diagram-title")}</b><span>Notebook</span><span>${say("workbench.catalog.language.todo")}</span><em>${say("workbench.catalog.language.zones-diagram-titlebar")}</em></div>
     <div class="mw-lang-zones__sheet"><em>${say("workbench.catalog.language.zones-diagram-work-surface")}</em><u></u><u></u><u></u><u></u></div>
     <div class="mw-lang-zones__side"><em>${say("workbench.catalog.language.zones-diagram-right-side")}</em><u></u><u></u></div>
     <div class="mw-lang-zones__line"><span class="is-done"></span><span class="is-done"></span><span class="is-you"></span><b>${say("workbench.catalog.language.zones-diagram-composer")}</b><span></span><span></span><em>${say("workbench.catalog.language.zones-diagram-bottom-bar")}</em></div>

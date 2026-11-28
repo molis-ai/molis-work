@@ -74,7 +74,7 @@ import { admitProviderRules } from "./scene-rule-admission.js";
 import { agentStudioOpen, releaseAgentStudio } from "./plugin-builder/agent-surface.js";
 import { backgroundWorkUnderWay, hostOverviewSource } from "./home-overview.js";
 import { installedPluginsStarting, releaseInstalledPlugins } from "./installed-plugin-host.js";
-import { prepareProjectActionDirectory, projectActionInstallationsIn, readyAgentHost, withPartitionPluginPorts, withPreparedProject } from "./project-plugin-ports.js";
+import { reconcileOpenDualProjectHalves, prepareProjectActionDirectory, projectActionInstallationsIn, readyAgentHost, withPartitionPluginPorts, withPreparedProject } from "./project-plugin-ports.js";
 import fs from "node:fs";
 import path from "node:path";
 import { preflightMemoryHome, prepareMemoryHome } from "./memory/memory-initialization.js";
@@ -83,6 +83,7 @@ import { randomUUID } from "node:crypto";
 import { LocalSqliteJournal } from "@molis-ai/molis-work-storage";
 import { resolveConfiguredHome } from "./product-home.js";
 import { LocalHost, type HostCapabilityHandler, type LocalHostOptions } from "./local-host.js";
+import { ARTIFACTS_PROVIDER_ID } from "@molis-ai/molis-work-module-artifacts";
 import { openProjectVersionStores, type ProjectVersionStores } from "./project-version-stores.js";
 import { LocalProjectDatabase } from "./project-database.js";
 import { hostBlueprints } from "./blueprint-host.js";
@@ -258,7 +259,8 @@ export class MolisWorkLocalHost {
           options.onRuntimeOpen?.(reference); await this.observation?.projectOpened(reference.project_id);
           const store = new LocalProjectDatabase(reference.storage_key, { homeStorage });
           const clock = options.clock ?? (() => new Date());
-          const runtime: MolisWorkProjectRuntime = { store, ...openProjectVersionStores(store, clock), project_id: reference.project_id };
+          const versions = openProjectVersionStores(store, clock, projectId => this.search?.changed(ARTIFACTS_PROVIDER_ID, projectId));
+          const runtime: MolisWorkProjectRuntime = { store, ...versions, project_id: reference.project_id };
           try {
             // The per-partition plugins' installation records are the Home install table's, for every reader of this partition (batch 107).
             if (options.homeDirectory) partitionPluginHostFor(options.homeDirectory, startPartitionPluginInstance).noteStore(store, reference.project_id);
@@ -271,7 +273,7 @@ export class MolisWorkLocalHost {
             add(openProjectWorkspaceProvider(runtime, catalogOwner, this.actionClient(reference), clock, options.directoriesFor));
             add(artifactActionProvider(runtime, options, this.actionClient(reference))); add(projectMaterialsProvider(runtime, this.actionClient(reference), options));
             add(projectGuidanceActionProvider(reference.project_id, store.db, clock));
-            if (options.homeDirectory) add(charactersActionProvider(runtime, { ...options, homeDirectory: options.homeDirectory }, () => this.agents?.service.charactersCatalog(runtime)));
+            if (options.homeDirectory) add(charactersActionProvider(runtime, { ...options, homeDirectory: options.homeDirectory }, () => this.agents?.service.charactersCatalog(runtime), () => this.homePlugins?.installations() ?? []));
             if (options.homeDirectory) add(homeActionProvider(options.homeDirectory, reference.project_id,
               { actions: this.actionClient(reference), scenes: this.sceneClient(reference), functions: options.functions, readFunctions: this.systemFunctions?.read, pageDrafts: this.draftReferences,
                 homePages: homePagesPorts(options.homeDirectory, caller => this.inspectActions(caller, reference), clock),
@@ -303,6 +305,7 @@ export class MolisWorkLocalHost {
     if (home) this.assistantStore = assistantStoreFor(home);
     if (home) this.homePlugins = new HomePluginHost({ home, actorId: LOCAL_PERSON_ACTOR_ID, settingsVersionClaims, ownerClosing: () => !!this.closing.started,
       registry: this.host.actionRegistry(), client: homePluginActions(this.host), inspect: caller => this.host.inspectActions(caller), entries: homePluginEntries(), fixtures: options.pluginFixtures?.home, installed: options.pluginFixtures?.installed, projectReach: homeProjectReach(home, () => this.host.projects()),
+      reconcileProjectHalves: (pluginId, action) => reconcileOpenDualProjectHalves(this.plugins, pluginId, action),
       projectActions: (projectId, pluginId) => homePackageProjectActions(projectId, pluginId, home, this.catalogRunner,
         this, this.host, molisWorkHostProjectReference),
       projectArtifacts: projectId => { const open = this.host.openRuntimes().find(runtime => runtime.project_id === projectId);

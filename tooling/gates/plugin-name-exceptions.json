@@ -29,7 +29,7 @@
       "count": 1,
       "kind": "vendor-name",
       "reason": "`coding.find-symbol`／`coding.symbol-index` 是随包 Prologue SDK 官方 coding 能力包（`OFFICIAL_CODING_PACK`）的工具名，宿主只供执行方，不是 Coding 插件",
-      "decided": "2026-11-25"
+      "decided": "2026-11-26"
     },
     "apps/local-host/src/assistant/assistant-memory-bridge.ts": {
       "count": 1,
@@ -467,7 +467,7 @@
       "count": 1,
       "kind": "vendor-name",
       "reason": "`coding.find-symbol`／`coding.symbol-index` 是随包 Prologue SDK 官方 coding 能力包（`OFFICIAL_CODING_PACK`）的工具名，宿主只供执行方，不是 Coding 插件",
-      "decided": "2026-11-25"
+      "decided": "2026-11-26"
     },
     "horizontal/agent-host/src/adapters/prologue-schedule.ts": {
       "count": 1,
@@ -479,13 +479,13 @@
       "count": 4,
       "kind": "vendor-name",
       "reason": "`coding.find-symbol`／`coding.symbol-index` 是随包 Prologue SDK 官方 coding 能力包（`OFFICIAL_CODING_PACK`）的工具名，宿主只供执行方，不是 Coding 插件",
-      "decided": "2026-11-25"
+      "decided": "2026-11-26"
     },
     "horizontal/agent-host/src/code-intelligence/index.ts": {
       "count": 9,
       "kind": "vendor-name",
       "reason": "`coding.find-symbol`／`coding.symbol-index` 是随包 Prologue SDK 官方 coding 能力包（`OFFICIAL_CODING_PACK`）的工具名，宿主只供执行方，不是 Coding 插件",
-      "decided": "2026-11-25"
+      "decided": "2026-11-26"
     },
     "horizontal/agent-host/src/review-presentation.ts": {
       "count": 1,
@@ -497,7 +497,7 @@
       "count": 1,
       "kind": "vendor-name",
       "reason": "`coding.find-symbol`／`coding.symbol-index` 是随包 Prologue SDK 官方 coding 能力包（`OFFICIAL_CODING_PACK`）的工具名，宿主只供执行方，不是 Coding 插件",
-      "decided": "2026-11-25"
+      "decided": "2026-11-26"
     },
     "horizontal/automation-recommender/src/scan.ts": {
       "count": 2,
@@ -1031,12 +1031,6 @@
       "count": 1,
       "kind": "same-word",
       "reason": "`diff` 是差异的格式、读取种类或代码块语言；不是同名插件",
-      "decided": "2026-11-25"
-    },
-    "server/tooling/continuity-demo.mts": {
-      "count": 8,
-      "kind": "qa-tool",
-      "reason": "隔离 QA 的连续性演示脚本，用 Goals 与 Pages 的真实动作演示多端连续；产品不加载它",
       "decided": "2026-11-25"
     }
   }

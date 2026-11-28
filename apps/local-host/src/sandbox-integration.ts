@@ -8,7 +8,7 @@ import type { ConnectorCallControl } from "@molis-ai/molis-work-contracts/servic
  * built-in. A pull that does not fit is refused whole: nothing of it reaches the Feed.
  */
 import { defineErrorCodes } from '@molis-ai/molis-work-contracts/platform/actions';
-import type { IntegrationProviderItem, IntegrationProviderPort, IntegrationProviderSyncResult, PluginDefinition, PluginIntegrationContribution, PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
+import type { IntegrationProviderItem, IntegrationProviderPort, IntegrationProviderSyncResult, PluginDefinition, PluginIntegrationContribution, PluginManifest, PluginStartContext } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { PluginConnectionsClient } from '@molis-ai/molis-work-contracts/platform/plugin-connections';
 import type { IntegrationAccountPresentation, IntegrationBinding } from '@molis-ai/molis-work-contracts/platform/plugin-integrations';
 import { SANDBOX_INTEGRATION_LIMITS, SANDBOX_INTEGRATION_OPERATIONS, SANDBOX_INTEGRATION_SOURCE_SLOT, type SandboxEffects, type SandboxIdentity, type SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
@@ -106,7 +106,6 @@ export function sandboxIntegrationContribution(input: SandboxIntegrationProxyInp
 export function sandboxedIntegrationDefinition(release: InstalledRelease, approved: SandboxEffects,
   host: { home: string; connections: CallConnectionsPort; assertLive(identity: Readonly<SandboxIdentity>): void }): PluginDefinition {
   const manifest = release.packaged!.manifest, contract = release.design.contract;
-  const integration = manifest.integrations![0]!, service = manifest.connection_services!.find(item => item.service_id === integration.service_id)!;
   let runner: Promise<SandboxRunner> | undefined;
   /** The instance started last; `stop()` marks it withdrawn before anything else, so its calls stop counting as current at once. */
   let instance: { withdrawn: boolean } | undefined;
@@ -146,11 +145,7 @@ export function sandboxedIntegrationDefinition(release: InstalledRelease, approv
             throw error;
           }
         },
-        connections: (binding, control) => binding.connection_id !== null && !context.grants.includes(PLUGIN_CONNECTIONS_PERMISSION)
-          ? refuseConnections() : createCallConnectionsClient(host.connections,
-          { plugin_id: release.pluginId, install_id: context.install_id, service_id: service.service_id, connection_id: binding.connection_id, ...(service.origins ? { origins: service.origins } : {}) },
-          SANDBOX_INTEGRATION_SOURCE_SLOT, { signal: control.signal,
-            current: () => { control.current(); live(); }, beforeEffect: async () => { await control.beforeEffect(); control.current(); live(); } }) });
+        connections: sourceConnections(host.connections, manifest, context, live) });
     },
     async stop() {
       if (instance) instance.withdrawn = true;
@@ -207,4 +202,22 @@ function webAddress(value: string): boolean {
 
 function accountOf(answer: Answer): IntegrationAccountPresentation | null {
   return typeof answer.account_label === 'string' ? { account_label: answer.account_label } : null;
+}
+
+function sourceConnections(connections: CallConnectionsPort, manifest: PluginManifest, context: PluginStartContext, live: () => void): SandboxIntegrationProxyInput['connections'] {
+  const integration = manifest.integrations![0]!, service = manifest.connection_services!.find(item => item.service_id === integration.service_id)!;
+  return (binding, control) => binding.connection_id !== null && !context.grants.includes(PLUGIN_CONNECTIONS_PERMISSION)
+    ? refuseConnections() : createCallConnectionsClient(connections,
+      { plugin_id: manifest.plugin_id, install_id: context.install_id, service_id: service.service_id, connection_id: binding.connection_id, ...(service.origins ? { origins: service.origins } : {}) },
+      SANDBOX_INTEGRATION_SOURCE_SLOT, { signal: control.signal,
+        current: () => { control.current(); live(); }, beforeEffect: async () => { await control.beforeEffect(); control.current(); live(); } });
+}
+
+/** The application already has a running sandbox. Only its Home caller can lend a source-bound connection. */
+export function installedAppSource(connections: CallConnectionsPort, release: InstalledRelease, context: PluginStartContext,
+  live: () => void, call: SandboxIntegrationProxyInput['call']): PluginIntegrationContribution {
+  const manifest = release.packaged!.manifest;
+  if (context.project_id != null || !release.design.contract.home_source) throw staleInstallation('个人来源只能在 Home 的安装内运行');
+  return sandboxIntegrationContribution({ manifest, operations: release.design.contract.operations.map(item => item.id),
+    connections: sourceConnections(connections, manifest, context, live), call });
 }

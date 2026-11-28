@@ -32,10 +32,11 @@ test('PTR-01 Builder refuses deletion, preserves the entire original and rejects
  assert.equal(storage.get(KEY),raw,'rejected stale editors cannot erase a retained original');
 });
 
-// PCS-S6: refusal is the asserted outcome; neither the old version nor damaged state is replaced with an empty shelf.
+// PCS-S6: an unknown format or damaged state must retain its original bytes.
 test('Builder refuses another owner format and malformed editing floors without rewriting original bytes',async t=>{
  const {storage,owner}=await fixture(t),build=owner.create('保留的需求');const good=storage.get(KEY)!;
- for(const invalid of ['{"builds":[],"releases":[]}','not-json',JSON.stringify({...JSON.parse(good),format:2}),
+ const current=JSON.parse(good);
+ for(const invalid of ['{"builds":[],"releases":[]}','not-json',JSON.stringify({...current,format:current.format+1}),
   JSON.stringify({...JSON.parse(good),revisions:{[build.id]:0}}),JSON.stringify({...JSON.parse(good),revisions:{[build.id]:build.revision+1}})]){
   storage.set(KEY,invalid);assert.throws(()=>owner.list(),/格式版本无效/);assert.throws(()=>owner.create('must not reset'),/格式版本无效/);assert.equal(storage.get(KEY),invalid);
  }

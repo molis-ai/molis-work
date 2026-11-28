@@ -696,6 +696,17 @@ export interface RoleTemplate {
     works_with?: string[];
 }
 
+export interface SignedCharacterTemplate extends SignedCharacterTemplateRef {
+    name: string;
+    purpose: string;
+}
+
+export interface SignedCharacterTemplateRef {
+    install_id: string;
+    generation: string;
+    role_id: string;
+}
+
 export declare const characterArtifactPreviewAction: ActionDefinition<import("platform/file-sources").ArtifactPreviewInput, import("platform/file-sources").FileContent>;
 
 export declare const characterErrors: import("platform/action-errors").ErrorCodeRaisers<{
@@ -707,6 +718,12 @@ export declare const characterErrors: import("platform/action-errors").ErrorCode
 }>;
 
 export declare const characterRoleActions: {
+    signedTemplates: ActionDefinition<Record<string, never>, {
+        templates: SignedCharacterTemplate[];
+    }>;
+    adoptSigned: ActionDefinition<SignedCharacterTemplateRef & {
+        request_id: string;
+    }, CharacterTemplateAdoptionResult>;
     fromTemplate: ActionDefinition<CharacterTemplateAdoptionInput, CharacterTemplateAdoptionResult>;
     read: ActionDefinition<CharacterRoleReadInput, CharacterRoleReadOutput>;
     list: ActionDefinition<CharacterRoleListInput, CharacterRoleCatalog>;

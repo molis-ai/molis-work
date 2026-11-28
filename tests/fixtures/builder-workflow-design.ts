@@ -1,6 +1,11 @@
 import type { PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { studioBuildDiagnostic, type AgentBuild } from '@molis-ai/molis-work-plugin-studio';
 
+export const studioImageInstallation = {
+  scope: 'home' as const, install_id: 'fixture-install', installation_generation: 'one', version: '1.0.0',
+  manifest_digest: 'fixture-digest', provider_id: 'plugin:com.example.images', project_id: 'portable-builder', connection_id: 'fixture-connection',
+};
+
 export function memoryStorage(): PluginPrivateStorage {
   const values = new Map<string, string>();
   return {

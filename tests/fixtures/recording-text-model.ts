@@ -14,7 +14,7 @@ export interface ModelWire { system?: unknown; tools?: unknown; messages: Array<
  * The Home's configured text model, on 127.0.0.1: it records every request the Host's real path sends (instructions resolved from
  * the register, the Host's system text, the data) and answers each with `answer(request)`.
  */
-export async function recordingTextModel(t: TestContext, home: string, answer: (request: ModelWire) => string | Response | Promise<string | Response>) {
+export async function recordingTextModel(t: TestContext, home: string, answer: (request: ModelWire) => string | Response | Promise<string | Response>, withCatalog = withMolisWorkProjectCatalog) {
   const prior = process.env.MOLIS_WORK_SECRET_BACKEND; process.env.MOLIS_WORK_SECRET_BACKEND = "file";
   const requests: ModelWire[] = [];
   const model = createServer(async (request, response) => {
@@ -44,7 +44,7 @@ export async function recordingTextModel(t: TestContext, home: string, answer: (
   });
   const address = model.address(); assert.ok(address && typeof address !== "string");
   const base = `http://127.0.0.1:${address.port}`;
-  await runWithMolisWorkHome(home, () => withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => {
+  await runWithMolisWorkHome(home, () => withCatalog({ homeDirectory: home }, catalog => {
     const connection = withConnectorConnections(home, store => { const created = store.createToken({ serviceId: "model-api", displayName: "local-only", token: "fixture-local-model-key" }); store.assertTarget(created.connection_id, "model-api", base); return created; });
     catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "local-only", display_name: "本机 HTTP 模型", base_url: base, api_format: "anthropic-messages", models: [{ model_id: "fixture-model", enabled: true }] });
   }));

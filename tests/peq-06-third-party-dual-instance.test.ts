@@ -4,7 +4,7 @@ import test from "node:test";
 import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SANDBOX_PACKAGE_FILES, type PluginManifest, type PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginInstalledView } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
-import type { SandboxPluginContract } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
+import type { SandboxPluginContract, SandboxSchema } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import { effectsFromContract, sandboxPluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { pluginComponentChoices, type PluginComponentPlan } from "@molis-ai/molis-work-design-system";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -43,6 +43,7 @@ const dualCode = (network: boolean) => `export const operations = {
     await sdk.projectDatabase.transaction([{ sql: 'INSERT INTO dual_tasks(title) VALUES (?)', parameters: [input.title] }]);
     return true;
   },
+  'common.sample': async () => [{ id: 'example', title: 'Sample note' }],
   'project.list': async (_input, sdk) => {
     const rows = await sdk.projectDatabase.all('SELECT CAST(id AS TEXT) AS id, title FROM dual_tasks ORDER BY id');
     return rows.map(row => ({ id: String(row.id), title: String(row.title) }));
@@ -56,6 +57,8 @@ function dualPackage(
   options: { pluginId?: string; version?: string; extraOptionalNetwork?: boolean; upgradesFrom?: string[]; freshDatabase?: boolean; projectConflict?: boolean } = {},
 ): PluginPackageBundle {
   return signedPackage(publisher, (files: PackageFiles, manifest: PluginManifest) => {
+    const listInput: SandboxSchema = { type: "object", properties: {}, required: [], additionalProperties: false };
+    const notesOutput: SandboxSchema = { type: "array", items: { type: "object", properties: { id: { type: "string" }, title: { type: "string" } }, required: ["id", "title"], additionalProperties: false } };
     const contract: SandboxPluginContract = {
       version: 1,
       pluginId: manifest.plugin_id,
@@ -86,9 +89,11 @@ function dualPackage(
           examples: [{ input: { title: "task" }, output: true }],
         },
         {
-          id: "project.list", kind: "query",
-          input: { type: "object", properties: {}, required: [], additionalProperties: false },
-          output: { type: "array", items: { type: "object", properties: { id: { type: "string" }, title: { type: "string" } }, required: ["id", "title"], additionalProperties: false } },
+          id: "common.sample", kind: "query", input: listInput, output: notesOutput, effects: {}, errors: [],
+          examples: [{ input: {}, output: [{ id: "example", title: "Sample note" }] }],
+        },
+        {
+          id: "project.list", project_instance: true, kind: "query", input: listInput, output: notesOutput,
           errors: [],
           effects: { projectDatabase: ["read"] },
           examples: [{ input: {}, output: [] }],
@@ -101,7 +106,7 @@ function dualPackage(
           examples: [{ input: {}, output: "ok" }],
         }] : []),
       ],
-      pages: [{ id: "home", title: "双实例笔记", regions: [{ id: "main", title: "主区", operationIds: ["home.list", "home.add", "project.list", "project.add", ...(options.extraOptionalNetwork ? ["project.ping"] : [])] }] }],
+      pages: [{ id: "home", title: "双实例笔记", regions: [{ id: "main", title: "主区", operationIds: ["home.list", "home.add", "project.list", "project.add", "common.sample", ...(options.extraOptionalNetwork ? ["project.ping"] : [])] }] }],
     };
     const rebuilt = sandboxPluginManifest({
       pluginId: manifest.plugin_id,
@@ -117,6 +122,8 @@ function dualPackage(
     });
     Object.assign(manifest, rebuilt);
     const parts: PluginComponentPlan[] = [
+      ...["project.list", "common.sample"].map(operationId => ({ id: operationId.split(".")[0]!, pageId: "home", regionId: "main",
+        intent: "collection" as const, purpose: "Read notes", props: { idField: "id", titleField: "title" }, read: { operationId, input: {} } })),
       { id: "title", pageId: "home", regionId: "main", intent: "heading", purpose: "说明双实例插件", props: { title: "双实例笔记" } },
     ];
     const nodes = parts.map(part => ({ ...part, kind: pluginComponentChoices(part, contract)[0]!.kind }));
@@ -156,8 +163,8 @@ test("PEQ-06 S-48 S-80 S-87 a signed third-party dual-instance package shares it
   const projectACaller: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: projectA.project_id, permissions: PROJECT_DB_PERMS };
   const homeViews = await operationsOf(h.homeClient(), homeCaller, DUAL_PLUGIN_ID);
   const projectAViews = await operationsOf(clientA, projectACaller, DUAL_PLUGIN_ID);
-  assert.deepEqual(homeViews.map(v => v.action.local_id).sort(), ["home.add", "home.list"]);
-  assert.deepEqual(projectAViews.map(v => v.action.local_id).sort(), ["project.add", "project.list", "project.ping"]);
+  assert.deepEqual(homeViews.map(v => v.action.local_id).sort(), ["common.sample", "home.add", "home.list"]);
+  assert.deepEqual(projectAViews.map(v => v.action.local_id).sort(), ["common.sample", "project.add", "project.list", "project.ping"]);
 
   // Enable optional home-database permissions on Home; write and read both halves.
   await h.switchOn(DUAL_PLUGIN_ID, "home-database:read", "home-database:write");
@@ -165,6 +172,42 @@ test("PEQ-06 S-48 S-80 S-87 a signed third-party dual-instance package shares it
   assert.deepEqual(await operate(h.homeClient(), homeCaller, homeViews, "home.list", {}), [{ id: "1", text: "shared-from-home" }]);
   assert.equal(await operate(clientA, projectACaller, projectAViews, "project.add", { title: "task-in-A" }), true);
   assert.deepEqual(await operate(clientA, projectACaller, projectAViews, "project.list", {}), [{ id: "1", title: "task-in-A" }]);
+
+  // PSD-03: the signed page and its actual call route agree about the selected instance.
+  for (const prefix of ["", "/projects/" + projectA.project_id]) {
+    const frameUrl = new URL(prefix + "/plugins/" + DUAL_PLUGIN_ID + "?frame=workbench", served.origin);
+    if (prefix) {
+      const { plugins } = await served.web.get<{ plugins: PluginInstalledView[] }>(prefix + "/api/plugin-trust/overview");
+      const installation = plugins.find(item => item.plugin_id === DUAL_PLUGIN_ID)?.uninstall_target;
+      assert.ok(installation);
+      frameUrl.searchParams.set("installation", JSON.stringify({ scope: "project", ...installation }));
+    }
+    const frame = await fetch(frameUrl);
+    assert.equal(frame.status, 200);
+    const html = await frame.text();
+    const pageId = /"page_id":"([^"]+)"/u.exec(html)?.[1];
+    const connected = /"connected":(\[[^\]]*\])/u.exec(html)?.[1];
+    assert.ok(pageId && connected, "the installed page supplies its own identity and connected operations");
+    const available: string[] = JSON.parse(connected);
+    assert.ok(available.includes("common.sample"));
+    assert.equal(available.includes("project.list"), Boolean(prefix));
+    const read = (componentId: string) => fetch(served.origin + prefix + "/api/plugins/" + DUAL_PLUGIN_ID + "/call", {
+      method: "POST", headers: { origin: served.origin, "content-type": "application/json", "x-molis-plugin-page": pageId,
+        "x-molis-work-control-token": served.controlToken, "x-molis-work-idempotency-key": crypto.randomUUID() },
+      body: JSON.stringify({ componentId, binding: "read", payload: {} }),
+    });
+    const common = await read("common");
+    assert.equal(common.status, 200);
+    assert.deepEqual(await common.json(), { value: [{ id: "example", title: "Sample note" }] });
+    const projectNotes = await read("project");
+    if (prefix) {
+      assert.equal(projectNotes.status, 200);
+      assert.deepEqual(await projectNotes.json(), { value: [{ id: "1", title: "task-in-A" }] });
+    } else {
+      assert.equal(projectNotes.status, 403);
+      assert.equal((await projectNotes.json()).code, "actions.forbidden");
+    }
+  }
 
   // Install the same version into Project B: Home half is reused, Project B gets an isolated project DB.
   const clientB = h.host.actionClient(projectB.reference);

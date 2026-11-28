@@ -128,6 +128,19 @@ export const IMAGE_GENERATION_PROTOCOL: Record<ImageGenerationRole, { readonly i
   },
 };
 
+// The transferable part of a generation job. Providers may keep additional private job and connection fields.
+const imageId = { type: "string", minLength: 1, maxLength: 256 } as const;
+const imageObject = (properties: Record<string, import("./plugin-sandbox.js").SandboxSchema>): import("./plugin-sandbox.js").SandboxSchema =>
+  ({ type: "object", properties, required: Object.keys(properties), additionalProperties: false } as const);
+const imageJob = imageObject({ job: imageObject({ id: imageId, connection_id: imageId, status: { type: "string", enum: ["running", "succeeded", "failed", "cancelled", "interrupted"] },
+  images: { type: "array", items: imageObject({ id: imageId }) }, error: { type: "string" } }) });
+export const IMAGE_GENERATION_SCHEMAS = {
+  "services.list": { input: imageObject({}), output: imageObject({ connections: { type: "array", items: imageObject({ id: imageId, available: { type: "boolean" } }) } }) },
+  generate: { input: imageObject({ request_id: { ...imageId, maxLength: 128 }, connection_id: imageId, prompt: { type: "string", minLength: 1, maxLength: 32000 } }), output: imageJob },
+  "generations.get": { input: imageObject({ id: imageId }), output: imageJob },
+  "image.read": { input: imageObject({ id: imageId, image_id: imageId }), output: imageObject({ base64: { type: "string" }, mime_type: { type: "string" } }) },
+} as const;
+
 export function imageGenerationRoleOf(action: TypedActionShape): ImageGenerationRole | null {
   return IMAGE_GENERATION_ROLES.find(role =>
     IMAGE_GENERATION_PROTOCOL[role].input_type === action.input_type

@@ -169,7 +169,7 @@ function pluginInstallServiceFor(home: string, source: ProjectPluginHost): Plugi
     control: (projectId, input) => controlPackageInProject(source, projectId, input),
     regrant: (projectId, installId, permission, granted, expected) => regrantPluginInProject(source, projectId, installId, permission, granted, expected),
     homeInstalled: keptFor => installedHomePlugins(source.homePlugins(), keptFor), homeRegrant: (installId, permission, granted, expected) => regrantHomePlugin(source.homePlugins(), installId, permission, granted, expected, source),
-    homeControl: (pluginId, action, input, caller) => controlHomePackage(source.homePlugins(), pluginId, action, input, caller, source),
+    homeControl: (pluginId, action, input, caller) => controlHomePackage(source.homePlugins(), pluginId, action, input, caller),
     onPublisherRevoked: keyId => {
       disposeWorkTerminalsForPublisher(home, keyId);
       // Stopping what it signed continues after this returns; a failure is logged (the next entry or restart reconciles again), never lost.

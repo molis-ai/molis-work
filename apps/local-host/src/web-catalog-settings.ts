@@ -1,10 +1,12 @@
 import { resolveActionProviderId, resolveManifestText, type PluginLocaleReader } from "@molis-ai/molis-work-plugin-runtime";
+import { assertStageInstallation, installedStageIdentity } from "./installed-stage-identity.js";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { projectPluginJudge } from "./project-action-availability.js";
 import { refusedOwner } from "./web-owner-unavailable.js";
 import type { CapabilitySection, DynamicPluginSettingsNavItem, MolisWorkSettingsView, PlatformSettingsPage, WebSettingsProject } from "@molis-ai/molis-work-app-workbench";
 import { findPluginSettingsNavItem, platformSettingsAt, pluginSettingsDataAction, renderCharacters, renderPluginSettingsContribution } from "@molis-ai/molis-work-app-workbench";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { SettingsDeclaration, SettingsValues } from "@molis-ai/molis-work-contracts/platform/settings";
 import type { SettingsPageContext, SettingsPageModel } from "@molis-ai/molis-work-contracts/platform/ui";
 import { actionErrorBody, actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
@@ -123,7 +125,8 @@ interface DiscoveredDynamicSettingsPlugin extends DynamicPluginSettingsNavItem {
   readonly manifest: PluginManifest;
   readonly declaration: SettingsDeclaration;
   readonly scope: "home" | "project";
-  readonly provider_id: string;
+  readonly record: PluginInstanceRecord;
+  assertCurrent(): void;
   readonly readAction: ActionDefinition;
   readonly writeAction: ActionDefinition;
   readonly localePacks: PluginLocaleReader | null;
@@ -138,27 +141,29 @@ async function discoverDynamicSettingsPlugins(
   contextProject: WebSettingsProject | null,
   shownInProject: (pluginId: string) => boolean = () => true,
 ): Promise<DiscoveredDynamicSettingsPlugin[]> {
-  const found = new Map<string, DiscoveredDynamicSettingsPlugin>();
+  const found: DiscoveredDynamicSettingsPlugin[] = [];
   const locale = activeLocale() ?? currentLocale();
-  const register = (manifest: PluginManifest | undefined, scope: "home" | "project", providerId: string, localePacks: PluginLocaleReader | null) => {
+  const register = (manifest: PluginManifest | undefined, scope: "home" | "project", record: PluginInstanceRecord, current: () => PluginInstanceRecord | null, localePacks: PluginLocaleReader | null) => {
     if (!manifest?.settings_entries?.entries.length) return;
     if (manifest.ui?.views?.some(view => view.slot === "settings")) return;
     const readAction = manifest.actions?.find(a => a.capability_id === manifest.settings_entries!.read.capability_id && a.version === manifest.settings_entries!.read.version);
     const writeAction = manifest.actions?.find(a => a.capability_id === manifest.settings_entries!.write.capability_id && a.version === manifest.settings_entries!.write.version);
     if (!readAction || !writeAction || readAction.action.scope !== scope || writeAction.action.scope !== scope) return;
-    if (found.has(manifest.plugin_id)) return;
+    const providerId = resolveActionProviderId(record);
+    const installation = installedStageIdentity(scope, record);
     const resolve = manifestWordResolver(localePacks, locale);
     const label = manifest.name_text !== undefined
       ? resolveManifestText(manifest.plugin_id, manifest.name, manifest.name_text, resolve)
       : manifest.name;
-    found.set(manifest.plugin_id, {
-      section_id: manifest.plugin_id,
+    found.push({
+      section_id: manifest.plugin_id + "~" + scope + "~" + record.install_id,
       plugin_id: manifest.plugin_id,
-      label,
+      label: label + " · " + readText(scope === "home" ? "workbench.settings-assistant.personal" : "workbench.settings-assistant.current-project"),
       manifest,
       declaration: manifest.settings_entries,
       scope,
-      provider_id: providerId,
+      record,
+      assertCurrent: () => assertStageInstallation(scope, current(), installation),
       readAction: { ...readAction, provider_id: providerId },
       writeAction: { ...writeAction, provider_id: providerId },
       localePacks,
@@ -169,11 +174,10 @@ async function discoverDynamicSettingsPlugins(
       await localHost.homePlugins.ready();
       for (const record of localHost.homePlugins.installations(false, true)) {
         if (record.state !== "running") continue;
-        const providerId = resolveActionProviderId(record);
         const localePacks = record.publisher_trust === "host"
           ? registeredInstallationText(record)
           : localHost.homePlugins.packageStage(record.plugin_id)?.packaged?.localePacks ?? null;
-        register(localHost.homePlugins.manifest(record.plugin_id), "home", providerId, localePacks);
+        register(localHost.homePlugins.manifest(record.plugin_id), "home", record, () => localHost.homePlugins?.installation(record.install_id) ?? null, localePacks);
       }
     } catch { /* Home plugin host unavailable or preview-only */ }
   }
@@ -189,16 +193,15 @@ async function discoverDynamicSettingsPlugins(
           // A plugin hidden in this project has no settings here, as it has no place in the project's pages.
           if (record.state !== "running" || !shownInProject(record.plugin_id)) continue;
           const manifest = installedPluginManifest(runtime.store.db, record.install_id)?.manifest ?? platform.supervisor.manifest(record.plugin_id);
-          const providerId = resolveActionProviderId(record);
           const localePacks = record.publisher_trust === "host"
             ? registeredInstallationText(record)
             : installedHost?.releaseFor(record.plugin_id)?.packaged?.localePacks ?? null;
-          register(manifest, "project", providerId, localePacks);
+          register(manifest, "project", record, () => platform.runtime.get(record.install_id), localePacks);
         }
       });
     } catch { /* Project plugin runtime unavailable */ }
   }
-  return [...found.values()];
+  return found;
 }
 
 function renderDynamicPluginSettingsHtml(
@@ -227,14 +230,19 @@ function renderDynamicPluginSettingsHtml(
       ? (typeof current.value === "string" ? current.value : JSON.stringify(current.value))
       : (current?.reason ? localizeWebErrorMessage(current.reason, "common.error.unavailable", locale) : "");
     const source = current?.state === "ok" ? current.source : "unavailable";
-    const revision = current?.revision ?? "";
     const defaultLayer = entry.layers[0] ?? (plugin.scope === "project" ? "project" : "personal");
+    const revision = current?.state === "ok" ? current.layer_revisions?.[defaultLayer] ?? current.revision : "";
+    const options = entry.schema.enum;
+    const field = options?.length ? `<select name="value" data-format="json">${options.map(option => `<option value="${escapeValue(JSON.stringify(option))}"${current?.state === "ok" && JSON.stringify(current.value) === JSON.stringify(option) ? " selected" : ""}>${escapeValue(typeof option === "string" ? option : JSON.stringify(option))}</option>`).join("")}</select>`
+      : entry.schema.type === "boolean" ? `<input name="value" type="checkbox"${current?.state === "ok" && current.value === true ? " checked" : ""}>`
+      : entry.schema.type === "string" ? `<input name="value" type="text" value="${escapeValue(valueText)}">`
+      : `<textarea name="value" data-format="json">${escapeValue(valueText)}</textarea>`;
     return `<div class="settings-row" data-plugin-setting-key="${escapeValue(entry.key)}" data-plugin-setting-revision="${escapeValue(revision)}" data-plugin-setting-layer="${escapeValue(defaultLayer)}">
       <div class="settings-row-copy"><strong>${escapeValue(title)}</strong>${summary ? `<p>${escapeValue(summary)}</p>` : ""}<span class="settings-row-meta">${escapeValue(source)}</span></div>
-      <div class="settings-row-control"><span data-plugin-setting-value>${escapeValue(valueText)}</span></div>
+      <div class="settings-row-control">${current?.state === "ok" ? `<form data-plugin-setting-editor aria-label="${escapeValue(title)}"><label><span class="sr-only">${escapeValue(title)}</span>${field}</label><button type="submit" class="mw-btn mw-btn--secondary">${escapeValue(readText("workbench.settings.apply"))}</button><output aria-live="polite"></output></form>` : `<span data-plugin-setting-value>${escapeValue(valueText)}</span>`}</div>
     </div>`;
   }).join("");
-  return `<section class="settings-section" data-dynamic-plugin-settings="${escapeValue(plugin.plugin_id)}" data-dynamic-plugin-project="${escapeValue(projectId ?? "")}">
+  return `<section class="settings-section" data-dynamic-plugin-settings="${escapeValue(plugin.plugin_id)}" data-plugin-install-id="${escapeValue(plugin.record.install_id)}" data-manifest-digest="${escapeValue(plugin.record.manifest_digest)}" data-installation-generation="${escapeValue(plugin.record.installation_generation)}" data-plugin-scope="${plugin.scope}" data-dynamic-plugin-project="${escapeValue(projectId ?? "")}">
     <header class="settings-section-header"><h1>${escapeValue(plugin.label)}</h1></header>
     <div class="settings-card">${rows}</div>
   </section>`;
@@ -327,8 +335,9 @@ export async function handlePluginSettingsPage(ctx: CatalogRequestContext): Prom
       const projects = await projectSettings.settingsProjects(serverOptions.homeDirectory).catch(() => [] as WebSettingsProject[]);
       const contextProject = projectId ? projects.find(p => p.project_id === projectId) ?? null : null;
       const dynamicPlugins = await discoverDynamicSettingsPlugins(localHost, contextProject, await projectShownJudge(composition, serverOptions.homeDirectory, contextProject));
-      const target = dynamicPlugins.find(item => item.plugin_id === pluginId);
-      if (!target) { sendJson(response, 404, { error: "找不到这个插件的设置项" }); return true; }
+      const target = dynamicPlugins.find(item => item.plugin_id === pluginId && item.scope === body.scope
+        && item.record.install_id === body.plugin_install_id && item.record.installation_generation === body.installation_generation && item.record.manifest_digest === body.manifest_digest);
+      if (!target || projectId && !contextProject) throw new ActionError("actions.provider_changed", "这份插件设置已变化，请重新打开");
       const projectRef = target.scope === "project" && contextProject
         ? molisWorkHostProjectReference({ databasePath: contextProject.database_path, projectId: contextProject.project_id })
         : undefined;
@@ -336,7 +345,7 @@ export async function handlePluginSettingsPage(ctx: CatalogRequestContext): Prom
         key: body.key, layer: body.layer, change: body.change, expected_revision: body.expected_revision, request_id: body.request_id,
         ...(body.recovery !== undefined ? { recovery: body.recovery } : {}),
       };
-      const result = await bindLocalWebActions(localHost, projectRef, LOCAL_OWNER_PERMISSIONS).invoke(target.writeAction, writeInput);
+      const result = await bindLocalWebActions(localHost, projectRef, LOCAL_OWNER_PERMISSIONS, { assertCurrent: target.assertCurrent }).invoke(target.writeAction, writeInput);
       sendJson(response, 200, result);
     } catch (error) {
       sendJson(response, actionHttpStatus(error), actionErrorBody(error));
@@ -360,7 +369,9 @@ export async function handlePluginSettingsPage(ctx: CatalogRequestContext): Prom
   // person's projects only (S-personal-partition-reserved).
   const personProjects = projects.filter((project) => project.project_id !== PERSONAL_SPACE_PROJECT_ID);
   const dynamicPlugins = await discoverDynamicSettingsPlugins(localHost, contextProject, await projectShownJudge(composition, serverOptions.homeDirectory, contextProject));
-  const dynamicTarget = pluginSettings ? undefined : dynamicPlugins.find(item => item.section_id === pluginSettingsSlug || item.plugin_id === pluginSettingsSlug);
+  const matching = dynamicPlugins.filter(item => item.section_id === pluginSettingsSlug || item.plugin_id === pluginSettingsSlug);
+  if (!pluginSettings && matching.length > 1) { sendJson(response, 409, { error: "请从设置菜单选择要打开的插件安装" }); return true; }
+  const dynamicTarget = pluginSettings ? undefined : matching[0];
   if (!pluginSettings && !dynamicTarget) return false;
   let plugin_settings_html: string;
   let sectionId: string;
@@ -381,7 +392,7 @@ export async function handlePluginSettingsPage(ctx: CatalogRequestContext): Prom
     const projectRef = dynamicTarget!.scope === "project" && contextProject
       ? molisWorkHostProjectReference({ databasePath: contextProject.database_path, projectId: contextProject.project_id })
       : undefined;
-    const values = await bindLocalWebActions(localHost, projectRef, LOCAL_OWNER_PERMISSIONS).invoke(dynamicTarget!.readAction, { keys: dynamicTarget!.declaration.entries.map(entry => entry.key) }) as SettingsValues;
+    const values = await bindLocalWebActions(localHost, projectRef, LOCAL_OWNER_PERMISSIONS, { assertCurrent: dynamicTarget!.assertCurrent }).invoke(dynamicTarget!.readAction, { keys: dynamicTarget!.declaration.entries.map(entry => entry.key) }) as SettingsValues;
     plugin_settings_html = renderDynamicPluginSettingsHtml(dynamicTarget!, values, contextProject?.project_id ?? null);
     sectionId = dynamicTarget!.section_id;
   }

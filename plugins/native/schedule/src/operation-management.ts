@@ -18,23 +18,23 @@ export interface RecoverScheduledOperationInput {
 
 /** Recovery is a product decision. The opaque revision fences exactly the plan/history the caller reviewed. */
 export function createScheduledOperationManagement(options: {
-  db: ScheduleTaskDatabase; projectId: string; schedule: ScheduledOperationScheduler;
+  db: ScheduleTaskDatabase; schedule: ScheduledOperationScheduler;
   currentInstallation(pluginId: string): OperationRecoveryInstallation | null; now?(): Date;
   listedOperations?: readonly ScheduledOperation[];
 }) {
-  const { db, projectId, schedule } = options, now = options.now ?? (() => new Date());
+  const { db, schedule } = options, now = options.now ?? (() => new Date());
   const view = (run: ScheduledOperation): ScheduledOperationView => {
     const job = schedule.get(run.jobId), installation = options.currentInstallation(run.pluginId);
-    const occurrences = listScheduledOperationOccurrences(db, projectId, run.id);
+    const occurrences = listScheduledOperationOccurrences(db, run.id);
     // Exclude technical receipt timestamps: an unrelated Scheduler receipt does not alter a reviewed decision.
     const revision = createHash('sha256').update(JSON.stringify([run, occurrences, job && [job.job_id, job.next_due_at, job.recurrence, job.enabled]])).digest('hex');
     return { ...run, job, installation, occurrences, revision };
   };
   return {
-    list: () => (options.listedOperations ?? listScheduledOperations(db, projectId)).map(view),
+    list: () => (options.listedOperations ?? listScheduledOperations(db)).map(view),
     recover(input: RecoverScheduledOperationInput): ScheduledOperationView {
       return db.transaction(() => {
-        const run = getScheduledOperation(db, projectId, input.operation_id);
+        const run = getScheduledOperation(db, input.operation_id);
         if (!run) throw scheduleErrors.job_not_found('这条定时操作已不存在，请刷新列表');
         const current = view(run), target = current.installation, job = current.job;
         if (current.revision !== input.expected_revision) throw scheduleErrors.job_invalid('任务或执行结果已变更，请刷新查看并重新确认');
@@ -50,14 +50,14 @@ export function createScheduledOperationManagement(options: {
         if (run.state === 'completed') throw scheduleErrors.job_invalid('这条一次性定时操作已经完成，请新建定时');
         if (input.decision === 'resume' && unknown) throw scheduleErrors.job_invalid('结果未知，请明确选择重试或跳过本次');
         if (input.decision !== 'resume' && !unknown) throw scheduleErrors.job_invalid('没有待核对的未知结果，请刷新列表');
-        const count = listScheduledOperations(db, projectId).filter(item => item.id !== run.id && item.pluginId === run.pluginId && item.installationId === target.installationId
+        const count = listScheduledOperations(db).filter(item => item.id !== run.id && item.pluginId === run.pluginId && item.installationId === target.installationId
           && item.installationGeneration === target.generation && item.state !== 'completed').length;
         if (count >= OPERATIONS_PER_INSTALLATION) throw scheduleErrors.job_invalid('这个插件的定时执行已经太多了，先取消一些');
         if (unknown) saveScheduledOperationOccurrence(db, { ...unknown, state: input.decision === 'retry' ? 'pending' : 'skipped',
           detail: input.decision === 'retry' ? '已明确选择重试，等待下一次唤醒' : '已明确跳过本次',
           startedAt: input.decision === 'retry' ? null : unknown.startedAt, finishedAt: input.decision === 'retry' ? null : now().toISOString(),
           decisions: [...(unknown.decisions ?? []), { decision: input.decision as 'retry' | 'skip', at: now().toISOString(), previousDetail: unknown.detail }] });
-        const occurrences = listScheduledOperationOccurrences(db, projectId, run.id), pending = occurrences.find(item => item.state === 'pending');
+        const occurrences = listScheduledOperationOccurrences(db, run.id), pending = occurrences.find(item => item.state === 'pending');
         const needsReview = occurrences.some(item => item.state === 'unknown');
         const completed = run.repeat === 'none' && occurrences.length > 0 && !pending && !needsReview;
         const next: ScheduledOperation = { ...run, installationId: target.installationId, installationGeneration: target.generation,

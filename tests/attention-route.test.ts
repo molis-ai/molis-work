@@ -234,7 +234,7 @@ test("WLN-27 a plugin library transaction says changed only when it changed a ro
   const stop = onAttentionChange(DEMO_PROJECT_ID, () => { heard++; });
   t.after(stop);
   const settle = () => new Promise<void>(resolve => setImmediate(resolve));
-  await library.client.transaction(async () => {}, tx => tx.run("UPDATE coding_inputs SET draft=draft WHERE project_id=?", ["no-such-project"]));
+  await library.client.transaction(async () => {}, tx => tx.run("UPDATE coding_inputs SET draft=draft WHERE session_id=?", ["no-such-session"]));
   await settle();
   assert.equal(heard, 0, "a transaction that touched no row");
   const sessions = new CodingSessionStore(library.client);

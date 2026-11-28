@@ -33,8 +33,8 @@ test("SYS-15-D1/N1: a normal Runtime plugin schedules its own reminder and publi
   assert.ok(items.every(item => item.url === `/projects/${f.project.project_id}/plugins/${f.id}`));
   const store = await f.store();
   assert.equal(getScheduleReminder(store.db, reminder.reminderId), null);
-  assert.equal(getScheduledOperation(store.db, f.project.project_id, operation.scheduleId)?.state, "completed");
-  assert.equal(listScheduledOperationOccurrences(store.db, f.project.project_id, operation.scheduleId)[0]?.state, "succeeded");
+  assert.equal(getScheduledOperation(store.db, operation.scheduleId)?.state, "completed");
+  assert.equal(listScheduledOperationOccurrences(store.db, operation.scheduleId)[0]?.state, "succeeded");
 });
 
 for (const outcome of ["failed", "unknown"] as const) test(`SYS-15-D2: actual scheduled dependency ${outcome} keeps its outcome and never replays unknown work`, { timeout: 60_000 }, async t => {
@@ -42,8 +42,8 @@ for (const outcome of ["failed", "unknown"] as const) test(`SYS-15-D2: actual sc
   f.execute(async () => { throw new ActionError(outcome === "unknown" ? "actions.outcome_unknown" : "actions.execution_failed", "External failure"); });
   const created = await f.sdk.invoke(scheduledOperationActions.add, { at, operation: "summarize", input: { text: "run" }, inbox: true, repeat: "daily" });
   await f.tick(at);
-  const store = await f.store(), run = getScheduledOperation(store.db, f.project.project_id, created.scheduleId)!;
-  assert.equal(listScheduledOperationOccurrences(store.db, f.project.project_id, run.id)[0]?.state, outcome);
+  const store = await f.store(), run = getScheduledOperation(store.db, created.scheduleId)!;
+  assert.equal(listScheduledOperationOccurrences(store.db, run.id)[0]?.state, outcome);
   if (outcome === "unknown") {
     assert.equal(run.state, "needs_review"); assert.equal((await f.inbox()).length, 0);
     await f.tick(new Date(Date.parse(at) + 86400000).toISOString()); assert.equal(f.calls(), 1);
@@ -65,7 +65,7 @@ test("RAC-1803 a timed operation's result past the 100000 units a notification b
   assert.ok(bodies.includes("🟢".repeat(50_000)), "a result of exactly 100000 units is delivered whole");
   assert.ok(bodies.includes("🟢".repeat(49_999) + "…"), "a longer one keeps its whole characters within 99999 units and ends with 「…」");
   const store = await f.store();
-  assert.equal(listScheduledOperationOccurrences(store.db, f.project.project_id, over.scheduleId)[0]?.state, "succeeded", "the longer result's run is recorded as done");
+  assert.equal(listScheduledOperationOccurrences(store.db, over.scheduleId)[0]?.state, "succeeded", "the longer result's run is recorded as done");
 });
 
 test("RAC-1803 a timed operation whose result is only blanks still reaches the Inbox, named by its operation", { timeout: 60_000 }, async t => {
@@ -79,5 +79,5 @@ test("RAC-1803 a timed operation whose result is only blanks still reaches the I
   assert.equal((await f.tick(at)).failed, 0, "the notice is not refused");
   assert.deepEqual((await f.inbox()).map(item => [item.title, item.body]), [["定时笔记：汇总", "操作已结束"]], "the notice names the operation and says it finished");
   const store = await f.store();
-  assert.equal(listScheduledOperationOccurrences(store.db, f.project.project_id, created.scheduleId)[0]?.state, "succeeded", "the run is recorded as done");
+  assert.equal(listScheduledOperationOccurrences(store.db, created.scheduleId)[0]?.state, "succeeded", "the run is recorded as done");
 });

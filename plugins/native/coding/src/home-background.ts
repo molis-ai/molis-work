@@ -71,7 +71,7 @@ function codingBackgroundTasksOf(sessions: readonly CodingBackgroundSession[], s
 
 export function codingBackgroundTasksHandler(context: PluginStartContext, sessions: CodingSessionStore, startedAt: string): ActionHandlerBinding {
   return bindOwnerPluginAction(context, codingBackgroundTasks, async (): Promise<BackgroundTaskCollection> => {
-    const rows = sessions.backgroundSessions(context.project_id ?? "");
+    const rows = sessions.backgroundSessions();
     const waiting = rows.flatMap(row => row.state === "waiting-approval" && row.updated_at >= startedAt && row.runtime_session_id ? [row.runtime_session_id] : []);
     const actions = context.services?.actions;
     const reviews = waiting.length && actions

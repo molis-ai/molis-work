@@ -3,7 +3,6 @@ import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plu
 import { HOST_CONNECTION_CHANGED_EVENT } from "@molis-ai/molis-work-contracts/platform/plugin-events";
 import { CONNECTOR_REQUEST_SERVICES } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { FEED_PLUGIN_ID, FEED_CAPTURE_ARTIFACT_TYPE_ID, FEED_CAPTURE_SCHEMA_VERSION } from "./identity.js";
-import { FEED_HOME_DATABASE } from "./content-ledger.js";
 import { feedSync } from './replication.js';
 import { FEED_PROJECT_DATABASE } from "./database.js";
 import { feedPresentation } from "./presentation.js";
@@ -21,9 +20,9 @@ export { FEED_PLUGIN_ID } from "./identity.js";
 export const FEED_PROJECT_PLUGIN_ID = "feed";
 
 /**
- * Feed's declaration, written out as one literal because it is a dual-instance plugin's (the gate `scripts/gates/dual-instance.mjs` reads it as
- * syntax): each project runs Feed, and the Home runs its half, which keeps the reference ledger of the evidence bodies the projects hold
- * (`databases.home`). The two halves share this Manifest and each answers only its own actions; every permission is required except `functions:manage` (RAC-1038), and the Home half's grants stay capped to its ledger.
+ * Feed's declaration: each partition that enables Feed runs one instance over its main database (`databases.project`). The evidence bodies its
+ * sources hold are recorded in the platform's ledger (`services.evidence`, batch 109), so Feed has no Home half. Every permission is required
+ * except `functions:manage` (RAC-1038).
  */
 export const feedManifest: PluginManifest = {
   schema_version: /* @version manifest.schema */ 1,
@@ -44,9 +43,10 @@ export const feedManifest: PluginManifest = {
   artifacts: { produces: [{ artifact_type_id: FEED_CAPTURE_ARTIFACT_TYPE_ID, schema_version: FEED_CAPTURE_SCHEMA_VERSION, title: "捕获的消息", title_text: { key: "feed.artifacts.type-title" }, searchable_fields: ["source_label", "tags"],
     preview: { capability_id: "feed.artifacts.preview", version: /* @version action.feed.artifacts.preview */ 1 } }], consumes: [] },
   requires: [],
+  // Enabling Feed enables Inbox with it, so the attention entries it adds have somewhere to show (V9).
+  dependencies: [{ plugin_id: "io.molis.work.inbox", enable_with: true, reason: "Feed 把值得处理的消息放进收件箱" }],
   sync: feedSync,
-  runtime: { scope: "home" },
-  databases: { project: FEED_PROJECT_DATABASE, home: FEED_HOME_DATABASE },
+  databases: { project: FEED_PROJECT_DATABASE },
   // Its scheduled and missed pulls, as rows of the platform's summary table in the partition's main database (V17).
   overview_projection: { kinds: ["scheduled_run"] },
   // The kinds of Inbox entry Feed adds and removes: an item's, and a source's fault. Both are the person's Inbox: Feed writes them under

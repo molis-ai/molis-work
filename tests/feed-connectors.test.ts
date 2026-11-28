@@ -924,8 +924,8 @@ test("F-pm3-08 connector failure after pending delivery recovery preserves the c
     // Attach per-event cursor_after = cursor2 on the persisted delivery so recovery advances Listener's cursor before the next pull.
     const cursor2Json = JSON.stringify(cursor2);
     const updated = store.db.prepare(
-      "UPDATE listener_deliveries SET raw_event_json = json_set(raw_event_json, '$.cursor_after', json(?)), cursor_after_json = ? WHERE project_id = ? AND source_id = ?",
-    ).run(cursor2Json, cursor2Json, DEMO_PROJECT_ID, source.source_id);
+      "UPDATE listener_deliveries SET raw_event_json = json_set(raw_event_json, '$.cursor_after', json(?)), cursor_after_json = ? WHERE source_id = ?",
+    ).run(cursor2Json, cursor2Json, source.source_id);
     assert.equal(Number(updated.changes), 1);
 
     // Attempt 2: recovers the pending delivery (advancing cursor to cursor2), then Provider returns rate_limited.
@@ -937,8 +937,8 @@ test("F-pm3-08 connector failure after pending delivery recovery preserves the c
     const durable = service.feed.sources.get(DEMO_PROJECT_ID, source.source_id);
     assert.deepEqual(durable.cursor, cursor2, "failure branch must not overwrite Listener's advanced cursor with the stale pre-pull source");
     const checkpointRow = store.db.prepare(
-      "SELECT cursor_json FROM listener_instances WHERE project_id = ? AND source_id = ?",
-    ).get(DEMO_PROJECT_ID, source.source_id) as { cursor_json: string };
+      "SELECT cursor_json FROM listener_instances WHERE source_id = ?",
+    ).get(source.source_id) as { cursor_json: string };
     assert.deepEqual(JSON.parse(checkpointRow.cursor_json), cursor2);
     assert.equal(durable.schedule.mode, "interval");
     if (durable.schedule.mode === "interval") assert.equal(durable.schedule.next_pull_at, retryAfterAt);

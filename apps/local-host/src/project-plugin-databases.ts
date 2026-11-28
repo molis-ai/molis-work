@@ -1,5 +1,6 @@
 import { sectionsPlatformPrelude } from './plugin-sync-sections.js';
-import { pluginSyncDatabaseDeclaration, pluginSyncBusinessRecord, preparePluginSyncUpgrade } from './plugin-sync-database.js';
+import { pluginSyncDatabaseDeclaration, pluginSyncBusinessRecord, pluginSyncLibraryManifest, pluginSyncNamespace, preparePluginSyncUpgrade } from './plugin-sync-database.js';
+import { listProjectRoots } from "@molis-ai/molis-work-module-projects";
 import { PLATFORM_PLUGIN_REGISTRATIONS, runsOnlyInHome } from "./plugin-registry.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -44,6 +45,19 @@ export function openPluginTables(db: PluginRuntimeDatabase, path: string, manife
   if (!declaration) throw new Error(`插件 ${manifest.plugin_id} 的 Manifest 没有声明项目库`);
   openPluginProjectDatabase(db, { plugin_id: manifest.plugin_id, publisher_signature: manifest.publisher.signature, declaration }, projectPluginSchemaInspector,
     { path, ...projectPluginPlatformExtension(manifest) });
+  // A table without a partition column is journaled under the library's one project (batch 109-1), so an unbound journal takes that
+  // project as soon as the tables are there: rows written before the plugin starts (a seeded demo, a fixture) then carry it, not a null
+  // key. Only an empty context is filled here; a journal bound elsewhere, or not yet added by its upgrade, is left to the plugin's start
+  // (`openPluginProjectLibrary`) and the upgrade (`preparePluginSyncUpgrade`), which check it.
+  const roots = listProjectRoots(db as ReplicaDatabase), library = pluginSyncLibraryManifest(manifest, declaration);
+  if (roots.length === 1) for (const collection of library.sync?.collections ?? []) {
+    const context = `${pluginSyncNamespace(library, collection.id)}_context`;
+    // Read before writing, so a settled read-only library (a dormant project's registry read, F-hc2-24) meets no write statement here;
+    // one whose context is still empty would still be written, and refuses as read-only.
+    if (db.prepare("SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = ?").get(context)
+      && db.prepare(`SELECT 1 FROM "${context}" WHERE id = 1 AND project_id IS NULL`).get())
+      db.prepare(`UPDATE "${context}" SET project_id = ? WHERE id = 1 AND project_id IS NULL`).run(roots[0]!.project_id);
+  }
   return pluginSyncBusinessRecord(manifest, declaration);
 }
 

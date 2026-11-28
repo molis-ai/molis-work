@@ -49,7 +49,7 @@ for (const graph of [
     : await add("B", "C", graph.types[2], "B-C");
   const state = () => host.withProject(ref, r => ({
     graph: boardSnapshot(r.store, project.project_id), cursor: r.store.eventCursor(project.project_id),
-    trash: r.store.db.prepare("SELECT * FROM goal_trash_records WHERE project_id = ? ORDER BY trash_record_id").all(project.project_id),
+    trash: r.store.db.prepare("SELECT * FROM goal_trash_records ORDER BY trash_record_id").all(),
     relations: r.store.db.prepare("SELECT * FROM goal_trash_relation_records ORDER BY relation_id, trash_record_id").all(),
     receipts: r.store.db.prepare("SELECT * FROM idempotency_records WHERE project_id = ? AND actor_id = ? ORDER BY operation, idempotency_key").all(project.project_id, caller.actor_id),
   }));

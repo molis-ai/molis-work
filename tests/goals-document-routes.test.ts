@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
+import { seedDemoGoals } from "./fixtures/demo-seed.js";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { openTestHome } from "./fixtures/test-home.js";
 import { goalsManifest, goalsReadRouteOf, goalsPageRouteOf, type GoalsReadRoute } from "@molis-ai/molis-work-plugin-goals";

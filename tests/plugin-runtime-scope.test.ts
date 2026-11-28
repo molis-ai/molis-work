@@ -49,14 +49,15 @@ test("RAC-740 the Home plugins the Host ships say so in their Manifests, and the
   const home = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.manifest.runtime?.scope === "home").map(entry => entry.project_plugin_id).sort();
   // Goals left this list in batch 41 (41-2): its Home half was the method library, which is a system Skill pack now. Shelf left it in
   // batch 44B (PR2b): it is a platform part the runtime hosts (`system.shelf`, `modules/shelf/src/surface`), not a catalog plugin.
-  // Jelly left it in batch 108: it keeps a library in each partition.
-  assert.deepEqual(home, ["feed", "work-brief"]);
+  // Jelly left it in batch 108: it keeps a library in each partition. Feed and Work Brief left it in batch 109 (109-1): Feed's evidence
+  // holds are the platform's (`horizontal/evidence`), and Work Brief keeps a library in each partition.
+  assert.deepEqual(home, []);
   for (const entry of BUILTIN_PLUGIN_CATALOG) {
     assert.equal(entry.runtime !== undefined, entry.manifest.runtime?.scope === "home", `${entry.project_plugin_id}: the registration's runtime (the code) and the Manifest's runtime.scope go together`);
     assert.equal("scope" in (entry.runtime ?? {}), false, `${entry.project_plugin_id}: the registration no longer says where the plugin runs`);
   }
   // The dual-instance mark stays the Host's: on the registration, in no Manifest.
-  assert.deepEqual(BUILTIN_PLUGIN_CATALOG.filter(entry => entry.runtime?.dual_instance === true).map(entry => entry.project_plugin_id).sort(), ["feed", "work-brief"]);
+  assert.deepEqual(BUILTIN_PLUGIN_CATALOG.filter(entry => entry.runtime?.dual_instance === true).map(entry => entry.project_plugin_id).sort(), []);
   for (const entry of BUILTIN_PLUGIN_CATALOG) assert.equal("dual_instance" in (entry.manifest.runtime ?? {}), false, entry.project_plugin_id);
   for (const entry of BUILTIN_PLUGIN_CATALOG) parsePluginManifest(entry.manifest);
 });

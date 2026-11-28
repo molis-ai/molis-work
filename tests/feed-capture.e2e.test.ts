@@ -65,7 +65,7 @@ test("RAC-2518 a late authoring create cannot revive an old source, and an expli
   assert.equal(feed.outRules.list(projectId).filter(rule => rule.match.source_id === a.source_id).length, 1, "one explicit save creates one binding");
 });
 
-test("RAC-2910 the actual Feed page obeys its Home Functions switch while required collection and reading remain usable", { timeout: 90000 }, async t => {
+test("RAC-2910 the actual Feed page obeys its installation's Functions switch while required collection and reading remain usable", { timeout: 90000 }, async t => {
   let trials = 0;
   const provider: TypeSafeProvider = { async evaluate(_key, record) { trials++; return { primitive: record.primitive, choice: null, noul: .8, score: null, legend: null, probabilities: {}, confidence: null, model: "fixture-judgment" }; } };
   const b = await openGoalBrowser(t, true, undefined, null, { env: { TYPESAFE_API_KEY: "test-only-not-a-real-key" }, provider }); if (!b) return;
@@ -78,8 +78,14 @@ test("RAC-2910 the actual Feed page obeys its Home Functions switch while requir
   const child = await pluginFrameBrowser(t, b, "feed"), owner = new LocalHostHttpClient({ origin: b.origin, controlToken: b.controlToken });
   await b.navigate(() => command("Page.navigate", { url: `${b.origin}/projects/${projectId}/?openPlugin=feed` }, sessionId));
   await child.waitFor("window.t403Host && t403Reads.total>0 && t403Reads.pending===0");
-  const home = localHost.homePlugins!; await home.ready(); const installation = home.installation("io.molis.work.feed"); assert.ok(installation);
-  const switchHome = (granted: boolean) => owner.post("/api/settings/plugin-permissions/set", { install_id: installation.install_id, permission: "functions:manage", granted });
+  // Since batch 109-1 Feed has no Home half: Functions management is switched on its installation in the project, through the project's plugin settings.
+  const installation = new SqlitePluginRuntimeRepository(store.db).list().find(row => row.plugin_id === "io.molis.work.feed" && row.state !== "uninstalled"); assert.ok(installation);
+  // Changing the installation's grants ends the authority of its open page, so the person opens Feed again after each switch.
+  const switchHome = async (granted: boolean) => {
+    await owner.post(`/projects/${encodeURIComponent(projectId)}/api/plugin-trust/permissions/set`, { install_id: installation.install_id, permission: "functions:manage", granted });
+    await b.navigate(() => command("Page.navigate", { url: `${b.origin}/projects/${projectId}/?openPlugin=feed` }, sessionId));
+    await child.waitFor("window.t403Host && t403Reads.total>0 && t403Reads.pending===0");
+  };
   const functions = () => owner.get<{ functions: JudgmentRuleRecord[] }>("/api/functions");
   const section = `[data-feed-out-rules="${source.source_id}"]`, status = section + " [data-feed-rule-status]", composer = section + " [data-feed-rule-composer]";
   const selectRules = async () => {
@@ -95,12 +101,12 @@ test("RAC-2910 the actual Feed page obeys its Home Functions switch while requir
   // AIC-08: the page reaches the latest record through the one action its Manifest declares for it.
   assert.equal((await child.evaluate<{ function: JudgmentRuleRecord }>(`t403Host.invokeAction({capability_id:'functions.authoring.get',version:1,provider_id:'system.functions'}, {id:${JSON.stringify(draft.id)}})`)).function.updated_at, draft.updated_at);
   const bindings = feed.outRules.list(projectId), key = `/projects/${projectId}/:feed-rule:${source.source_id}`, saved = await child.evaluate<string>(`sessionStorage.getItem(${JSON.stringify(key)})`);
-  await switchHome(false);
+  await switchHome(false); await selectRules();
   for (const [name, input] of [["list", {}], ["create", { name: "Must not be created", function_key: "blocked_switch_draft", primitive: "noul" }],
     ["update", { id: draft.id, expected_updated_at: draft.updated_at, patch: { name: "Must not be changed" } }],
     ["preview", { id: draft.id, expected_updated_at: draft.updated_at, input: "Must not be evaluated" }], ["publish", { id: draft.id, expected_updated_at: draft.updated_at }]] as const) {
     const refusal = await child.evaluate<{ ok: boolean; code?: string }>(`t403Host.invokeAction({capability_id:${JSON.stringify("functions.authoring." + name)},version:1,provider_id:'system.functions'},${JSON.stringify(input)}).then(()=>({ok:true}),error=>({ok:false,code:error.code}))`);
-    assert.equal(refusal.ok, false, name); assert.equal(refusal.code, "actions.dependency_missing", name + " is hidden from this page's current action directory while Home denies it");
+    assert.equal(refusal.ok, false, name); assert.equal(refusal.code, "actions.dependency_missing", name + " is hidden from this page's current action directory while the switch is off");
   }
   for (const button of ["data-feed-rule-preview-run", "data-feed-out-rule-create"]) {
     await child.evaluate(`document.querySelector('${status}').textContent=''`);
@@ -233,8 +239,8 @@ test("FBR-07 FSS-35 the real Feed page reaches later messages and materials and 
   feed.markRead(projectId, target.item_id);
   store.db.transaction(() => {
     for (let n = 0; n < 205; n++) store.db.prepare(`INSERT INTO feed_materials
-      (project_id,material_id,item_id,title,source_name,preview,imported_at,updated_at) VALUES (?,?,?,?,?,?,?,?)`)
-      .run(projectId, `page-material-${String(n).padStart(3, "0")}`, target.item_id, `Material ${n}`, "Bounded source", "Material preview", "2026-11-11T00:00:00Z", "2026-11-11T00:00:00Z");
+      (material_id,item_id,title,source_name,preview,imported_at,updated_at) VALUES (?,?,?,?,?,?,?)`)
+      .run(`page-material-${String(n).padStart(3, "0")}`, target.item_id, `Material ${n}`, "Bounded source", "Material preview", "2026-11-11T00:00:00Z", "2026-11-11T00:00:00Z");
   })();
   await pluginFrameInitScript(t, b, `window.molisWorkbenchPluginFactories=new Proxy({}, {set(target,key,value){target[key]=key==='feed'?host=>{
     window.pagingHost=host; window.pagingPending=0; window.pagingReads=[]; window.pagingTrace=[];

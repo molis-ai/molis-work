@@ -1,3 +1,4 @@
+import { libraryPartition } from "../module/library-partition.js";
 import { treeErrors } from "./errors.js";
 import type { GoalTreeProposalDecisionRecord, GoalTreeProposalItemRecord, GoalTreeProposalRecord, GoalTreeItemOwner, GoalTreeSemanticReview, GovernanceRecordsApi, NewNativeGoalTreeProposal, NewNativeGoalTreeProposalItem } from "../contract/governance-collaboration.js";
 import { randomUUID } from "node:crypto";
@@ -104,20 +105,20 @@ export class GovernanceGoalTreeRecords {
 
   findGoalTreeItemOwner(itemId: string): GoalTreeItemOwner | null {
     const row = this.db.prepare(
-      "SELECT proposal_id, project_id FROM goal_tree_proposal_items WHERE item_id = ?",
+      "SELECT proposal_id FROM goal_tree_proposal_items WHERE item_id = ?",
     ).get(itemId) as GovernanceRow | undefined;
-    return row ? { proposal_id: text(row.proposal_id), project_id: text(row.project_id) } : null;
+    return row ? { proposal_id: text(row.proposal_id), project_id: libraryPartition(this.db) } : null;
   }
 
   insertGoalTreeProposal(proposal: NewNativeGoalTreeProposal): void {
     this.db.prepare(`INSERT INTO goal_tree_proposals (
-      proposal_id, project_id, root_goal_id, submitted_by,
+      proposal_id, root_goal_id, submitted_by,
       submitted_session_id, state, version, supersedes_proposal_id,
       base_event_cursor, summary, narrative_json, decision_json,
       created_at, updated_at, decided_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, NULL)`)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, NULL)`)
       .run(
-        proposal.proposal_id, proposal.project_id, proposal.root_goal_id,
+        proposal.proposal_id, proposal.root_goal_id,
         proposal.submitted_by, proposal.submitted_session_id ?? null,
         proposal.state, proposal.version, proposal.supersedes_proposal_id,
         proposal.base_event_cursor,
@@ -128,14 +129,14 @@ export class GovernanceGoalTreeRecords {
 
   insertGoalTreeProposalItem(item: NewNativeGoalTreeProposalItem): void {
     this.db.prepare(`INSERT INTO goal_tree_proposal_items (
-      item_id, proposal_id, project_id, ordinal, kind, operation, payload_json,
+      item_id, proposal_id, ordinal, kind, operation, payload_json,
       source_refs_json, reason, explanation_json, confidence, affected_objects_json,
       baseline_versions_json, requires_user_confirmation, state, conflict_json,
       materialized_objects_json, revision_proposal_id, supersedes_item_id,
       created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, '[]', NULL, ?, ?, ?)`)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, '[]', NULL, ?, ?, ?)`)
       .run(
-        item.item_id, item.proposal_id, item.project_id, item.ordinal, item.kind,
+        item.item_id, item.proposal_id, item.ordinal, item.kind,
         item.operation, json(item.payload), json(item.source_refs), item.reason,
         item.explanation == null ? null : json(item.explanation), item.confidence,
         json(item.affected_objects), json(item.baseline_versions),
@@ -212,11 +213,11 @@ export class GovernanceGoalTreeRecords {
       throw new ActionError("actions.forbidden", "目标树条目需要本次事务里的原决定");
     }
     this.db.prepare(`INSERT INTO goal_tree_item_effects (
-      effect_id, project_id, proposal_id, item_id, approval_id, result, runtime_actor_id, reason,
+      effect_id, proposal_id, item_id, approval_id, result, runtime_actor_id, reason,
       revision_proposal_id, materialized_objects_json, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .run(
-        decision.decision_id, decision.project_id, decision.proposal_id,
+        decision.decision_id, decision.proposal_id,
         decision.item_id, approval.decision_id, decision.decision, decision.runtime_actor_id, decision.reason,
         decision.revision_proposal_id, json(decision.materialized_objects),
         decision.created_at,

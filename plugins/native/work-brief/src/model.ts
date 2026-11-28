@@ -4,7 +4,7 @@ import type { ActionCard } from "@molis-ai/molis-work-plugin-sdk";
 
 export const BRIEF_LIMITS = { title: 200, claims: 40, claim_text: 600, cites: 8, attention: 20, why: 300, next: 12, next_text: 200, versions: 60, id: 200, sources: 60, request_id: 200 } as const;
 
-export type BriefScope = "home" | "topic" | "personal";
+export type BriefScope = "home" | "topic";
 /** Who made a version: the person, the assistant's work, or a task (an object reference the page can open). */
 export type ProducedBy = { kind: "person" } | { kind: "assistant" } | { kind: "task"; subject: ActionSubject };
 

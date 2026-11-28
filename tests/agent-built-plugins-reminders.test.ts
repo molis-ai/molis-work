@@ -30,7 +30,7 @@ test("a plugin reminder reaches the Inbox under its plugin's name; uninstall rem
   while (getScheduleReminder((await f.store()).db, retained.reminderId) && Date.now() < end) await new Promise(resolve => setTimeout(resolve, 50));
   const reopened = await f.store();
   assert.equal(getScheduleReminder(reopened.db, retained.reminderId), null);
-  assert.equal(getScheduledOperation(reopened.db, f.project.project_id, operation.scheduleId), null);
+  assert.equal(getScheduledOperation(reopened.db, operation.scheduleId), null);
   assert.equal((await f.inbox()).length, 1); assert.equal(f.calls(), 0);
   await f.reopen(); assert.equal(getScheduleReminder((await f.store()).db, retained.reminderId), null);
 });

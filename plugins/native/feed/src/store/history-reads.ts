@@ -11,18 +11,16 @@ export interface ProjectBodyRefRow {
 /** The database deduplicates references, including repeated receipt refs, before returning one bounded page. */
 export function historyReads(sql: FeedSql) {
   return {
-    refs(projectId: string, sourceId: string, after: string): string[] {
+    refs(sourceId: string, after: string): string[] {
       return sql.all<{ ref: string }>(
         `SELECT ref FROM (
-          SELECT feed_materials.project_id AS project_id, feed_materials.content_ref AS ref
+          SELECT feed_materials.content_ref AS ref
           FROM feed_materials
-          JOIN feed_items
-            ON feed_items.project_id = feed_materials.project_id
-            AND feed_items.item_id = feed_materials.item_id
+          JOIN feed_items ON feed_items.item_id = feed_materials.item_id
           WHERE feed_materials.content_ref IS NOT NULL
             AND feed_items.source_id = ?
           UNION
-          SELECT feed_source_runs.project_id AS project_id, run_refs.value AS ref
+          SELECT run_refs.value AS ref
           FROM feed_source_runs
           JOIN json_each(feed_source_runs.receipt_json, '$.content_refs') AS run_refs
           WHERE feed_source_runs.source_id = ?
@@ -31,7 +29,7 @@ export function historyReads(sql: FeedSql) {
             AND json_type(feed_source_runs.receipt_json, '$.content_refs') = 'array'
             AND run_refs.type = 'text'
           UNION
-          SELECT signals.project_id AS project_id, signal_refs.value AS ref
+          SELECT signal_refs.value AS ref
           FROM signals
           JOIN json_each(signals.content_refs_json) AS signal_refs
           WHERE signals.source_id = ?
@@ -39,42 +37,35 @@ export function historyReads(sql: FeedSql) {
             AND json_type(signals.content_refs_json) = 'array'
             AND signal_refs.type = 'text'
           UNION
-          SELECT signal_revisions.project_id AS project_id, revision_refs.value AS ref
+          SELECT revision_refs.value AS ref
           FROM signal_revisions
-          JOIN signals
-            ON signals.project_id = signal_revisions.project_id
-            AND signals.signal_id = signal_revisions.signal_id
+          JOIN signals ON signals.signal_id = signal_revisions.signal_id
           JOIN json_each(signal_revisions.draft_json, '$.content_refs') AS revision_refs
           WHERE signals.source_id = ?
             AND json_valid(signal_revisions.draft_json)
             AND json_type(signal_revisions.draft_json, '$.content_refs') = 'array'
             AND revision_refs.type = 'text'
         )
-        WHERE project_id = ? AND ref > ?
+        WHERE ref > ?
         ORDER BY ref
         LIMIT 200`,
         sourceId,
         sourceId,
         sourceId,
         sourceId,
-        projectId,
         after,
       ).map((row) => row.ref);
     },
-    projectRefs(projectId: string, afterSourceId: string, afterRef: string): ProjectBodyRefRow[] {
+    projectRefs(afterSourceId: string, afterRef: string): ProjectBodyRefRow[] {
       return sql.all<ProjectBodyRefRow>(
         `SELECT source_id, ref FROM (
-          SELECT feed_materials.project_id AS project_id,
-                 COALESCE(NULLIF(TRIM(feed_items.source_id), ''), ?) AS source_id,
+          SELECT COALESCE(NULLIF(TRIM(feed_items.source_id), ''), ?) AS source_id,
                  feed_materials.content_ref AS ref
           FROM feed_materials
-          LEFT JOIN feed_items
-            ON feed_items.project_id = feed_materials.project_id
-            AND feed_items.item_id = feed_materials.item_id
+          LEFT JOIN feed_items ON feed_items.item_id = feed_materials.item_id
           WHERE feed_materials.content_ref IS NOT NULL
           UNION
-          SELECT feed_source_runs.project_id AS project_id,
-                 COALESCE(NULLIF(TRIM(feed_source_runs.source_id), ''), ?) AS source_id,
+          SELECT COALESCE(NULLIF(TRIM(feed_source_runs.source_id), ''), ?) AS source_id,
                  run_refs.value AS ref
           FROM feed_source_runs
           JOIN json_each(feed_source_runs.receipt_json, '$.content_refs') AS run_refs
@@ -83,8 +74,7 @@ export function historyReads(sql: FeedSql) {
             AND json_type(feed_source_runs.receipt_json, '$.content_refs') = 'array'
             AND run_refs.type = 'text'
           UNION
-          SELECT signals.project_id AS project_id,
-                 COALESCE(NULLIF(TRIM(signals.source_id), ''), ?) AS source_id,
+          SELECT COALESCE(NULLIF(TRIM(signals.source_id), ''), ?) AS source_id,
                  signal_refs.value AS ref
           FROM signals
           JOIN json_each(signals.content_refs_json) AS signal_refs
@@ -92,43 +82,38 @@ export function historyReads(sql: FeedSql) {
             AND json_type(signals.content_refs_json) = 'array'
             AND signal_refs.type = 'text'
           UNION
-          SELECT signal_revisions.project_id AS project_id,
-                 COALESCE(
+          SELECT COALESCE(
                    NULLIF(TRIM(signals.source_id), ''),
                    NULLIF(TRIM(CAST(json_extract(signal_revisions.draft_json, '$.source_id') AS TEXT)), ''),
                    ?
                  ) AS source_id,
                  revision_refs.value AS ref
           FROM signal_revisions
-          LEFT JOIN signals
-            ON signals.project_id = signal_revisions.project_id
-            AND signals.signal_id = signal_revisions.signal_id
+          LEFT JOIN signals ON signals.signal_id = signal_revisions.signal_id
           JOIN json_each(signal_revisions.draft_json, '$.content_refs') AS revision_refs
           WHERE json_valid(signal_revisions.draft_json)
             AND json_type(signal_revisions.draft_json, '$.content_refs') = 'array'
             AND revision_refs.type = 'text'
         )
-        WHERE project_id = ? AND (source_id > ? OR (source_id = ? AND ref > ?))
+        WHERE source_id > ? OR (source_id = ? AND ref > ?)
         ORDER BY source_id, ref
         LIMIT 200`,
         FEED_UNASSIGNED_BODY_HOLDER,
         FEED_UNASSIGNED_BODY_HOLDER,
         FEED_UNASSIGNED_BODY_HOLDER,
         FEED_UNASSIGNED_BODY_HOLDER,
-        projectId,
         afterSourceId,
         afterSourceId,
         afterRef,
       );
     },
-    operations(projectId: string, sourceId: string, after: string): string[] {
+    operations(sourceId: string, after: string): string[] {
       return sql.all<{ operation_id: string }>(
         `SELECT operation_id
         FROM feed_source_runs
-        WHERE project_id = ? AND source_id = ? AND operation_id > ?
+        WHERE source_id = ? AND operation_id > ?
         ORDER BY operation_id
         LIMIT 200`,
-        projectId,
         sourceId,
         after,
       ).map((row) => row.operation_id);

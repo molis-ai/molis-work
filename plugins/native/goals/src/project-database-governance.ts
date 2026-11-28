@@ -6,7 +6,6 @@
 export const GOALS_GOVERNANCE_SQL = `
   CREATE TABLE goal_tree_proposals (
     proposal_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     root_goal_id TEXT REFERENCES goals(goal_id) ON DELETE SET NULL,
     submitted_by TEXT NOT NULL,
     submitted_session_id TEXT,
@@ -22,14 +21,13 @@ export const GOALS_GOVERNANCE_SQL = `
     decided_at TEXT
   );
   CREATE INDEX goal_tree_proposals_project_idx
-    ON goal_tree_proposals(project_id, root_goal_id, state, created_at DESC, proposal_id);
+    ON goal_tree_proposals(root_goal_id, state, created_at DESC, proposal_id);
   CREATE INDEX goal_tree_proposals_supersedes_idx
     ON goal_tree_proposals(supersedes_proposal_id);
 
   CREATE TABLE goal_tree_proposal_items (
     item_id TEXT PRIMARY KEY,
     proposal_id TEXT NOT NULL REFERENCES goal_tree_proposals(proposal_id) ON DELETE CASCADE,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     ordinal INTEGER NOT NULL,
     kind TEXT NOT NULL CHECK (kind IN ('goal', 'relation')),
     operation TEXT NOT NULL CHECK (operation IN ('create', 'deactivate')),
@@ -53,14 +51,13 @@ export const GOALS_GOVERNANCE_SQL = `
   CREATE INDEX goal_tree_proposal_items_proposal_idx
     ON goal_tree_proposal_items(proposal_id, ordinal, item_id);
   CREATE INDEX goal_tree_proposal_items_project_idx
-    ON goal_tree_proposal_items(project_id, state, item_id);
+    ON goal_tree_proposal_items(state, item_id);
 `;
 
 /** Goals owns the outcome of materializing each item; the platform owns the approval and who gave it. */
 export const GOALS_TREE_EFFECTS_SQL = `
   CREATE TABLE goal_tree_item_effects (
     effect_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     proposal_id TEXT NOT NULL REFERENCES goal_tree_proposals(proposal_id) ON DELETE CASCADE,
     item_id TEXT NOT NULL REFERENCES goal_tree_proposal_items(item_id) ON DELETE CASCADE,
     approval_id TEXT NOT NULL,
@@ -71,5 +68,5 @@ export const GOALS_TREE_EFFECTS_SQL = `
     materialized_objects_json TEXT NOT NULL DEFAULT '[]',
     created_at TEXT NOT NULL
   );
-  CREATE INDEX goal_tree_item_effects_proposal_idx ON goal_tree_item_effects(project_id, proposal_id, item_id, created_at, effect_id);
+  CREATE INDEX goal_tree_item_effects_proposal_idx ON goal_tree_item_effects(proposal_id, item_id, created_at, effect_id);
 `;

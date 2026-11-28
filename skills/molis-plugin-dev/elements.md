@@ -68,11 +68,11 @@ Manifest 里有两类声明会改变插件在别处的效果，安装预览把�
 
 内置插件都按分区（个人空间与每个项目）启用，个人空间和项目同构；第 108 批起登记上没有 `personal: true`。完整成员见[生成的插件登记](../../apps/local-host/src/plugin-registry.generated.ts)。
 
-必选输入口会拉上能产出该类型的同伴插件；可选取消口（Diff）不拉同伴。Feed 启用会带上 Inbox（Feed `registration` 上的 `companions`）。
+必选输入口会拉上能产出该类型的同伴插件；可选取消口（Diff）不拉同伴。Feed 启用会带上 Inbox：Feed 在 Manifest 的 `dependencies` 里把 Inbox 声明为 `enable_with: true`（第 109 批起，取代原 `registration` 上的 `companions`）。
 
 市场卡片要同时有 catalog 的 `summary` 和一个 `navigator` 或 `island` 视图；没有这两种视图、页面只放在设置里的插件不进内建市场（Characters 是宿主的一节设置，不是插件，不在市场里）。
 
-> 统一工作分区过渡（第 106 批起）：上述 `companions` 属于待迁出旧模型；新插件的分区独立库（`databases.partition`）、本人设置（`person_settings`）、总览表（`overview_projection`）、推送声明（`push`）、市场分类（`market`）与通用随启用依赖（`dependencies`／`enable_with`）一律以 [partitions.md](partitions.md) 为准。
+> 统一工作分区过渡（第 106 批起）：新插件的分区独立库（`databases.partition`）、本人设置（`person_settings`）、总览表（`overview_projection`）、推送声明（`push`）、市场分类（`market`）与通用随启用依赖（`dependencies`／`enable_with`）一律以 [partitions.md](partitions.md) 为准。
 
 ## UI
 

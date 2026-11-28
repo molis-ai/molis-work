@@ -1,7 +1,6 @@
 /** The Feed tables, as one current schema; the host composes them into the project database baseline. */
 export const FEED_ITEMS_SCHEMA_SQL = `
     CREATE TABLE IF NOT EXISTS feed_items (
-      project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
       item_id TEXT NOT NULL,
       source_id TEXT,
       signal_id TEXT,
@@ -25,15 +24,14 @@ export const FEED_ITEMS_SCHEMA_SQL = `
       source_updated_at TEXT NOT NULL,
       imported_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
-      PRIMARY KEY (project_id, item_id)
+      PRIMARY KEY (item_id)
     );
     CREATE INDEX IF NOT EXISTS feed_items_project_updated_idx
-      ON feed_items(project_id, disposition, source_updated_at DESC);
+      ON feed_items(disposition, source_updated_at DESC);
     CREATE UNIQUE INDEX IF NOT EXISTS feed_items_project_source_external_idx
-      ON feed_items(project_id, source_id, external_id)
+      ON feed_items(source_id, external_id)
       WHERE source_id IS NOT NULL AND external_id IS NOT NULL;
     CREATE TABLE IF NOT EXISTS feed_materials (
-      project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
       material_id TEXT NOT NULL,
       item_id TEXT NOT NULL,
       canonical_url TEXT,
@@ -51,23 +49,22 @@ export const FEED_ITEMS_SCHEMA_SQL = `
       selected_for_context INTEGER NOT NULL DEFAULT 0,
       imported_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
-      PRIMARY KEY (project_id, material_id),
-      FOREIGN KEY (project_id, item_id) REFERENCES feed_items(project_id, item_id) ON DELETE CASCADE
+      PRIMARY KEY (material_id),
+      FOREIGN KEY (item_id) REFERENCES feed_items(item_id) ON DELETE CASCADE
     );
     CREATE INDEX IF NOT EXISTS feed_materials_project_item_idx
-      ON feed_materials(project_id, item_id, updated_at DESC, material_id);
+      ON feed_materials(item_id, updated_at DESC, material_id);
 
     CREATE TABLE IF NOT EXISTS feed_item_events (
       event_id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL,
       item_id TEXT NOT NULL,
       type TEXT NOT NULL,
       payload_json TEXT NOT NULL,
       at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS feed_item_events_project_item_idx
-      ON feed_item_events(project_id, item_id, at, event_id);
+      ON feed_item_events(item_id, at, event_id);
 
     CREATE UNIQUE INDEX IF NOT EXISTS feed_items_project_signal_idx
-      ON feed_items(project_id, signal_id) WHERE signal_id IS NOT NULL;
+      ON feed_items(signal_id) WHERE signal_id IS NOT NULL;
 `;

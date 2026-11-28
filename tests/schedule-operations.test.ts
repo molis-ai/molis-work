@@ -53,11 +53,11 @@ async function harness(t: TestContext) {
   const describe = () => descriptor(repository.get(identity.installationId)!.installation_generation);
   const options = { db: store.db, projectId: identity.projectId, schedule, describe, now: () => clock.now.getTime(), link: () => '/original-plugin' };
   const operations = createScheduledOperations(options);
-  const get = (id: string) => getScheduledOperation(store.db, identity.projectId, id)!;
-  const occurrences = (id: string) => listScheduledOperationOccurrences(store.db, identity.projectId, id);
+  const get = (id: string) => getScheduledOperation(store.db, id)!;
+  const occurrences = (id: string) => listScheduledOperationOccurrences(store.db, id);
   const inbox = () => store.db.prepare('SELECT summary, url FROM schedule_test_deliveries').all() as Array<{ summary: string; url: string }>;
   return { home, path, store, clock, repository, schedule, operations, options, get, occurrences, inbox,
-    manage: () => createScheduledOperationManagement({ db: store.db, projectId: identity.projectId, schedule, currentInstallation: () => ({ ...describe(), publisher: 'test' }), now: () => clock.now }),
+    manage: () => createScheduledOperationManagement({ db: store.db, schedule, currentInstallation: () => ({ ...describe(), publisher: 'test' }), now: () => clock.now }),
     bind: (port: Executor) => { executor?.controller.abort(); const current = { port, controller: new AbortController() }; executor = current;
       return () => { current.controller.abort(); if (executor === current) executor = undefined; }; },
   };
@@ -195,9 +195,9 @@ for (const mode of ['before-dispatch', 'after-dispatch', 'after-commit'] as cons
   reconcileScheduledOperations(reopened.db, schedule); await schedule.tick(); reconcileScheduledOperations(reopened.db, schedule); await schedule.tick();
   assert.equal(replays, mode === 'before-dispatch' ? 1 : 0);
   assert.equal((reopened.db.prepare('SELECT n FROM scheduled_test_effects').get() as { n: number }).n, 1);
-  const run = getScheduledOperation(reopened.db, identity.projectId, id)!;
+  const run = getScheduledOperation(reopened.db, id)!;
   assert.equal(run.state, mode === 'after-dispatch' ? 'needs_review' : 'completed');
-  assert.equal(listScheduledOperationOccurrences(reopened.db, identity.projectId, id)[0]?.state, mode === 'after-dispatch' ? 'unknown' : 'succeeded');
+  assert.equal(listScheduledOperationOccurrences(reopened.db, id)[0]?.state, mode === 'after-dispatch' ? 'unknown' : 'succeeded');
 });
 
 test('review rechecks installation and operation history, rolls back failed recovery and resumes the original queue with its receipt', async t => {
@@ -208,13 +208,13 @@ test('review rechecks installation and operation history, rolls back failed reco
   await h.schedule.tick();
   assert.equal(h.get(id).state, 'needs_confirmation'); assert.equal(h.schedule.get(job.job_id)?.enabled, false);
   let target = { ...descriptor('second'), publisher: 'test' }, calls = 0;
-  const manage = createScheduledOperationManagement({ db: h.store.db, projectId: identity.projectId, schedule: h.schedule, currentInstallation: () => target, now: () => h.clock.now });
+  const manage = createScheduledOperationManagement({ db: h.store.db, schedule: h.schedule, currentInstallation: () => target, now: () => h.clock.now });
   const confirmation = () => { const v = manage.list()[0]!; return { operation_id: v.id, decision: 'resume' as const, expected_revision: v.revision,
     expected_installation_id: target.installationId, expected_generation: target.generation, expected_version: target.version }; };
   const before = confirmation(); target = { ...target, version: '2.0.0' };
   assert.throws(() => manage.recover(before), /版本已变更/);
   const input = confirmation();
-  const broken = createScheduledOperationManagement({ db: h.store.db, projectId: identity.projectId, currentInstallation: () => target,
+  const broken = createScheduledOperationManagement({ db: h.store.db, currentInstallation: () => target,
     schedule: { ...h.schedule, register(value) { h.schedule.register(value); throw new Error('recovery-write-failed'); } } });
   assert.throws(() => broken.recover(input), /recovery-write-failed/);
   assert.equal(h.get(id).state, 'needs_confirmation'); assert.equal(h.schedule.get(job.job_id)?.enabled, false);
@@ -241,8 +241,8 @@ for (const decision of ['retry', 'skip'] as const) test(`review ${decision} of a
   const v = manage.list()[0]!, input = { operation_id: id, decision, expected_revision: v.revision,
     expected_installation_id: v.installation!.installationId, expected_generation: v.installation!.generation, expected_version: v.installation!.version };
   assert.throws(() => manage.recover({ ...input, decision: 'resume' }), /明确选择/);
-  const other = createScheduledOperationManagement({ db: h.store.db, projectId: 'another-board', schedule: h.schedule, currentInstallation: () => v.installation });
-  assert.throws(() => other.recover(input), /不存在/);
+  // Another project's operations are in its own partition's file (batch 109-1); in this one an id it does not hold is refused.
+  assert.throws(() => manage.recover({ ...input, operation_id: 'another-board-operation' }), /不存在/);
   manage.recover(input); assert.equal(calls, 1);
   assert.throws(() => manage.recover(input), /已变更/);
   await h.schedule.tick(); await h.schedule.tick();
@@ -284,7 +284,7 @@ function jobTitles(t: TestContext) {
     reminder: (text: string) => schedule.get(getScheduleReminder(db, reminders.add(identity, { at, text }).reminderId)!.jobId)?.title,
     operation: (title: string, description: string) => {
       plugin = { title, description };
-      return schedule.get(getScheduledOperation(db, identity.projectId, operations.add(identity, { at, operation: 'summarize' }).scheduleId)!.jobId)?.title;
+      return schedule.get(getScheduledOperation(db, operations.add(identity, { at, operation: 'summarize' }).scheduleId)!.jobId)?.title;
     },
   };
 }

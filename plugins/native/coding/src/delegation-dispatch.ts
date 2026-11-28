@@ -20,7 +20,7 @@ export async function dispatchCodingDelegation(context: PluginStartContext, exec
   let target = await execution.sessions.create(beforeWrite, { project_id: projectId, session_id: crypto.randomUUID(), title: "委派：" + title, runtime_id: record.runtime_id, at });
   let sent: AgentSessionMessage | undefined, dispatchStarted = false;
   try {
-    await execution.sessions.inputs.write(beforeWrite,projectId,target.session_id,0,{draft:task});
+    await execution.sessions.inputs.write(beforeWrite,target.session_id,0,{draft:task});
     if (materials.length) context.services!.storage!.set(`materials:${target.session_id}`, JSON.stringify(materials));
     // The work happens where the asking session works, with its model, unless the receiving person changes them.
     const configuration = context.services!.storage!.get(`configuration:${record.session_id}`);

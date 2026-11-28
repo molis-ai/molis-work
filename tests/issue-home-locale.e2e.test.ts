@@ -4,7 +4,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { mkdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
+import { seedDemoGoals } from "./fixtures/demo-seed.js";
 import type { Issue } from "@molis-ai/molis-work-plugin-issues";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { ISSUES_PAGE, issueView, type IssueBrowser } from "./fixtures/issue-browser.js";
@@ -198,7 +198,10 @@ test("W2-18-HOME-LOCALE-01 B27-FF06 HOME-SET-02: the standalone Home page opens 
 });
 
 // A Home plugin ledger this version cannot read: Work Brief's standalone page offers the Home startup retry (Issues and Jelly run in the partitions since batch 108).
-test("W2-18-HOME-LOCALE-01: rejected Home startup renders the requested language through the real HTTP error route", { timeout: 60_000 }, async t => {
+// Skipped until 109-3 (user 2026-11-27, as SCS-16): the build ships no Home plugin page since batch 109-1, and 109-3 removes the Home runtime;
+// the retry page's language stays checked in tests/home-plugin-locale.test.ts.
+test("W2-18-HOME-LOCALE-01: rejected Home startup renders the requested language through the real HTTP error route",
+  { timeout: 60_000, skip: "no built-in Home plugin page in the build since batch 109-1; the Home runtime goes in 109-3" }, async t => {
   const b = await openGoalBrowser(t, "empty", async path => {
     await seedDemoGoals(path); const directory = join(dirname(path), "plugin-runtime"); mkdirSync(directory);
     const db = new DatabaseSync(join(directory, "plugin-runtime.db")); db.exec("PRAGMA user_version=9"); db.close();

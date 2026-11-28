@@ -5,7 +5,7 @@ export function feedPageSelection(page: FeedItemPage): { where: string; values: 
   const clauses: string[] = [], values: (string | number)[] = [];
   const add = (sql: string, value: string | number) => { clauses.push(sql); values.push(value); };
   if (page.item_id) add("item_id = ?", page.item_id);
-  if (page.source_id === "other") clauses.push("(source_id IS NULL OR source_id NOT IN (SELECT source_id FROM feed_sources WHERE project_id = feed_items.project_id AND COALESCE(json_extract(config_json, '$._molis_work_lifecycle.deleted_at'), '') = ''))");
+  if (page.source_id === "other") clauses.push("(source_id IS NULL OR source_id NOT IN (SELECT source_id FROM feed_sources WHERE COALESCE(json_extract(config_json, '$._molis_work_lifecycle.deleted_at'), '') = ''))");
   else if (page.source_id) add("source_id = ?", page.source_id);
   if (page.after_id) add("item_id > ?", page.after_id);
   if (page.status === "active") add("disposition <> ?", "archived");
@@ -19,5 +19,5 @@ export function feedPageSelection(page: FeedItemPage): { where: string; values: 
   if (page.source_label) add("COALESCE(NULLIF(source_label, ''), source_kind) = ?", page.source_label);
   if (page.search) add("instr(lower(title || ' ' || summary || ' ' || source_label), lower(?)) > 0", page.search);
   const orders = { newest: "source_updated_at DESC, item_id", oldest: "source_updated_at, item_id", title: "title, item_id", source: "source_label, item_id", id: "item_id" };
-  return { where: clauses.length ? " AND " + clauses.join(" AND ") : "", values, order: orders[page.sort ?? "newest"] };
+  return { where: clauses.length ? " WHERE " + clauses.join(" AND ") : "", values, order: orders[page.sort ?? "newest"] };
 }

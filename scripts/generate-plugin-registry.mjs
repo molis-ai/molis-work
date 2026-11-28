@@ -26,7 +26,7 @@
 // registration that is not an object literal, a key the contract (PluginRegistration and PluginWorkbenchRegistration in
 // packages/contracts/src/platform/plugin-registration.ts) does not have, at the top or in `workbench`, a spread, a
 // `catalog_order` that is not a positive integer literal (W5-02-REG-02: 0, 1.5 and -1 are refused) or repeats, a literal
-// `project_plugin_id` that is malformed or repeats, and `clientUses` or `companions` that are not literal
+// `project_plugin_id` that is malformed or repeats, and `clientUses` that are not literal
 // short ids. What it cannot see:
 // an id given through a constant (most are) and a short id that names no plugin; the built catalog is checked for those
 // when it loads (apps/workbench/src/plugin-catalog.ts) and by tests/plugin-registry-generation.test.ts.
@@ -50,7 +50,7 @@ const PLUGIN_ROOT = "plugins/native/";
 const INTEGRATION_ROOT = "plugins/official-integrations/";
 const REGISTRATION_FILE = "src/registration.ts";
 const SHORT_ID = /^[a-z0-9][a-z0-9-]*$/;
-const SHORT_ID_LISTS = { clientUses: "workbench", companions: "top" };
+const SHORT_ID_LISTS = { clientUses: "workbench" };
 
 const parse = (file, text) => ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
 const keyOf = (property) => property.name && (ts.isIdentifier(property.name) || ts.isStringLiteral(property.name)) ? property.name.text : null;

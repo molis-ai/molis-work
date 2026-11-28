@@ -7,10 +7,10 @@ import { rowText, type GoalsSqliteDatabase } from "./repository.js";
 
 type Row = Record<string, unknown>;
 
-export function goalHasEventStateOwner(db: GoalsSqliteDatabase, projectId: string, goalId: string): boolean {
+export function goalHasEventStateOwner(db: GoalsSqliteDatabase, _projectId: string, goalId: string): boolean {
   return Boolean(db.prepare(
-    "SELECT 1 FROM goal_event_state_owners WHERE project_id = ? AND goal_id = ? LIMIT 1",
-  ).get(projectId, goalId));
+    "SELECT 1 FROM goal_event_state_owners WHERE goal_id = ? LIMIT 1",
+  ).get(goalId));
 }
 
 /** `goal_event_state_owners`, `goal_event_work_status` and `goal_event_agreements`: who owns a Goal's event state, its work status and its agreement. */
@@ -21,10 +21,10 @@ export class GoalEventOwnerRecords {
     return goalHasEventStateOwner(this.db, projectId, goalId);
   }
 
-  readOwner(projectId: string, goalId: string): GoalEventStateOwnerView | null {
+  readOwner(_projectId: string, goalId: string): GoalEventStateOwnerView | null {
     const row = this.db.prepare(
-      "SELECT * FROM goal_event_state_owners WHERE project_id = ? AND goal_id = ?",
-    ).get(projectId, goalId) as Row | undefined;
+      "SELECT * FROM goal_event_state_owners WHERE goal_id = ?",
+    ).get(goalId) as Row | undefined;
     if (!row) return null;
     return {
       kind: "event_work",
@@ -43,36 +43,36 @@ export class GoalEventOwnerRecords {
   }): void {
     this.db.prepare(`
       INSERT OR IGNORE INTO goal_event_state_owners (
-        project_id, goal_id, owner, source, adopted_at, adopted_by
-      ) VALUES (?, ?, 'event_work', ?, ?, ?)
-    `).run(input.projectId, input.goalId, input.source, input.at, input.actorId);
+        goal_id, owner, source, adopted_at, adopted_by
+      ) VALUES (?, 'event_work', ?, ?, ?)
+    `).run(input.goalId, input.source, input.at, input.actorId);
     this.db.prepare(`
-      INSERT OR IGNORE INTO goal_event_work_status (project_id, goal_id, work_status, updated_at)
-      VALUES (?, ?, 'open', ?)
-    `).run(input.projectId, input.goalId, input.at);
+      INSERT OR IGNORE INTO goal_event_work_status (goal_id, work_status, updated_at)
+      VALUES (?, 'open', ?)
+    `).run(input.goalId, input.at);
   }
 
-  workStatus(projectId: string, goalId: string): GoalEventWorkStatus {
+  workStatus(_projectId: string, goalId: string): GoalEventWorkStatus {
     const row = this.db.prepare(
-      "SELECT work_status FROM goal_event_work_status WHERE project_id = ? AND goal_id = ?",
-    ).get(projectId, goalId) as Row | undefined;
+      "SELECT work_status FROM goal_event_work_status WHERE goal_id = ?",
+    ).get(goalId) as Row | undefined;
     return row ? rowText(row.work_status) as GoalEventWorkStatus : "open";
   }
 
-  setWorkStatus(projectId: string, goalId: string, status: GoalEventWorkStatus, at: string): void {
+  setWorkStatus(_projectId: string, goalId: string, status: GoalEventWorkStatus, at: string): void {
     this.db.prepare(`
-      INSERT INTO goal_event_work_status (project_id, goal_id, work_status, updated_at)
-      VALUES (?, ?, ?, ?)
+      INSERT INTO goal_event_work_status (goal_id, work_status, updated_at)
+      VALUES (?, ?, ?)
       ON CONFLICT(goal_id) DO UPDATE SET work_status = excluded.work_status, updated_at = excluded.updated_at
-    `).run(projectId, goalId, status, at);
+    `).run(goalId, status, at);
   }
 
-  latestAgreement(projectId: string, goalId: string): { version: number; outcome: string; actor_id: string; created_at: string } | null {
+  latestAgreement(_projectId: string, goalId: string): { version: number; outcome: string; actor_id: string; created_at: string } | null {
     const row = this.db.prepare(`
       SELECT * FROM goal_event_agreements
-      WHERE project_id = ? AND goal_id = ?
+      WHERE goal_id = ?
       ORDER BY version DESC LIMIT 1
-    `).get(projectId, goalId) as Row | undefined;
+    `).get(goalId) as Row | undefined;
     if (!row) return null;
     return {
       version: Number(row.version),
@@ -93,9 +93,9 @@ export class GoalEventOwnerRecords {
   }): void {
     this.db.prepare(`
       INSERT INTO goal_event_agreements (
-        project_id, goal_id, version, outcome, actor_id, created_at, event_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(input.projectId, input.goalId, input.version, input.outcome, input.actorId, input.at, input.eventId);
+        goal_id, version, outcome, actor_id, created_at, event_id
+      ) VALUES (?, ?, ?, ?, ?, ?)
+    `).run(input.goalId, input.version, input.outcome, input.actorId, input.at, input.eventId);
   }
 }
 

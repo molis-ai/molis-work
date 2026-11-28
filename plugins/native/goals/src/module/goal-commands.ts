@@ -118,10 +118,9 @@ export class GoalCommands {
       }
       const alreadyActive = repository.db.prepare(`
         SELECT relation_id FROM goal_relations
-        WHERE project_id = ? AND from_goal_id = ? AND to_goal_id = ?
+        WHERE from_goal_id = ? AND to_goal_id = ?
           AND type = ? AND state = ? LIMIT 1
       `).get(
-        projectId,
         input.from_goal_id,
         input.to_goal_id,
         input.type,
@@ -134,12 +133,11 @@ export class GoalCommands {
       const at = this.context.now().toISOString();
       repository.db.prepare(`
         INSERT INTO goal_relations (
-          relation_id, project_id, from_goal_id, to_goal_id, type, state,
+          relation_id, from_goal_id, to_goal_id, type, state,
           reason, created_by, created_at, deactivated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)
       `).run(
         relationId,
-        projectId,
         input.from_goal_id,
         input.to_goal_id,
         input.type,

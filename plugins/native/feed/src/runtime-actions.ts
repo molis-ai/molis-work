@@ -4,7 +4,6 @@ import { feedDemoSeedAction } from "./demo-seed.js";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { feedArtifactPreview } from "./artifact-preview.js";
 import { feedContentActions, feedSearchEntriesAction, feedSourceSubjectAction, feedSubjectAction } from "./content-actions.js";
-import { FEED_CONTENT_LEDGER_ACTIONS } from "./content-ledger-actions.js";
 import { feedPresentationActions } from "./presentation.js";
 import { feedWorkEventsAction } from "./work-events.js";
 import { FEED_INBOX_ACTIONS, feedInboxActions } from "./inbox-actions.js";
@@ -17,7 +16,7 @@ import { feedRuntimeCaptureScene } from "./scenes.js";
 import { feedSourceActions } from "./source-actions.js";
 
 const FEED_PULL = "sources:pull_public_feed", QUERY_PULL = "sources:pull_query", REPOSITORY_READ = "sources:read_repository";
-const CONNECTIONS = "connections:use", CONNECTOR_PULL = "sources:pull_connector", EVIDENCE = "evidence:read";
+const CONNECTIONS = "connections:use", CONNECTOR_PULL = "sources:pull_connector", EVIDENCE = "evidence:read", EVIDENCE_COLLECT = "evidence:collect";
 /** An action whose new or judged items the capture rules match pins what they capture in the 成果库, in its own commit (RAC-510). */
 const CAPTURE = "artifact:write";
 /** What the capture scene declares beyond Feed's own: a caller is offered a judgment, or has one run, only if it holds the scene's permissions. */
@@ -30,8 +29,9 @@ const SCENE = ["attention:write", "judgments:write"];
  */
 const PLATFORM_NEEDS: ReadonlyMap<ActionDefinition, readonly string[]> = new Map<ActionDefinition, readonly string[]>([
   [feedSourceActions.register, [FEED_PULL]], [feedSourceActions.update, [FEED_PULL]], [feedSourceActions.add_account, [CONNECTOR_PULL]],
-  // Removing a source removes its items, with their Inbox entries and their links to Goals; an account source's binding is taken off it (T-121).
-  [feedSourceActions.delete, [FEED_PULL, "attention:write", "context-ledger:write", CONNECTIONS]],
+  // Removing a source removes its items, with their Inbox entries and their links to Goals; an account source's binding is taken off it (T-121);
+  // deleting its local history gives its evidence holds back and deletes the bodies nobody else holds (`services.evidence`, S-98).
+  [feedSourceActions.delete, [FEED_PULL, "attention:write", "context-ledger:write", CONNECTIONS, EVIDENCE_COLLECT]],
   // An account source is pulled with the account the person bound to it (`sources:pull_connector`), whose state it asks (`connections:use`),
   // and one whose account needs the person is recorded in the Inbox (`attention:write`).
   // New items are judged as the sync ends, which reads their retained bodies (`evidence:read`) for the capture rules.
@@ -88,8 +88,8 @@ export const FEED_PROJECT_ACTIONS: ActionDefinition[] = [
   WAKE, feedDemoSeedAction, feedInformationPlanAction, ...feedPresentationActions,
 ];
 
-/** Every action of Feed's Manifest: the project half's, and the Home half's three for the reference ledger (the Home half answers only them). */
-export const FEED_ACTIONS: ActionDefinition[] =[...FEED_PROJECT_ACTIONS, ...FEED_CONTENT_LEDGER_ACTIONS];
+/** Every action of Feed's Manifest: what each partition's instance answers. */
+export const FEED_ACTIONS: ActionDefinition[] = FEED_PROJECT_ACTIONS;
 
 /** Every permission a caller needs to use all of Feed: its actions' (with what they ask of the platform) and the capture scene's. */
 export const FEED_ACTION_PERMISSIONS: string[] = [...new Set([...FEED_ACTIONS.flatMap(definition => definition.action.permissions), ...feedRuntimeCaptureScene.permissions])];

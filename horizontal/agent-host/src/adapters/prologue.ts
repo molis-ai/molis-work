@@ -401,10 +401,13 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   async close(): Promise<void> {
     this.#detachApprovalAnswers?.();
     await Promise.all([...this.#store.runs.values()].map(record => record.timingCommit));
+    let stopped = false;
     try {
       await this.#runtime.shutdown();
+      stopped = true;
     } finally {
-      for (const record of this.#store.runs.values()) {
+      // A shutdown that failed leaves the runs subscribed: late memory receipts still arrive, and a retried close releases them.
+      if (stopped) for (const record of this.#store.runs.values()) {
         clearNotifyTimer(record);
         record.unsubscribe();
         record.listeners.clear();

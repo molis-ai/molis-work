@@ -48,24 +48,29 @@ const watch = (surface: string) => `(() => {
   } });
   observer.observe(document.documentElement, { subtree: true, attributes: true, attributeFilter: ["data-unready"] });
   look();
-  window.__steadyPress = { moved, target: null, pressAt: null, stop() { cancelAnimationFrame(frame); observer.disconnect(); } };
+  window.__steadyPress = { moved, target: null, control: null, pressAt: null, stop() { cancelAnimationFrame(frame); observer.disconnect(); } };
   if (!window.__steadyPressListening) {
     window.__steadyPressListening = true;
-    addEventListener("pointerdown", event => { if (event.isTrusted && window.__steadyPress && window.__steadyPress.pressAt === null) window.__steadyPress.pressAt = event.timeStamp; }, true);
+    addEventListener("pointerdown", event => {
+      const state = window.__steadyPress;
+      if (event.isTrusted && state?.control?.contains(event.target) && state.pressAt === null) state.pressAt = event.timeStamp;
+    }, true);
   }
 })()`;
 
-/** In the page: once `locate` finds a control in a surface that is not ready yet, its centre (null after 20 s). */
+/** In the page: the centre of a control in a surface this attempt saw move or appear while unsettled. */
 const settlingControl = (surface: string, locate: string) => `new Promise(resolve => {
-  const end = performance.now() + 20000;
+  let frame = 0;
+  const finish = point => { clearTimeout(deadline); cancelAnimationFrame(frame); resolve(point); };
+  const deadline = setTimeout(() => finish(null), 8000);
   const look = () => {
     const control = (${locate}), area = control?.closest(${JSON.stringify(surface)});
-    if (control && area?.hasAttribute("data-unready")) {
+    if (control && area?.hasAttribute("data-unready") && window.__steadyPress.moved.has(area)) {
       window.__steadyPress.target = area;
+      window.__steadyPress.control = control;
       const box = control.getBoundingClientRect();
-      resolve({ x: box.x + box.width / 2, y: box.y + box.height / 2 });
-    } else if (performance.now() > end) resolve(null);
-    else requestAnimationFrame(look);
+      finish({ x: box.x + box.width / 2, y: box.y + box.height / 2 });
+    } else frame = requestAnimationFrame(look);
   };
   look();
 })`;
@@ -74,7 +79,7 @@ const settlingControl = (surface: string, locate: string) => `new Promise(resolv
 const landedInside = `(() => {
   const state = window.__steadyPress, moved = state.target && state.moved.get(state.target);
   state.stop();
-  return moved !== undefined && moved !== null && state.pressAt !== null && state.pressAt - moved < ${INSIDE_MS};
+  return moved !== undefined && moved !== null && state.pressAt !== null && state.pressAt >= moved && state.pressAt - moved < ${INSIDE_MS};
 })()`;
 
 /**
@@ -88,13 +93,17 @@ export async function pressWhileSettling(page: Page, options: {
   const attempts = options.attempts ?? 5;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     await page.evaluate(watch(options.surface));
-    await options.scene(attempt);
-    const point = await page.evaluate<{ x: number; y: number } | null>(settlingControl(options.surface, options.locate));
-    if (!point) throw new Error("the area never showed its control while settling");
-    await page.command("Input.dispatchMouseEvent", { type: "mousePressed", ...point, button: "left", clickCount: 1 }, page.sessionId);
-    const inside = await page.evaluate<boolean>(landedInside);
-    await page.command("Input.dispatchMouseEvent", { type: "mouseReleased", ...(inside ? point : AWAY), button: "left", clickCount: 1 }, page.sessionId);
-    if (inside) return;
+    // Observe before the scene starts so its CDP round trips cannot hide the settling window.
+    const [point] = await Promise.all([
+      page.evaluate<{ x: number; y: number } | null>(settlingControl(options.surface, options.locate)),
+      options.scene(attempt),
+    ]);
+    if (point) {
+      await page.command("Input.dispatchMouseEvent", { type: "mousePressed", ...point, button: "left", clickCount: 1 }, page.sessionId);
+      const inside = await page.evaluate<boolean>(landedInside);
+      await page.command("Input.dispatchMouseEvent", { type: "mouseReleased", ...(inside ? point : AWAY), button: "left", clickCount: 1 }, page.sessionId);
+      if (inside) return;
+    } else await page.evaluate("window.__steadyPress.stop()");
     await options.reset?.();
   }
   throw new Error(`no press landed within ${INSIDE_MS} ms of the area moving in ${attempts} tries: the runner is too slow to prove the steady time`);

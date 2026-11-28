@@ -16,6 +16,7 @@ import { bindLocalWebActions } from "./local-web-actions.js";
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import { readErrorWord } from "./ui-error-words.js";
+import { projectActionLocaleReaders, resolveActionLibraryWords } from "./web-capabilities.js";
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
 
 /** Live display projection of one work item; titles of source-backed items are read fresh from their owners (MLN-11, MLN-12). */
@@ -121,15 +122,22 @@ async function resolveSourceItem(
 }
 
 async function sourceDisplayLabels(
+  host: MolisWorkLocalHost,
+  project: LocalHostProjectReference,
   client: BoundActionClient,
   sources: readonly MainlineItemSource[],
 ): Promise<MainlineSourceDisplay[]> {
   if (!sources.length) return [];
-  const discovered = await client.discover().catch(() => []);
+  const [discovered, projectReaders] = await Promise.all([
+    client.discover().catch(() => []),
+    projectActionLocaleReaders(host, project),
+  ]);
+  const words = resolveActionLibraryWords(discovered, { host, projectReaders });
   const titlesByOwner = new Map<string, string>();
   for (const view of discovered) {
-    if (view.provider.title && !titlesByOwner.has(view.provider.provider_id)) {
-      titlesByOwner.set(view.provider.provider_id, view.provider.title);
+    const providerTitle = words.providers.get(view) ?? view.provider.title;
+    if (providerTitle && !titlesByOwner.has(view.provider.provider_id)) {
+      titlesByOwner.set(view.provider.provider_id, providerTitle);
     }
   }
   return sources.map((source) => ({
@@ -207,14 +215,15 @@ type ReadForms = (subjects: ActionSubject[]) => Promise<Map<string, ItemForm>>;
 
 async function handleItemsView(
   response: ServerResponse,
+  host: MolisWorkLocalHost,
+  project: LocalHostProjectReference,
   client: BoundActionClient,
-  projectId: string,
   forms: ReadForms,
 ): Promise<void> {
   const result = await client.invoke(mainlineItemActions.read, { counts: true });
   const [resolved, sources] = await Promise.all([
-    Promise.all(result.mainline.items.map((item) => resolveSourceItem(client, projectId, item))),
-    sourceDisplayLabels(client, result.sources),
+    Promise.all(result.mainline.items.map((item) => resolveSourceItem(client, project.project_id, item))),
+    sourceDisplayLabels(host, project, client, result.sources),
   ]);
   const presentations = await forms(resolved.flatMap(item => item.source && item.state === "ok" ? [item.source] : []));
   const byId = new Map(resolved.map(item => [item.item_id, item]));
@@ -319,7 +328,7 @@ export async function handleMainlineViewHttp(
       discover: () => directory ??= bound.discover(),
     };
     const forms: ReadForms = subjects => host.mainlinePresentations(project.project_id, client, subjects, controller.signal);
-    if (isItems) await handleItemsView(response, client, project.project_id, forms);
+    if (isItems) await handleItemsView(response, host, project, client, forms);
     else await handleContentsView(request, response, client, project.project_id, forms);
   } catch (error) {
     const failure = actionErrorResponse(error);

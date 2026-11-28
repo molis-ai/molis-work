@@ -1,4 +1,5 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { OVERVIEW_MAIN_TABLE, OVERVIEW_ROW_LIMIT } from "@molis-ai/molis-work-contracts/platform/plugin";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -138,4 +139,31 @@ test("W5-01-CODING-22: 写入等 beforeEffect 的时候会话开始了一轮，�
   busy.clear();
   assert.equal((await store.setGoal(noEffect, BOARD, "s1", "g2", "2026-09-19T16:00:00Z", guard)).goal_id, "g2");
   database.close();
+});
+
+test("AP-14 CodingSessionStore.summed bounds plugin_overview_rows to OVERVIEW_ROW_LIMIT without throwing on the 501st session", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "coding-store-cap-"));
+  const path = join(directory, "project.db");
+  try {
+    seedDemoBoard(path);
+    const local = new LocalProjectDatabase(path);
+    try {
+      const store = codingSessions(local, { home: directory, project_id: DEMO_PROJECT_ID });
+      const baseMs = Date.parse("2026-11-26T00:00:00.000Z");
+      for (let i = 0; i <= OVERVIEW_ROW_LIMIT; i += 1) {
+        const id = `s-${String(i).padStart(4, "0")}`;
+        const at = new Date(baseMs + i * 1_000).toISOString();
+        await store.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: id, title: `会话 ${i}`, runtime_id: "prologue", at });
+        await store.setState(noEffect, DEMO_PROJECT_ID, id, "running", at);
+      }
+      const rows = local.db.prepare(`SELECT row_id FROM ${OVERVIEW_MAIN_TABLE} WHERE kind = 'background_task' ORDER BY row_id`).all() as Array<{ row_id: string }>;
+      assert.equal(rows.length, OVERVIEW_ROW_LIMIT, "overview rows stay bounded at OVERVIEW_ROW_LIMIT");
+      assert.equal(rows.some(row => row.row_id === "s-0000"), false, "oldest overflow session is evicted");
+      assert.equal(rows.some(row => row.row_id === `s-${String(OVERVIEW_ROW_LIMIT).padStart(4, "0")}`), true, "newest session is retained");
+    } finally {
+      local.close();
+    }
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });

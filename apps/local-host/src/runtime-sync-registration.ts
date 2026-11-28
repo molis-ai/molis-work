@@ -1,5 +1,6 @@
 import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
-import type { RuntimeSyncCollection } from '@molis-ai/molis-work-plugin-runtime';
+import type { PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { installIdentity, type RuntimeSyncCollection } from '@molis-ai/molis-work-plugin-runtime';
 import { partitionedReplica, syncNamespace, type SyncRegistration } from '@molis-ai/molis-work-module-sync-replication';
 import { readRuntimeSyncValue, runtimeSyncKey, runtimeSyncValue, scopeRuntimeReplica } from './runtime-sync-scope.js';
 import { projectApprovalSyncSelection } from './platform-sync-catalog.js';
@@ -14,6 +15,10 @@ export function runtimeSyncRegistration(home: string, spaceId: string, owners: r
   const identity = first.binding;
   const selection = { plugin_id: identity.plugin_id, publisher_id: identity.publisher_id, publisher_signature: identity.publisher_signature,
     collection_id: identity.collection.id, schema_version: identity.collection.schema_version };
+  const installId = installIdentity({
+    plugin_id: selection.plugin_id,
+    publisher: { publisher_id: selection.publisher_id, signature: selection.publisher_signature },
+  } as PluginManifest);
   const byScope = new Map<string, RuntimeSyncOwner>();
   for (const owner of owners) {
     const key = JSON.stringify(owner.projectId), binding = owner.binding;
@@ -43,12 +48,59 @@ export function runtimeSyncRegistration(home: string, spaceId: string, owners: r
       partitions: () => { authorize(); return [...byScope].filter(([, row]) => row.binding.available()).map(([id]) => id); },
       partition: key => JSON.stringify(runtimeSyncKey(key).projectId), projectPartition:id=>JSON.stringify(id),
       withPartition(id, operation) {
-        const current = owner(id), result = operation(scopeRuntimeReplica(current.binding.replica, { spaceId, projectId: current.projectId }));
-        // What sync wrote into a partition's library is read into the overview on its next open; nothing is started for it (§6.1).
-        const changed = () => { if (current.projectId !== null) partitionChanged(home, current.projectId); };
-        if (result instanceof Promise) return result.then(value => { changed(); return value; }) as typeof result;
-        changed();
-        return result;
+        const current = owner(id);
+        const scoped = scopeRuntimeReplica(current.binding.replica, { spaceId, projectId: current.projectId });
+        const projectId = current.projectId;
+        if (projectId === null) return operation(scoped);
+        // Only mutating sync operations dirty this plugin's overview library; read-only polls (next/counts/conflicts/recoveries/inspect) never do.
+        const notify = () => {
+          partitionChanged(home, projectId, installId);
+        };
+        const after = <T>(value: T): T => {
+          if (value instanceof Promise) {
+            return value.then(resolved => {
+              notify();
+              return resolved;
+            }) as T;
+          }
+          notify();
+          return value;
+        };
+        const tracked: typeof scoped = {
+          ...scoped,
+          receive(event, options) {
+            return after(scoped.receive(event, options));
+          },
+          resolve(key, choice, revision, state) {
+            return after(scoped.resolve(key, choice, revision, state));
+          },
+          ...(scoped.restoreRecovery ? {
+            restoreRecovery(recoveryId, choice, revision) {
+              return after(scoped.restoreRecovery!(recoveryId, choice, revision));
+            },
+          } : {}),
+          ...(scoped.retryWaiting ? {
+            retryWaiting() {
+              let waitingBefore = 0;
+              try {
+                waitingBefore = scoped.conflicts().filter(conflict => conflict.waiting).length;
+              } catch {
+                waitingBefore = 0;
+              }
+              if (waitingBefore === 0) {
+                scoped.retryWaiting!();
+                return;
+              }
+              scoped.retryWaiting!();
+              try {
+                if (scoped.conflicts().filter(conflict => conflict.waiting).length < waitingBefore) {
+                  notify();
+                }
+              } catch { /* ignore conflict read error after retry */ }
+            },
+          } : {}),
+        };
+        return operation(tracked);
       },
     }),authorizeKey(key,value){const current=scope(key);if(!current.binding.replica.authorizeKey)throw new ActionError('actions.forbidden','同步主人尚未声明标识授权');current.binding.replica.authorizeKey(current.key,value===undefined?undefined:readRuntimeSyncValue(current,value));},hasProjectChanges(projectId){
       authorize();const target=JSON.stringify(projectId),home=byScope.get('null');

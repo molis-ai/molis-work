@@ -10,6 +10,7 @@ const ASSISTANT_ERROR_WORD_KEYS = [
   "workbench.assistant-error.session-busy",
   "workbench.assistant-error.daily-budget-reached",
   "workbench.assistant-error.open-settings",
+  "workbench.assistant-error.open-model-settings",
   "workbench.assistant-error.work-budget-reached",
   "workbench.assistant-error.parent-work-budget-reached",
   "workbench.assistant-error.raise-work-budget",
@@ -34,7 +35,7 @@ export function assistantFailure(error: unknown): ActionError {
     if (code === "agent.model_not_configured") {
       return assistantErrors.model_missing(
         uiText.text("workbench.assistant-error.no-usable-model-configured-yet-so-assistant-can"),
-        { action: "打开模型设置", action_kind: "open_model_settings" },
+        { action: readAssistantErrorWord("workbench.assistant-error.open-model-settings"), action_kind: "open_model_settings" },
       );
     }
     if (code === "agent.session_busy") return assistantErrors.busy(readAssistantErrorWord("workbench.assistant-error.session-busy"));

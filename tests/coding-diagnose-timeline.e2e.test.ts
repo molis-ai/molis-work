@@ -63,6 +63,85 @@ test("WC-1/WC-2 PA-35 multiple writes share one read and replay, successes stay 
   assert.deepEqual(none[0]!.write_checks, []);
 });
 
+test("CORE-07 CORE-08 CORE-18: interrupted command receipts fall back to readRunProgress/replay and writeCheckCache bounds memory without poisoning on abort", async () => {
+  const ref = (kind: string, id: string) => ({ kind, id, revision: 1 });
+  const root = ref("authorized-root", "workspace");
+  const receiptEvent = { type: "command-receipt", callId: "w1:diagnostics", receiptRef: ref("resource", "w1"), commandId: "w1", effectRef: ref("effect", "w1") };
+  const payload = Buffer.from(JSON.stringify({
+    kind: "workspace-command-receipt", version: 1, rootRef: root, executable: "node", argv: ["--check"],
+    receipt: { commandId: "w1", effectRef: ref("effect", "w1"), exitCode: 0, timedOut: false, cancelled: false, stdout: "ok", stderr: "", truncated: false },
+  }));
+  let progressCalls = 0, replayCalls = 0, notReplayableRace = false;
+  const port = commandReceipts({
+    index: { read: async () => ({ ref: ref("session", "s"), attempts: [{ run_id: "r-int", root_ref: root, write_checks: { w1: { write_call_id: "w1", display_name: "语法检查", version: 1 } } }] }) },
+    runtime: {
+      sessions: {
+        open: async () => ({
+          terminalRuns: async () => [],
+          readRunProgress: async () => {
+            progressCalls++;
+            if (notReplayableRace) throw Object.assign(new Error("settled"), { code: "RUN_NOT_REPLAYABLE" });
+            return [receiptEvent];
+          },
+          replay: async () => { replayCalls++; return [receiptEvent]; },
+        }),
+      },
+      resources: {
+        inspect: () => ({ byteLength: payload.length }),
+        readChunk: () => ({ bytes: payload, offset: 0, done: true }),
+      },
+    },
+    state: { commandEvents: new Map() },
+  } as never);
+  const interrupted = await port.readWriteChecks("s", "r-int", ["w1"]);
+  assert.equal(progressCalls, 1);
+  assert.equal(replayCalls, 0);
+  assert.deepEqual(interrupted, [{ call_id: "w1", checker: "语法检查", version: 1, exit_code: 0, timed_out: false, cancelled: false }]);
+  notReplayableRace = true;
+  const raced = await port.readCommandOutput("s", { run_id: "r-int", call_id: "w1:diagnostics" });
+  assert.equal(progressCalls, 2);
+  assert.equal(replayCalls, 1);
+  assert.equal(raced.exit_code, 0);
+
+  // CORE-08: abort errors do not poison the 30s retry window, and settled entries are LRU-capped at 1000.
+  let clock = 1000, attempts = 0;
+  const cache = writeCheckCache(() => clock);
+  const abortedRun = run(["w-abort:diagnostics"]);
+  const [first] = await cache.attach("s-abort", [abortedRun], async () => {
+    attempts++;
+    if (attempts === 1) throw Object.assign(new Error("aborted"), { name: "AbortError" });
+    return [{ call_id: "w-abort", checker: "check", version: 1, exit_code: 0, timed_out: false, cancelled: false }];
+  });
+  assert.deepEqual(first!.write_checks, [{ call_id: "w-abort", unreadable: true }]);
+  const [retried] = await cache.attach("s-abort", [abortedRun], async () => {
+    attempts++;
+    return [{ call_id: "w-abort", checker: "check", version: 1, exit_code: 0, timed_out: false, cancelled: false }];
+  });
+  assert.equal(attempts, 2, "immediate retry after AbortError without waiting 30s");
+  assert.equal((retried!.write_checks[0] as { exit_code?: number }).exit_code, 0);
+
+  const bounded = writeCheckCache(() => clock);
+  const loadedBatches: string[][] = [];
+  const allIds = Array.from({ length: 1005 }, (_, i) => `id-${i}`);
+  const bigRun = run(allIds.map(id => `${id}:diagnostics`));
+  await bounded.attach("s-lru", [bigRun], async (_runId, ids) => {
+    loadedBatches.push(ids);
+    return ids.map(call_id => ({ call_id, checker: "lru", version: 1, exit_code: 0, timed_out: false, cancelled: false }));
+  });
+  assert.equal(loadedBatches.length, 1);
+  // Newest entry stays cached; oldest entry (id-0) was evicted by the 1000-entry LRU bound.
+  await bounded.attach("s-lru", [run(["id-1004:diagnostics"])], async (_runId, ids) => {
+    loadedBatches.push(ids);
+    return [];
+  });
+  assert.equal(loadedBatches.length, 1, "newest entry stays cached");
+  await bounded.attach("s-lru", [run(["id-0:diagnostics"])], async (_runId, ids) => {
+    loadedBatches.push(ids);
+    return ids.map(call_id => ({ call_id, checker: "lru", version: 1, exit_code: 0, timed_out: false, cancelled: false }));
+  });
+  assert.deepEqual(loadedBatches[1], ["id-0"], "oldest entry beyond 1000 was evicted");
+});
+
 test("PA-35 the Coding timeline shows the checker and exit code on a checked write and 未检查 on the others", { timeout: 60000 }, async t => {
   const directory = mkdtempSync(join(tmpdir(), "coding-diagnose-timeline-"));
   const browser = await ChromeHarness.start(directory);

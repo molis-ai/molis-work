@@ -170,3 +170,74 @@ test("streamed text reaches a follower gathered, while a phase change goes at on
     stop();
   } finally { await adapter.close(); }
 });
+
+test("CORE-05 CORE-06: coalescing timer cancels on unsubscribe/close and invalidateSession releases prior runs", async () => {
+  let emit: (event: PrologueEvent) => void = () => {};
+  let unsubscribed = 0;
+  const directory = { canonical_path: "/tmp/stream-cleanup", realpath_verified: true };
+  const liveAdapter = new PrologueAgentAdapter({
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://fixture.invalid/messages", model: "fixture", credential_ref: "fixture" }),
+    runtime: {
+      sessions: { create: async () => ({ ref: { id: "clean-session" } }) },
+      startAgentRun: async () => ({
+        run: { ref: { id: "live-run" }, subscribe: listener => { emit = listener; return () => { unsubscribed++; }; }, cancel: async () => {} },
+        control: { state: "running", stop: () => {}, pause: () => {}, resume: () => {}, steer: async () => ({ steerId: "s", replayed: false }), subscribe: () => () => {} },
+      }),
+      shutdown: async () => {},
+    },
+  });
+  const session = await liveAdapter.createSession({ ...owner, title: "Clean", directory });
+  const handle = await liveAdapter.start({ ...owner, session, directory, task: "Answer", role_id: "reader",
+    role: { role_id: "reader", version: 1, execution: "read-only", host_tools: [], prompts: [] } });
+  const seenAfterStop: string[] = [];
+  const stop = liveAdapter.observe(handle.ref, view => { seenAfterStop.push(view.turns.at(-1)?.text ?? ""); });
+  assert.equal(seenAfterStop.length, 1);
+  emit({ type: "text-delta", text: "alpha" });
+  stop();
+  await new Promise(resolve => setTimeout(resolve, 80));
+  assert.equal(seenAfterStop.length, 1, "CORE-05: observe() unsubscribe cancels pending coalesced delta timer");
+  const seenAfterClose: string[] = [];
+  liveAdapter.observe(handle.ref, view => { seenAfterClose.push(view.turns.at(-1)?.text ?? ""); });
+  assert.equal(seenAfterClose.length, 1);
+  emit({ type: "text-delta", text: "beta" });
+  await liveAdapter.close();
+  await new Promise(resolve => setTimeout(resolve, 80));
+  assert.equal(seenAfterClose.length, 1, "CORE-05: adapter.close() cancels pending coalesced delta timer and clears listeners");
+  assert.equal(unsubscribed, 1, "live run subscription was unsubscribed on close");
+
+  // CORE-06: failed start invalidates the cached session and clears its RunRecords so restore reloads cleanly.
+  let restores = 0;
+  const restoredSession = { session_id: "restored-session", runtime_id: "prologue" };
+  const savedRun: SavedRun = {
+    ref: { session_id: restoredSession.session_id, run_id: "prior-run" },
+    frozen: savedFrozen,
+    task: "Saved task",
+    started_at: "2026-11-26T00:00:00Z",
+    terminal: true,
+    events: [{ type: "text-delta", text: "saved" }, { type: "completed" }],
+  };
+  const restoreAdapter = new PrologueAgentAdapter({
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://fixture.invalid/messages", model: "fixture", credential_ref: "fixture" }),
+    runtime: {
+      sessions: {
+        create: async () => { throw new Error("unused"); },
+        restore: async () => { restores++; return { title: "Restored", owner, workspace: "required", runs: [savedRun] }; },
+      },
+      startAgentRun: async () => { throw new Error("start rejected"); },
+      shutdown: async () => {},
+    },
+  });
+  try {
+    const loaded = await restoreAdapter.readSession(restoredSession);
+    assert.equal(restores, 1);
+    assert.equal(loaded.runs.length, 1);
+    const detach = restoreAdapter.observe(savedRun.ref, () => {});
+    detach();
+    await assert.rejects(restoreAdapter.start({ ...owner, session: restoredSession, directory, task: "Retry", role_id: "reader",
+      role: { role_id: "reader", version: 1, execution: "read-only", host_tools: [], prompts: [] } }), /start rejected/);
+    assert.throws(() => restoreAdapter.observe(savedRun.ref, () => {}), /找不到这次执行/);
+    const reloaded = await restoreAdapter.readSession(restoredSession);
+    assert.equal(restores, 2);
+    assert.equal(reloaded.runs.length, 1);
+  } finally { await restoreAdapter.close(); }
+});

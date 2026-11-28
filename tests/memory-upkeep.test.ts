@@ -115,7 +115,14 @@ test("export has a version and no secrets or absolute paths; importing twice add
       ...exportedWithState,
       entries: [{ ...exportedDisabled, text: "旧字段不兼容", applies: { goal_ids: ["g1"] } }],
     }),
-    /第 1 条的适用情境损坏.*旧版 goal_ids 已退役/,
+    /第 1 条的适用情境损坏/,
+  );
+  await assert.rejects(
+    memory.importScope(person(), "project", {
+      ...exportedWithState,
+      entries: [{ ...exportedDisabled, text: "已退役实体键拒绝", applies: { custom_entity_ids: ["x"] } as never }],
+    }),
+    /第 1 条的适用情境损坏/,
   );
   await assert.rejects(
     memory.importScope(person(), "project", {

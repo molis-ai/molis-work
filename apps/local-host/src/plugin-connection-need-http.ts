@@ -16,6 +16,7 @@ import { checkCandidateKey, rememberCandidateCheck } from "./connector-candidate
 import { connectionChoice, pageOwnerClient, scopedContextPage } from "./plugin-connection-slots-http.js";
 import { imageBaseUrl, imageConnectionSnapshot, imageConnectionViews } from "./plugin-image-connections.js";
 import { createPluginImageGenerationPort } from "./plugin-image-generation-service.js";
+import { readWorkbenchText } from "./ui-error-words.js";
 import type { WebRequestContext } from "./web-route-table.js";
 
 // 原处的连接卡的宿主路由（specs/assistant-service-connections/spec.md §13.5 C2）. Only the trusted shell calls it, with the outer document's
@@ -150,7 +151,7 @@ async function prepare(home: string, client: BoundActionClient, target: Resolved
 async function saveImageKey(home: string, target: Resolved & { kind: "image" }, key: string, assertCurrent: () => void, signal: AbortSignal): Promise<void> {
   const token = key.trim(), checked = await checkCandidateKey(home, { serviceId: "image-api", token }, { signal });
   signal.throwIfAborted(); assertCurrent();
-  const saved = activateConnectorConnection(home, { kind: "token", input: { serviceId: "image-api", displayName: `图像模型 API · ${new URL(target.origin).host}`, token, accountLabel: null } });
+  const saved = activateConnectorConnection(home, { kind: "token", input: { serviceId: "image-api", displayName: `${readWorkbenchText("workbench.connection-service.image-api.title")} · ${new URL(target.origin).host}`, token, accountLabel: null } });
   createPluginImageGenerationPort(home, target.namespace).bind(target.image, saved.connection_id);
   if (checked) rememberCandidateCheck(home, saved.connection_id, checked);
 }
@@ -161,7 +162,7 @@ async function saveImageKey(home: string, target: Resolved & { kind: "image" }, 
  */
 async function respond(home: string, client: BoundActionClient, target: Resolved, extra: Record<string, unknown> = {}) {
   const connection = await bound(home, client, target), service_id = target.kind === "slot" ? target.slot.service_id : "image-api";
-  const title = target.kind === "slot" ? (await listConnectorSettingsCards(home)).find(row => row.connector_id === service_id)?.title ?? service_id : "图像模型";
+  const title = target.kind === "slot" ? (await listConnectorSettingsCards(home)).find(row => row.connector_id === service_id)?.title ?? service_id : readWorkbenchText("common.connection-need.image-model");
   const disabled = connection && withConnectorConnections(home, store => store.get(connection.connection_id)?.enabled === false, true);
   return { service_id, service_title: title, ...(target.kind === "slot" && target.slot.reason ? { reason: [...target.slot.reason].slice(0, UI_CONNECTION_NEED_REASON_MAX).join("") } : {}),
     ...(target.kind === "image" ? { origin: target.origin } : {}), connection: connectionChoice(connection), ...(disabled ? { disabled: true } : {}), ...extra };

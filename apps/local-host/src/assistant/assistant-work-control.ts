@@ -112,6 +112,8 @@ export async function controlAssistantWork(work: StoredWork, control: Exclude<As
   const children = control.kind === "stop" ? ports.store.delegatedBy(ports.actorId, work, "any") : [];
   const endAccess = ports.store.permissionTransitions.holdWorkPermissions([work.work_id, ...children.map(child => child.work_id)], control.kind === "stop");
   const release = ports.continuations.blockStart(work.work_id);
+  const deferredCleanups: Array<() => void> = [];
+  let deferredReady = false;
   try {
     const host = await ports.host();
     for (const member of [work, ...children]) assertAssistantSessionSettled(host, member);
@@ -141,10 +143,13 @@ export async function controlAssistantWork(work: StoredWork, control: Exclude<As
       if (wait?.wait) await ports.continuations.withdraw(work, "用户停止了这项工作", effect);
     }
     let deferredPending = 0;
-    let deferredReady = false;
+    let finishTriggered = false;
     const onDeferredRunSettled = () => {
       deferredPending -= 1;
-      if (deferredReady && deferredPending === 0) void finish?.(false).catch(() => undefined);
+      if (deferredReady && deferredPending === 0 && !finishTriggered) {
+        finishTriggered = true;
+        void finish?.(false).catch(() => undefined);
+      }
     };
     const stopForControl = async (runRef: { session_id: string; run_id: string }, runControl: AgentActionReviewControl) => {
       if (closeForDeletion) {
@@ -152,14 +157,16 @@ export async function controlAssistantWork(work: StoredWork, control: Exclude<As
         return;
       }
       deferredPending += 1;
-      let settled = false;
+      let handedOff = false;
       try {
-        settled = await stopOriginalRunWithSettlement(host.adapter(RUNTIME), runRef, runControl, {
+        const settled = await stopOriginalRunWithSettlement(host.adapter(RUNTIME), runRef, runControl, {
           deferRunningSettlement: true,
           onSettled: onDeferredRunSettled,
+          onDispose: dispose => { deferredCleanups.push(dispose); },
         });
+        handedOff = !settled;
       } finally {
-        if (settled) deferredPending -= 1;
+        if (!handedOff) deferredPending -= 1;
       }
     };
     if (running) {
@@ -187,7 +194,17 @@ export async function controlAssistantWork(work: StoredWork, control: Exclude<As
     }
     for (const member of [work, ...children]) assertAssistantSessionSettled(host, member);
     deferredReady = true;
-    if (deferredPending === 0) await finish?.();
+    if (deferredPending === 0 && !finishTriggered) {
+      finishTriggered = true;
+      await finish?.();
+    }
     if (control.kind === "resume") ports.continuations.attach();
-  } finally { release(); endAccess(); }
+  } finally {
+    if (!deferredReady) {
+      for (const dispose of deferredCleanups) dispose();
+      deferredCleanups.length = 0;
+    }
+    release();
+    endAccess();
+  }
 }

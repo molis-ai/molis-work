@@ -85,6 +85,8 @@
     "shelf.material.saved-to-project-knowledge": "Saved to project knowledge",
     "shelf.material.saving": "Saving…",
     "shelf.model.ai-model": "AI model",
+    "shelf.ocr.no-text": "No text was recognized.",
+    "shelf.ocr.uncertain": "{text} (needs review)",
     "shelf.panes.back-to-materials-then-retry": "Back to materials, then retry",
     "shelf.panes.choose-a-material": "Choose a material",
     "shelf.panes.choose-my-file": "Choose my file",

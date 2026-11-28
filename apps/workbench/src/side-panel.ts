@@ -264,7 +264,7 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
       frame.src='/im?embedded=1'+(projectId?'&project='+encodeURIComponent(projectId):'');
     }
     const src=body.dataset.sideSrc,inner=body.querySelector('[data-side-frame]');
-    if(src&&inner&&!inner.getAttribute('src')){inner.onload=()=>{inner.dataset.loaded='';};inner.src=src;}
+    if(src&&inner&&!inner.getAttribute('src')){inner.onload=()=>{inner.dataset.loaded='';};inner.onerror=()=>{inner.removeAttribute('src');delete inner.dataset.loaded;};inner.src=src;}
     const pane=body.querySelector('iframe[data-side-pane-src]');if(pane&&!pane.getAttribute('src'))pane.src=pane.dataset.sidePaneSrc;
   };
   // A main tab moved here (kind "pane", 07-S2) has no tab the server drew: its glyph tab leads the strip and its body holds the
@@ -296,6 +296,7 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   // A strip narrower than its tabs (a phone) scrolls by itself; the current tab is kept in view.
   const reveal=()=>{const item=strip.querySelector('[data-side-tab][aria-selected="true"]')?.parentElement;if(!item||strip.scrollWidth<=strip.clientWidth)return;
     const box=strip.getBoundingClientRect(),at=item.getBoundingClientRect();if(at.left<box.left)strip.scrollLeft-=box.left-at.left;else if(at.right>box.right)strip.scrollLeft+=at.right-box.right;};
+  const targets=new WeakMap();
   const ready=(inner,run)=>'loaded' in inner.dataset?run():inner.addEventListener('load',run,{once:true});
   let undoTimer=0;
   const live=document.createElement('div');live.setAttribute('role','status');live.className='mw-sr-only';document.body.append(live);
@@ -328,7 +329,7 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
     drawPanes();marks();
     const id=current();
     for(const button of buttons()){const on=button.dataset.sideTab===id;button.toggleAttribute('data-side-closed',!tabOf(button.dataset.sideTab));button.setAttribute('aria-selected',String(on));button.tabIndex=on?0:-1;}
-    for(const body of panel.querySelectorAll('[data-side-body]')){const on=body.dataset.sideBody===id;body.hidden=!on;if(on&&open){load(body);const inner=target&&body.querySelector('[data-side-frame]');if(inner)ready(inner,()=>inner.contentWindow.postMessage({type:'molis:side-target',target},location.origin));}}
+    for(const body of panel.querySelectorAll('[data-side-body]')){const on=body.dataset.sideBody===id;body.hidden=!on;if(on&&open){load(body);const inner=body.querySelector('[data-side-frame]');if(inner){if(target){targets.set(inner,target);ready(inner,()=>{if(open&&body.dataset.sideBody===current()&&targets.get(inner)===target&&inner.contentWindow){targets.delete(inner);inner.contentWindow.postMessage({type:'molis:side-target',target},location.origin);}});}else targets.delete(inner);}}}
     expanded();imVisible();drawUndo();reveal();
   };
   const dropHelpTab=()=>{const helpBtn=buttons().find(button=>button.dataset.sideTab==='help');if(helpBtn)helpBtn.hidden=true;const helpRec=tabOf('help');if(helpRec)ops.closeSideTab(getState(),helpRec.id);};

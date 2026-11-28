@@ -89,8 +89,8 @@ export function readPackage(pack: unknown): MemoryExportPackage["entries"] {
     if (!MEMORY_FORMAL_KINDS.includes(item.kind)) refuse(`${at}的类别不认识`);
     if (typeof item.origin !== "string") refuse(`${at}缺少出处`);
     if (item.applies !== undefined) {
-      if (typeof item.applies !== "object" || item.applies === null || Array.isArray(item.applies)) refuse(`${at}的适用情境损坏`);
-      if ("goal_ids" in item.applies) refuse(`${at}的适用情境损坏（旧版 goal_ids 已退役，请使用 applies.objects）`);
+      if (typeof item.applies !== "object" || item.applies === null || Array.isArray(item.applies)
+        || Object.keys(item.applies).some(key => key !== "plugin_ids" && key.endsWith("_ids"))) refuse(`${at}的适用情境损坏`);
       if (item.applies.objects !== undefined && (!Array.isArray(item.applies.objects) || item.applies.objects.length > 20
         || item.applies.objects.some(obj => !obj || typeof obj !== "object" || Array.isArray(obj)
           || typeof obj.plugin_id !== "string" || !obj.plugin_id.trim()

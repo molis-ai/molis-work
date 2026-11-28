@@ -1,6 +1,7 @@
-import { existsSync, realpathSync } from "node:fs";
+import { existsSync, lstatSync, realpathSync } from "node:fs";
+import path from "node:path";
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { OverviewIndexRow, OverviewKind, PluginManifest, PluginPersonSettingsDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { OVERVIEW_MAIN_TABLE, type OverviewIndexRow, type OverviewKind, type PluginManifest, type PluginPersonSettingsDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { DUE_REGISTRY_STORE, DueTimer, openDueRegistry, type DueEntryOwner, type DueEntryRecord, type DueExpiredRecord, type DueRegistry } from "@molis-ai/molis-work-service-scheduler";
 import { EVIDENCE_STORE, openEvidenceLedger } from "@molis-ai/molis-work-service-evidence";
 import { PERSON_SETTINGS_STORE, openPersonSettings, type PersonSettingsInstallation } from "@molis-ai/molis-work-service-person-settings";
@@ -9,7 +10,8 @@ import { homeSqlitePath, openHomeSqliteFile, openOverviewIndex, TEXT_SEARCH_STOR
 import { attentionOverviewRows } from "@molis-ai/molis-work-module-attention-resumption";
 import { partitionPluginScope, type PartitionPluginLease } from "./partition-plugin-assembly.js";
 import { directoryForHome } from "./plugin-directory-service.js";
-import { partitionDatabasePath } from "@molis-ai/molis-work-module-projects";
+import { forgetMainOverviewRows } from "./plugin-overview-service.js";
+import { partitionDatabasePath, partitionRoot } from "@molis-ai/molis-work-module-projects";
 
 /**
  * The platform services the unified partitions add in the Home (specs/unified-partition-plugins §4.1, §5, §6.1, batch 106), put together
@@ -27,6 +29,54 @@ export interface OverviewInstallation {
   readonly manifest: Pick<PluginManifest, "plugin_id" | "overview_projection" | "databases">;
 }
 
+/** Verifies `candidate` stays strictly inside `partitionId`'s root under `home`, rejecting any symlink segment or outside realpath (S-partition-isolation). */
+export function assertOwnPartitionFile(home: string, partitionId: string, candidate: string): string {
+  const rawHome = path.resolve(home);
+  const realHome = realpathSync(rawHome);
+  const root = partitionRoot(realHome, partitionId);
+  let normalized = path.resolve(candidate);
+  if (normalized.startsWith(rawHome + path.sep)) {
+    normalized = path.join(realHome, path.relative(rawHome, normalized));
+  }
+  if (normalized !== root && !normalized.startsWith(root + path.sep)) {
+    throw new ActionError("actions.forbidden", "插件只能读写它所在分区的库和文件");
+  }
+  const relative = path.relative(realHome, normalized);
+  if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) {
+    throw new ActionError("actions.forbidden", "插件只能读写它所在分区的库和文件");
+  }
+  let current = realHome;
+  for (const segment of relative.split(path.sep)) {
+    current = path.join(current, segment);
+    try {
+      if (lstatSync(current).isSymbolicLink()) throw new ActionError("actions.forbidden", "插件只能读写它所在分区的库和文件");
+    } catch (error) {
+      if (error instanceof ActionError) throw error;
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") break;
+      throw error;
+    }
+  }
+  const rest: string[] = [];
+  let at = normalized;
+  let resolved = normalized;
+  for (;;) {
+    try {
+      resolved = path.join(realpathSync(at), ...rest.reverse());
+      break;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      const parent = path.dirname(at);
+      if (parent === at) break;
+      rest.push(path.basename(at));
+      at = parent;
+    }
+  }
+  if (resolved !== root && !resolved.startsWith(root + path.sep)) {
+    throw new ActionError("actions.forbidden", "插件只能读写它所在分区的库和文件");
+  }
+  return resolved;
+}
+
 /**
  * The libraries the overview reads: for each partition, each enabled plugin that declares `overview_projection` and keeps a library in every
  * partition. The path is the partition layout's (`partitionPluginScope`), never the plugin's word, and one that a link leads into another
@@ -37,23 +87,32 @@ export function partitionOverviewLibraries(home: string, partitions: readonly { 
     const declaration = manifest.databases?.partition, kinds = manifest.overview_projection?.kinds;
     if (!kinds?.length) return [];
     // A plugin that keeps its data in the partition's main database has its rows in the platform's table there (V17).
-    if (!declaration) return manifest.databases?.project ? [mainOverviewLibrary(home, partition.partition_id, install_id, manifest)] : [];
+    if (!declaration) {
+      if (!manifest.databases?.project) return [];
+      try { return [mainOverviewLibrary(home, partition.partition_id, install_id, manifest)]; }
+      catch (error) {
+        if (error instanceof ActionError && error.code === "actions.forbidden") return [];
+        throw error;
+      }
+    }
     const scope = partitionPluginScope(home, partition.partition_id, manifest.plugin_id, install_id);
-    let path: string;
+    let libraryFile: string;
     try {
       // Through the scope's link check, as the instance itself opens it: a library that resolves into another partition is not this one's to stamp.
-      path = scope.assertOwnPath(scope.libraryPath(declaration.store_name));
+      libraryFile = assertOwnPartitionFile(home, partition.partition_id, scope.assertOwnPath(scope.libraryPath(declaration.store_name)));
     } catch (error) {
       if (error instanceof ActionError && error.code === "actions.forbidden") return [];
       throw error;
     }
-    return [{ partition_id: partition.partition_id, install_id, plugin_id: manifest.plugin_id, path, kinds }];
+    return [{ partition_id: partition.partition_id, install_id, plugin_id: manifest.plugin_id, path: libraryFile, kinds }];
   }));
 }
 
 /** One main-database plugin's overview rows in one partition: the platform's table in that partition's `molis-work.db`, read by installation. */
 export function mainOverviewLibrary(home: string, partitionId: string, installId: string, manifest: Pick<PluginManifest, "plugin_id" | "overview_projection">): OverviewLibrary {
-  return { partition_id: partitionId, install_id: installId, plugin_id: manifest.plugin_id, path: partitionDatabasePath(realpathSync(home), partitionId),
+  const realHome = realpathSync(home);
+  const file = assertOwnPartitionFile(realHome, partitionId, partitionDatabasePath(realHome, partitionId));
+  return { partition_id: partitionId, install_id: installId, plugin_id: manifest.plugin_id, path: file,
     kinds: manifest.overview_projection?.kinds ?? [], table: "main" };
 }
 
@@ -65,16 +124,58 @@ export const ATTENTION_OVERVIEW_SOURCE = "system.attention";
 
 /** The partition's "waiting on you" entries as an overview library: `notification` rows, read-only, waking nothing. */
 export function attentionOverviewLibrary(home: string, partitionId: string): OverviewLibrary {
+  const realHome = realpathSync(home);
+  const file = assertOwnPartitionFile(realHome, partitionId, partitionDatabasePath(realHome, partitionId));
   return { partition_id: partitionId, install_id: ATTENTION_OVERVIEW_SOURCE, plugin_id: ATTENTION_OVERVIEW_SOURCE,
-    path: partitionDatabasePath(realpathSync(home), partitionId), kinds: ["notification"], table: "attention" };
+    path: file, kinds: ["notification"], table: "attention" };
 }
 
-/** Reads one attention library on a read-only connection; a main database not written yet holds nothing, one that cannot be read now stays dirty. */
-function readAttentionLibrary(library: OverviewLibrary): ReturnType<typeof attentionOverviewRows> | null {
-  if (!existsSync(library.path)) return [];
+/** Reads one attention library on a read-only connection; a main database not written yet holds nothing, a symlink or unreadable library stays dirty. */
+function readAttentionLibrary(home: string, library: OverviewLibrary): ReturnType<typeof attentionOverviewRows> | null {
+  try {
+    assertOwnPartitionFile(home, library.partition_id, library.path);
+  } catch {
+    return null;
+  }
+  let stat: ReturnType<typeof lstatSync>;
+  try {
+    stat = lstatSync(library.path);
+  } catch (error) {
+    return (error as NodeJS.ErrnoException | null)?.code === "ENOENT" ? [] : null;
+  }
+  if (stat.isSymbolicLink() || !stat.isFile()) return null;
   let db: ReturnType<typeof openHomeSqliteFile>;
   try { db = openHomeSqliteFile(library.path, { readOnly: true }); } catch { return null; }
   try { return attentionOverviewRows(db); } catch { return null; } finally { db.close(); }
+}
+
+/** Clears one main-database plugin's rows from `<partition>/molis-work.db`'s `plugin_overview_rows` without creating the database or following symlinks. */
+export function forgetPartitionMainOverviewRows(home: string, partitionId: string, installId: string): void {
+  let file: string;
+  try {
+    const realHome = realpathSync(home);
+    file = assertOwnPartitionFile(realHome, partitionId, partitionDatabasePath(realHome, partitionId));
+  } catch {
+    return;
+  }
+  let stat: ReturnType<typeof lstatSync>;
+  try {
+    stat = lstatSync(file);
+  } catch {
+    return;
+  }
+  if (stat.isSymbolicLink() || !stat.isFile()) return;
+  let db: ReturnType<typeof openHomeSqliteFile>;
+  try { db = openHomeSqliteFile(file); } catch { return; }
+  try {
+    db.exec("PRAGMA busy_timeout = 5000;");
+    const table = db.prepare("SELECT 1 AS found FROM sqlite_schema WHERE type = 'table' AND name = ?").get(OVERVIEW_MAIN_TABLE);
+    if (table) forgetMainOverviewRows(db, installId);
+  } catch {
+    // Best-effort cleanup when the database is unavailable or mid-deletion; overview index already removed the rows.
+  } finally {
+    db.close();
+  }
 }
 
 export interface PartitionPlatformServicesOptions {
@@ -129,7 +230,7 @@ export class PartitionPlatformServices {
         this.due.replaceOverview({ install_id: library.install_id, plugin_id: library.plugin_id, partition_id: library.partition_id }, entries);
         this.timer.arm();
       },
-      readAttention: readAttentionLibrary,
+      readAttention: library => readAttentionLibrary(this.home, library),
     });
     this.timer.arm();
     running.set(this.home, this);

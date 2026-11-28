@@ -114,6 +114,10 @@ function buildBridgeScript(challenge: string, page: { page_id: string; version: 
         }
       } else if (msg.type === "theme" && msg.dataset) {
         Object.assign(document.documentElement.dataset, msg.dataset);
+      } else if (msg.type === "locale") {
+        if (typeof msg.lang === "string" && msg.lang) document.documentElement.lang = msg.lang;
+        if (typeof msg.dir === "string" && msg.dir) document.documentElement.dir = msg.dir;
+        if (msg.err && typeof msg.err === "object") Object.assign(cfg.err, msg.err);
       } else if (msg.type === "appearanceSheet") {
         const priors = [...document.querySelectorAll('link[data-ui-appearance-sheet]')];
         if (typeof msg.href === "string" && msg.href) {
@@ -328,8 +332,9 @@ export async function buildHomePageSrcdoc(options: {
   const sprite = document.querySelector("svg.icon-sprite")?.outerHTML ?? "";
   const bodyHtml = parsed.body?.innerHTML ?? "";
 
+  const dirAttr = document.documentElement.dir ? ` dir="${escape(document.documentElement.dir)}"` : "";
   const html =
-    `<!doctype html><html lang="${escape(document.documentElement.lang || "zh")}"${htmlAttrs}>` +
+    `<!doctype html><html lang="${escape(document.documentElement.lang || "zh")}"${dirAttr}${htmlAttrs}>` +
     `<head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${escape(csp)}">` +
     `<link rel="stylesheet" href="${escape(baseCssUrl)}">${appearanceLink}${styleTags}</head>` +
     `<body class="immersive-workbench">${sprite}${bodyHtml}${scriptTags}</body></html>`;
@@ -454,6 +459,19 @@ export async function mountHomePageFrame(options: {
       href: raw ? new URL(raw, location.origin).href : null,
     });
   };
+  const syncLocale = () => {
+    if (disposed) return;
+    channel.port1.postMessage({
+      type: "locale",
+      lang: document.documentElement.lang || "zh",
+      dir: document.documentElement.dir || "ltr",
+      err: {
+        action: say("workbench.home-pages.action-failed"),
+        script: say("workbench.home-pages.script-error"),
+        async: say("workbench.home-pages.async-error"),
+      },
+    });
+  };
   const themeObserver = new MutationObserver(() => {
     if (disposed) return;
     const ds = document.documentElement.dataset;
@@ -468,12 +486,14 @@ export async function mountHomePageFrame(options: {
         uiMono: ds.uiMono ?? "",
       },
     });
+    syncLocale();
     syncAppearanceSheet();
   });
   themeObserver.observe(document.documentElement, {
     attributes: true,
-    attributeFilter: ["data-theme", "data-resolved-theme", "data-density", "data-ui-skin", "data-ui-font", "data-ui-mono"],
+    attributeFilter: ["data-theme", "data-resolved-theme", "data-density", "data-ui-skin", "data-ui-font", "data-ui-mono", "lang", "dir"],
   });
+  document.addEventListener("molis-work:language-changed", syncLocale);
   const headObserver = new MutationObserver(syncAppearanceSheet);
   if (document.head) headObserver.observe(document.head, { childList: true, attributes: true, subtree: true, attributeFilter: ["href"] });
 
@@ -488,6 +508,7 @@ export async function mountHomePageFrame(options: {
     abort.abort();
     themeObserver.disconnect();
     headObserver.disconnect();
+    document.removeEventListener("molis-work:language-changed", syncLocale);
     try { channel.port1.close(); } catch { /* ignore */ }
     iframe.remove();
     void globalThis.molisWorkRequest(`${options.routePrefix}/api/home-pages/session/${encodeURIComponent(options.pageSessionId)}`, {

@@ -159,18 +159,27 @@ export function changeJellySeries(series: JellySeries, date: string, scope: Jell
   const { start_date: _start, end_date: _end, ...rest } = fields;
   // The edited occurrence's new length, against what it was, changes every occurrence's length alike; an occurrence stretched on its own and
   // shortened back cannot take the series below one day.
-  const resized = jellyDaysBetween(fields.start_date ?? current.start_date, fields.end_date ?? current.end_date) - jellyDaysBetween(current.start_date, current.end_date);
+  const nextStart = fields.start_date ?? current.start_date, nextEnd = fields.end_date ?? current.end_date;
+  const nextSpan = jellyDaysBetween(nextStart, nextEnd);
+  jellyAssert(nextSpan >= 0, "结束日期不能早于开始日期");
+  const resized = nextSpan - jellyDaysBetween(current.start_date, current.end_date);
   const length = Math.max(0, jellyDaysBetween(series.start_date, series.end_date) + resized);
   const weekdays = patch.weekdays !== undefined && !sameDays(patch.weekdays, series.weekdays) ? [...patch.weekdays] : rotate(series.weekdays, moved);
   const from = scope === "all" ? series.start_date : date, start = jellyAddDays(from, moved);
   const own = (day: string) => scope === "all" || day >= date;
   const exceptions = shiftExceptions(Object.fromEntries(Object.entries(series.exceptions).filter(([day]) => own(day))), moved);
   // The edited occurrence now follows the series for what was just set; a single-date move it had keeps its new dates.
-  const edited = exceptions[jellyAddDays(date, moved)];
+  const editedKey = jellyAddDays(date, moved);
+  const edited = exceptions[editedKey];
   if (edited?.patch) {
     const left = Object.fromEntries(Object.entries(edited.patch).filter(([key]) => !(key in rest)));
-    exceptions[jellyAddDays(date, moved)] = { patch: { ...left, ...(left.start_date !== undefined || left.end_date !== undefined
-      ? { start_date: fields.start_date ?? jellyAddDays(current.start_date, moved), end_date: fields.end_date ?? jellyAddDays(current.end_date, moved) } : {}) } };
+    const nextPatch = {
+      ...left,
+      ...(left.start_date !== undefined || left.end_date !== undefined
+        ? { start_date: fields.start_date ?? jellyAddDays(current.start_date, moved), end_date: fields.end_date ?? jellyAddDays(current.end_date, moved) } : {}),
+    };
+    if (Object.keys(nextPatch).length > 0) exceptions[editedKey] = { patch: nextPatch };
+    else delete exceptions[editedKey];
   }
   const next: JellySeries = { ...series, ...rest, start_date: start, end_date: jellyAddDays(start, length), weekdays,
     until: patch.until !== undefined ? patch.until : series.until === null ? null : jellyAddDays(series.until, moved), exceptions: {}, completions: {} };

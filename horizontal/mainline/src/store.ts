@@ -193,13 +193,16 @@ export class MainlineStore {
   }
 
   rename(expected: string, itemId: string, name: string): void {
-    this.write(expected, () => {
+    this.transaction(() => {
+      const { revision, arrangement } = this.arrangement();
+      this.requireRevision(expected, revision);
       const item = this.item(itemId);
       if (!item) throw missing();
       if (item.source) throw new ActionError("actions.input_invalid", "由对象变成的事项，名字向来源读，不在这里改");
       const next = checkedName(name);
       if (next === item.name) return;
       this.db.prepare("UPDATE mainline_items SET name = ?, revision = revision + 1 WHERE owner_actor_id = ? AND project_id = ? AND item_id = ?").run(next, this.actorId, this.projectId, itemId);
+      this.saveArrangement(revision, arrangement);
     });
   }
 

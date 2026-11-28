@@ -176,6 +176,26 @@ test("S-protected-prompt-override: protected prompts stay visible but refuse sav
   assert.equal(resolvedEffective.body, "Protected default role instruction.");
   assert.equal(resolvedEffective.user_revision, undefined);
 
+  // IUI-05: even if the aggregated registration is editable, a declaration marked protected still refuses overrides.
+  const DECL_OWNER = `${OWNER_ID}-decl`;
+  const DECL_KEY = `${DECL_OWNER}/${AGENT_PROMPT_ID}`;
+  definitions.register({
+    ...protectedRegistration("editable"),
+    owner_id: DECL_OWNER,
+  });
+  db.prepare("INSERT INTO prompt_overrides(key,revision,base_version,body,updated_at,actor_id,default_ref) VALUES (?,?,?,?,?,?,NULL)")
+    .run(DECL_KEY, 9, 1, "篡改：绕过声明保护", at, "attacker");
+  const effectiveByDecl = definitions.effective(DECL_OWNER, {
+    prompt_id: AGENT_PROMPT_ID,
+    version: 1,
+    layer: "base",
+    override_policy: "protected",
+    body: "受保护的默认角色指令。",
+    body_by_locale: { en: "Protected default role instruction." },
+  }, "en");
+  assert.equal(effectiveByDecl.body, "Protected default role instruction.");
+  assert.equal(effectiveByDecl.user_revision, undefined);
+
   const role = definitions.roles().find(item => item.owner_id === OWNER_ID && item.role_id === "gatekeeper");
   assert.equal(role?.edited, false);
 });

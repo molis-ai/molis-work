@@ -106,6 +106,15 @@ export class PrologueRunStore {
   }
 
   invalidateSession(sessionId: string): void {
+    const session = this.#sessions.get(sessionId);
+    const runIds = new Set(session?.runs.map(ref => ref.run_id));
+    for (const [runId, record] of this.#runs) {
+      if (!runIds.has(runId) && record.view.ref.session_id !== sessionId) continue;
+      clearNotifyTimer(record);
+      record.unsubscribe();
+      record.listeners.clear();
+      this.#runs.delete(runId);
+    }
     this.#sessions.delete(sessionId);
     this.#touched.delete(sessionId);
   }
@@ -247,6 +256,7 @@ export class PrologueRunStore {
     record.unsubscribe = () => {
       if (unsubscribed) return;
       unsubscribed = true;
+      clearNotifyTimer(record);
       record.memory_binding?.close();
       unsubscribeEvents();
       unsubscribeControl();
@@ -327,8 +337,7 @@ export class PrologueRunStore {
     });
     // Each listener gets its own copy; streamed text is gathered for `STREAM_NOTIFY_MS` so a long answer is not copied per delta.
     if (record.listeners.size === 0) {
-      clearTimeout(record.notifyTimer);
-      record.notifyTimer = undefined;
+      clearNotifyTimer(record);
       return;
     }
     if (streamed) {
@@ -339,8 +348,7 @@ export class PrologueRunStore {
       record.notifyTimer.unref?.();
       return;
     }
-    clearTimeout(record.notifyTimer);
-    record.notifyTimer = undefined;
+    clearNotifyTimer(record);
     notify(record);
   }
 
@@ -371,8 +379,17 @@ export class PrologueRunStore {
   }
 }
 
+/** Cancel any pending coalesced delta notification timer for `record`. */
+export function clearNotifyTimer(record: RunRecord): void {
+  if (record.notifyTimer !== undefined) {
+    clearTimeout(record.notifyTimer);
+    record.notifyTimer = undefined;
+  }
+}
+
 /** Every listener reads the same published view, each in a copy of its own. */
 function notify(record: RunRecord): void {
+  if (record.listeners.size === 0) return;
   const snapshot = structuredClone(record.view), only = record.listeners.size === 1;
   for (const listener of [...record.listeners]) listener(only ? snapshot : structuredClone(snapshot));
 }

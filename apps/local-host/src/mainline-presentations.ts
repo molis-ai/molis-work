@@ -5,7 +5,8 @@ import { isPresentationValuesReader, presentationFormFields } from "@molis-ai/mo
 import { renderPresentationForm, stateRingFamily } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { readSurfaceValues, startSurfaceRead } from "@molis-ai/molis-work-service-surfaces";
 import type { ProjectPluginHost } from "./project-plugin-ports.js";
-import { scopeInstallationsFor } from "./scope-installations.js";
+import { kitPluginWords, scopeInstallationsFor } from "./scope-installations.js";
+import { resolveActionLibraryWords } from "./web-capabilities.js";
 
 /** Both item surfaces render the same installations that can declare an item source in mainlineHost. */
 export async function mainlinePresentations(
@@ -72,6 +73,9 @@ export async function mainlinePresentations(
       current,
     );
     current();
+    const locale = activeLocale();
+    const projectReaders = new Map(installations.map((entry) => [entry.record.plugin_id, entry.readLocalePacks()]));
+    const actionWords = resolveActionLibraryWords(directory, { projectReaders, locale });
     for (const { install, object, subject, action } of routes) {
       install.assertCurrent();
       const read = answers.get(JSON.stringify([subject.kind, subject.id]))?.item;
@@ -80,9 +84,13 @@ export async function mainlinePresentations(
         raw = status && read.values?.[status.field];
       const ring =
         status && typeof raw === "string" && Object.hasOwn(status.map, raw) ? status.map[raw]?.ring : undefined;
+      const ownerName =
+        actionWords.providers.get(action)
+        ?? (install.manifest ? kitPluginWords(install, locale ?? undefined).name : undefined)
+        ?? action.provider.title;
       const markup = renderPresentationForm(object, "row", {
-        locale: activeLocale(),
-        ownerDisplay: { name: action.provider.title },
+        locale,
+        ownerDisplay: { name: ownerName },
         read,
       });
       rows.set(subject.kind + ":" + subject.id, { markup, done: Boolean(ring && stateRingFamily(ring) === "done") });

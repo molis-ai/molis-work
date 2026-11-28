@@ -1,7 +1,7 @@
 import type { PluginComponentPlan } from './plugin-components.js';
 import type { SandboxDataOperation, SandboxPluginContract, SandboxSchema, SandboxVisibleText } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { TextArgs, TextRef, UiLocalePack } from '@molis-ai/molis-work-contracts/platform/ui';
-import { ownedTextRef, say, textArgs, textKeyPrefix } from '@molis-ai/molis-work-plugin-sdk/ui';
+import { ownedTextRef, say, textArgs, textKeyPrefix, tryUiText } from '@molis-ai/molis-work-plugin-sdk/ui';
 
 /** Paths are language independent; an id containing a separator must still identify exactly one slot. */
 export const pluginTextSlot = (...path: readonly string[]): string => path.map(value => encodeURIComponent(value)).join('/');
@@ -55,10 +55,23 @@ export function isDestructivePluginOperation(id?: string): boolean {
   return /(?:^|[._-])(?:delete|remove|clear|discard|undo|revoke|erase|purge)(?:$|[._-])/iu.test(id?.replace(/([a-z])([A-Z])/g, '$1-$2') ?? '');
 }
 
+const DESTRUCTIVE_WORD_RE = /删除|移除|清空|撤销|丢弃|\b(?:delete|remove|clear|discard|undo|revoke|erase|purge)\b|削除|取り消し|破棄|消去/iu;
+
+function readablePluginWord(word: SandboxVisibleText | undefined): string {
+  const literal = literalPluginWord(word);
+  if (literal) return literal;
+  if (word && typeof word === 'object' && 'key' in word && typeof word.key === 'string') {
+    return tryUiText(word.key) ?? '';
+  }
+  return '';
+}
+
 /** The same confirmation rule applies when a submission first needs a connection. */
 export function isDestructivePluginPart(part: PluginComponentPlan): boolean {
   return isDestructivePluginOperation(part.submit?.operationId)
-    || /删除|移除|清空|撤销|丢弃/u.test(literalPluginWord(part.props.submitLabel) + literalPluginWord(part.props.title) + part.purpose);
+    || DESTRUCTIVE_WORD_RE.test(
+      [readablePluginWord(part.props.submitLabel), readablePluginWord(part.props.title), part.purpose].filter(Boolean).join(' '),
+    );
 }
 
 /** Exact operation output paths for parameter names. A collision with another schema field is refused too. */

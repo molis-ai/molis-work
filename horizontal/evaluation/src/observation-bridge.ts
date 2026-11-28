@@ -25,6 +25,7 @@ import {
   type ObservationQueryInput,
   type ObservationQueryOutput,
 } from "@molis-ai/molis-work-contracts/services/observation";
+import { isActionCommandRecord } from "./unknown-and-funnel.js";
 
 function obsRef(action: { readonly capability_id: string; readonly version: number }): ActionReference {
   return { capability_id: action.capability_id, version: action.version, provider_id: OBSERVATION_PROVIDER_ID };
@@ -113,7 +114,7 @@ export interface CommandReceipt {
   readonly kind: string;
   readonly id: string;
   readonly revision: string;
-  readonly previousRevision?: number;
+  readonly previousRevision?: string | number;
 }
 
 function jsonEvidence(items: readonly ObservationEvidenceItemView[], role: string): unknown {
@@ -126,7 +127,7 @@ function jsonEvidence(items: readonly ObservationEvidenceItemView[], role: strin
 export async function readRetryReceipts(clientFor: (caller: ActionCallContext) => ActionClient, caller: ActionCallContext,
   records: readonly ObservationQueriedRecord[], evidenceByRecord: ReadonlyMap<string, readonly ObservationEvidenceItemView[]>): Promise<Map<string, CommandReceipt>> {
   const receipts = new Map<string, CommandReceipt>();
-  const commands = records.filter(r => r.owner.kind === "service" && r.owner.id === "gateway" && r.fact === "action.call" && r.detail.operation === "command");
+  const commands = records.filter(r => isActionCommandRecord(r));
   const failures = commands.filter(r => r.outcome === "failed" || r.outcome === "refused");
   for (const record of commands) {
     if (record.outcome !== "succeeded" || !record.provider_id || !failures.some(failed => failed.project_id === record.project_id
@@ -142,7 +143,8 @@ export async function readRetryReceipts(clientFor: (caller: ActionCallContext) =
     if (!result?.revision) continue;
     const input = jsonEvidence(items, "input");
     const previousRevision = typeof input === "object" && input && "id" in input && input.id === result.subject.id
-      && "expected_revision" in input && typeof input.expected_revision === "number" ? input.expected_revision : undefined;
+      && "expected_revision" in input && (typeof input.expected_revision === "number" || typeof input.expected_revision === "string")
+      ? input.expected_revision : undefined;
     receipts.set(record.record_id, { ...result.subject, revision: result.revision, previousRevision });
   }
   return receipts;

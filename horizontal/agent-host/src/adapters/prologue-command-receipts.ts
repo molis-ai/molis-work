@@ -2,6 +2,7 @@ import type { ExactRef } from "@prologue/sdk";
 import type { AgentWriteCheckNote } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { CommandEvent } from "./prologue-node-kit.js";
 import type { RunDeps } from "./prologue-run.js";
+import { readSdkRunEvents } from "./prologue-run-events.js";
 
 export interface CommandReceiptMatch { event: CommandEvent; root: ExactRef<"authorized-root">; check?: AgentWriteCheckNote }
 
@@ -14,8 +15,10 @@ export async function matchCommandReceipts({ runtime, index, state }: Pick<RunDe
   if (attempts.length !== 1 || !attempt?.root_ref) throw new Error("找不到这一轮唯一的执行目录");
   const session = await runtime.sessions.open(saved.ref);
   if (!session) throw new Error("SDK 会话不可读");
-  const terminal = (await session.terminalRuns()).find(run => run.id === runId);
-  const events = terminal ? await session.replay(terminal) : state.commandEvents.get(runId) ?? [];
+  const terminalRuns = await session.terminalRuns();
+  const isTerminal = terminalRuns.some(run => run.id === runId);
+  const cached = isTerminal ? undefined : state.commandEvents?.get(runId);
+  const events = cached?.length ? cached : await readSdkRunEvents(session, runId, terminalRuns);
   const checks = new Map(Object.values(attempt.write_checks ?? {}).filter(note => note.write_call_id !== undefined).map(note => [`${note.write_call_id}:diagnostics`, note]));
   const found = new Map<string, CommandReceiptMatch | null>();
   for (const event of events) {

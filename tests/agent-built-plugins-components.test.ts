@@ -6,7 +6,8 @@ import { join } from 'node:path';
 import { build } from 'esbuild';
 import { chinesePagePacks, pageTextScriptForPacks } from './fixtures/page-text-packs.js';
 import { builderBrowserExecutable, openStudioChrome } from './fixtures/plugin-builder-browser.js';
-import { validatePluginComponentPlans, resolvePluginComponentCall, PLUGIN_COMPONENT_STYLES, PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT, ON_DEMAND_HELP_STYLES, ON_DEMAND_HELP_CLIENT_SCRIPT } from '@molis-ai/molis-work-design-system';
+import { pluginComponentChoices, validatePluginComponentPlans, resolvePluginComponentCall, PLUGIN_COMPONENT_STYLES, PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT, ON_DEMAND_HELP_STYLES, ON_DEMAND_HELP_CLIENT_SCRIPT } from '@molis-ai/molis-work-design-system';
+import { installTextForTest } from '@molis-ai/molis-work-plugin-sdk/ui';
 import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { packageContract } from './fixtures/sandbox-package.js';
 /** The acceptance driver, loaded when a test needs it (one reference to its source for the whole file). */
@@ -119,6 +120,22 @@ test('component contracts reject unsupported bindings and resolve selected sourc
   assert.throws(() => validatePluginComponentPlans([{ ...plan, submit: { ...plan.submit, input: { ...plan.submit.input, text: { source: 'event', field: 'value' } } } }], contract), /来源/);
   assert.throws(() => validatePluginComponentPlans([{ ...plan, read: plan.submit }], contract), /查询/);
   assert.deepEqual(resolvePluginComponentCall({ ...plan, kind: 'form', submit: { operationId: 'save', input: { text: { source: 'selection', componentId: 'topics', field: 'text' }, enabled: { source: 'selection', componentId: 'cards', field: 'enabled' } } } }, 'submit', { selection: { topics: { text: 'topic' }, cards: { enabled: false } } }), { operationId: 'save', input: { text: 'topic', enabled: false } });
+  // IUI-11: destructive detection matches en/ja literals and frozen TextRef labels across non-standard operation IDs.
+  const destructiveBase = { ...plan, intent: 'action' as const, purpose: 'run action' };
+  for (const submitLabel of ['Delete record', '記録を削除']) {
+    const kinds = pluginComponentChoices({ ...destructiveBase, props: { submitLabel } }, contract).map(choice => choice.kind);
+    assert.ok(kinds.includes('alert-dialog'), `expected alert-dialog for literal "${submitLabel}"`);
+  }
+  const restoreText = installTextForTest({
+    locale: 'ja',
+    packs: [{ format_version: 1, owner: 'studio', locale: 'ja', messages: { 'studio.destructive': '履歴を破棄' } }],
+  });
+  try {
+    const kinds = pluginComponentChoices({ ...destructiveBase, props: { submitLabel: { key: 'studio.destructive' } } }, contract).map(choice => choice.kind);
+    assert.ok(kinds.includes('alert-dialog'), 'expected alert-dialog for frozen TextRef');
+  } finally {
+    restoreText();
+  }
 });
 test('real browser retains forms and focus, refreshes changed schemas, preserves failed input and submits false booleans', { timeout: 90_000 }, async t => {
   const directory = await mkdtemp(join(tmpdir(), 'builder-components-'));

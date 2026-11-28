@@ -478,7 +478,7 @@ test("AC-10, QA-001: on an English page the reason a Send without a model fails 
       const shown = error.message + pageText("en")("workbench.assistant-send.text-kept");
       assert.equal(shown, "No usable model is configured yet, so the assistant can’t start. Your text is kept");
       assert.doesNotMatch(shown, /[\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]/, "no Chinese word or punctuation left");
-      assert.equal(error.details?.action, "打开模型设置", "the action stays backward-compatible while action_kind drives client routing");
+      assert.equal(error.details?.action, "Open model settings", "the action label localizes to the active page language while action_kind drives client routing");
       assert.equal(error.details?.action_kind, "open_model_settings", "client routes the model-settings link by structured action_kind, not Chinese text");
       assert.equal(pageText("en")("workbench.settings-connectors.open-model-settings"), "Open model settings");
       const kept = error.details?.work as { draft?: string } | undefined;
@@ -486,7 +486,12 @@ test("AC-10, QA-001: on an English page the reason a Send without a model fails 
       return true;
     });
     assert.equal((await f.service.list())[0]!.draft, text);
-    await assert.rejects(inAssistantPage("zh", () => f.service.send({ text, request_id: "req-00000012" }, {})), /还没有配置可用的模型/, "a Chinese page still reads it in Chinese");
+    await assert.rejects(inAssistantPage("zh", () => f.service.send({ text, request_id: "req-00000012" }, {})), (error: unknown) => {
+      assert.ok(error instanceof ActionError);
+      assert.match(error.message, /还没有配置可用的模型/);
+      assert.equal(error.details?.action, "打开模型设置");
+      return true;
+    }, "a Chinese page still reads it in Chinese");
   } finally { await f.close(); }
 });
 

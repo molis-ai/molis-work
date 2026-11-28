@@ -22,16 +22,16 @@ export async function handleConnectorMethodsHttp(request: IncomingMessage, respo
   const remember = directory.remember;
   const sessionCurrent = captureWebSessionAuthority();
   const disconnected = requestAbortSignal(request, response, new ActionError("actions.cancelled", "连接操作已取消"));
-  const assertSetupCurrent = () => {
+  const assertCurrent = () => {
+    disconnected.signal.throwIfAborted();
     sessionCurrent();
     assertAccountCurrent?.();
     if (localHost.lifecycle() !== "running") throw connectorErrors["connector.connection.invalid"]("Host 已关闭，请重新打开接入请求");
   };
-  const assertCurrent = () => { disconnected.signal.throwIfAborted(); assertSetupCurrent(); };
   const mcpControl = { signal: disconnected.signal, beforeDispatch: assertCurrent, assertCurrent };
   try {
     if (await handleConnectorLocalHttp(request, response, url, home, remember, assertCurrent)) return true;
-    if (await handleConnectorApiMethodsHttp(request, response, url, home, remember, assertCurrent, { signal: disconnected.signal, assertCurrent, assertSetupCurrent })) return true;
+    if (await handleConnectorApiMethodsHttp(request, response, url, home, remember, assertCurrent, { signal: disconnected.signal, assertCurrent })) return true;
     const item = CONNECTION.exec(url.pathname);
     if (url.pathname !== `${PREFIX}/start` && url.pathname !== `${PREFIX}/complete` && url.pathname !== `${PREFIX}/callback` && !item) return false;
     try {

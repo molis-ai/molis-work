@@ -22,7 +22,7 @@ const isOAuthCallback = (pathname: string) => pathname === OAUTH_CALLBACK || oau
 const ITEM = /^\/api\/settings\/connectors\/connections\/([a-z0-9-]+)\/(verify|preview)$/u;
 export async function handleConnectorApiMethodsHttp(request: IncomingMessage, response: ServerResponse, url: URL, home: string | undefined,
   mcpTools: ConnectorMcpDirectory["remember"], beforeEffect: () => void | Promise<void>,
-  control?: { signal?: AbortSignal; assertCurrent?: () => void; assertSetupCurrent: () => void }): Promise<boolean> {
+  control?: { signal?: AbortSignal; assertCurrent?: () => void }): Promise<boolean> {
   const item = ITEM.exec(url.pathname);
   if (!home || (!item && !isOAuthCallback(url.pathname) && !url.pathname.startsWith(`${ROOT}/oauth/`) && !url.pathname.startsWith(`${ROOT}/device/`) && !url.pathname.startsWith(`${ROOT}/cli/`))) return false;
   try {
@@ -49,11 +49,7 @@ export async function handleConnectorApiMethodsHttp(request: IncomingMessage, re
     else if (url.pathname === `${ROOT}/device/start`) json(response, 200, await startDeviceOAuth(home, { serviceId: str("service_id"), displayName: str("display_name"), clientId: str("client_id"), origin,
       connectionId: str("connection_id") || undefined, setupId: str("setup_id") || undefined }));
     else if (url.pathname === `${ROOT}/device/poll`) json(response, 200, await pollDeviceOAuth(home, { origin, state: str("state"), ...(control?.signal ? { signal: control.signal } : {}) }));
-    else if (url.pathname === `${ROOT}/cli/install`) {
-      // The person confirms the prepared request here. The Host owns the accepted installation across page navigation.
-      await beforeEffect();
-      json(response, 200, await installPreparedCli(home, str("setup_id"), { beforeEffect: control?.assertSetupCurrent ?? beforeEffect }));
-    }
+    else if (url.pathname === `${ROOT}/cli/install`) json(response, 200, await installPreparedCli(home, str("setup_id"), { beforeEffect, ...(control?.signal ? { signal: control.signal } : {}) }));
     else if (url.pathname === `${ROOT}/cli/status`) {
       const installed = str("setup_id") ? cliRequestInstallation(home, str("setup_id"), str("service_id")) : undefined;
       json(response, 200, { ...cliAvailability(str("service_id")), ...(installed ? { installed: true } : {}) });

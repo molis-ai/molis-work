@@ -1,7 +1,7 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { codingInputs } from "../inputs.js";
 import { draftKey } from "./helpers.js";
-import { sessionPath } from "./request.js";
+import { sessionPath, status } from "./request.js";
 import { renderRuns } from "./runs.js";
 import type { Page } from "./page.js";
 
@@ -23,7 +23,9 @@ export function mountInputEditor(page: Page) {
       if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("invalid");
       return value as Record<string, unknown>;
     } catch {
-      throw new Error(uiText.text("coding.input-editor.draft-unreadable"));
+      try { sessionStorage.removeItem(key); } catch { /* storage closed */ }
+      if (id === s.current) status(page, uiText.text("coding.input-editor.draft-unreadable"), true);
+      return undefined;
     }
   };
   refs.inputEditor = codingInputs({
@@ -36,7 +38,7 @@ export function mountInputEditor(page: Page) {
       s.questionDrafts.set(id, value.question_drafts);
       try { sessionStorage.setItem(draftKey(page, id) + ":questions", JSON.stringify(value.question_drafts)); } catch { /* The window still holds its copy. */ }
       if (id === s.current && refs.draft.owns(id)) {
-        if (input.value !== value.draft) input.value = value.draft;
+        input.value = value.draft;
         window.molisFit?.(input);
         if (changed) {
           // A submitted card holds this window's answer and receipt independently of the saved draft.

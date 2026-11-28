@@ -149,7 +149,7 @@ async function openSurfaceSession(ctx: SurfaceCtx, sessionKey: string, query = "
   } catch (err) {
     if (seq !== ctx.detailSeq) return;
     const message = (err as Error)?.message || uiText.text("workbench.sessions.read-failed");
-    if (knownRow && !revalidate && !matchMedia("(max-width:760px)").matches) {
+    if (knownRow && !revalidate) {
       ctx.detail = { row: knownRow, entries: [], olderCursor: null, loadingEarlier: false, query, history: null, error: message };
     } else {
       ctx.selectedKey = null;

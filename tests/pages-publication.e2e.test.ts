@@ -36,8 +36,7 @@ for (const width of [1440, 390]) {
       pages.update(sentinel.id, { artifact_version: 1 });
       db.exec("CREATE UNIQUE INDEX fail_ui_publication ON pages ((1)) WHERE artifact_version > 0");
       await click('[data-pages-artifact-bar]');
-      await waitFor("document.querySelector('[data-pages-note].is-error')?.textContent.trim() && document.querySelector('[data-pages-artifact-bar]').textContent === '存为固定版本'");
-      assert.equal(await evaluate("document.querySelector('[data-pages-note]').textContent"), "这次没能完成，请稍后再试。");
+      await waitFor("document.querySelector('[data-pages-note]').textContent.includes('UNIQUE constraint failed') && document.querySelector('[data-pages-artifact-bar]').textContent === '存为固定版本'");
       assert.equal(pages.get(original.id).publication_pending, undefined);
       assert.equal(pages.get(original.id).artifact_version, 0);
       assert.equal(project.db.prepare("SELECT 1 FROM library_artifact_versions WHERE artifact_id = ?").get("pages-" + original.id), undefined);

@@ -199,14 +199,6 @@ test("FSS-01 FSS-02 FSS-08 FSS-20 FSS-27 FSS-28 FSS-32 real settings prepare a l
   await b.command("Page.addScriptToEvaluateOnNewDocument", {
     source: "{ const now = Date.now; Date.now = () => now() + 60_000; }",
   }, b.sessionId);
-  // This recovery belongs to the same signed-in account. The generic Home fixture otherwise reports a signed-out visitor.
-  await b.evaluate(`(() => {
-    const fetchStatus = window.fetch.bind(window);
-    const scope = document.querySelector('meta[name="molis-work-page-session"]').content.split('.')[1];
-    window.fetch = (input, init) => new URL(input instanceof Request ? input.url : input, location.href).pathname === '/api/personal/status'
-      ? Promise.resolve(Response.json({ configured: true, ready: true, identity: { displayName: 'Fixture' }, viewScope: scope }))
-      : fetchStatus(input, init);
-  })()`);
   await b.navigate(() => b.evaluate(`setTimeout(() => {
     dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true }));
     dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));

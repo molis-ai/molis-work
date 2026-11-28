@@ -381,22 +381,21 @@ export class PersonalSync {
     await this.run();
   }
   async resolve(namespace:string,key:string,choice:'local'|'remote',revision?:number,state?:string){
-    const registration=this.selected(namespace),policyRevision=this.policy().revision,signal=this.controller.signal;
-    const check=()=>{assertSyncRegistration(registration,()=>this.assert());this.selected(namespace);if(signal.aborted||this.policy().revision!==policyRevision)throw syncError('scope','同步状态已变化，原件已保留');};
-    await registration.refresh();check();
-    const {onProgress,finish}=this.trackTransfer('conflict');
-    try{
-      const channel=this.createBlobChannel(check,onProgress);
-      const inspection=await retainConflict({home:this.options.home,namespace,key,choice,revision,state,policyRevision,registration,channel});
-      await this.exclusive(async()=>{
-        check();
+    await this.exclusive(async()=>{
+      const registration=this.selected(namespace),policyRevision=this.policy().revision,signal=this.controller.signal;
+      const check=()=>{assertSyncRegistration(registration,()=>this.assert());this.selected(namespace);if(signal.aborted||this.policy().revision!==policyRevision)throw syncError('scope','同步状态已变化，原件已保留');};
+      await registration.refresh();check();
+      const {onProgress,finish}=this.trackTransfer('conflict');
+      try{
+        const channel=this.createBlobChannel(check,onProgress);
+        const inspection=await retainConflict({home:this.options.home,namespace,key,choice,revision,state,policyRevision,registration,channel});
         if(choice==='remote')await registration.content?.prepare?.(key,inspection.remote);
         check();
         await withSyncMutation(registration,{kind:'resolve',key,choice,revision:inspection.revision,state:inspection.state},check,r=>r.resolve(key,choice,inspection.revision,inspection.state));
-      });
-    }finally{
-      finish();
-    }
+      }finally{
+        finish();
+      }
+    });
     await this.run();
   }
   private selected(namespace:string){this.assert();const registration=this.registry.current().find(r=>syncNamespace(r.selection)===namespace);if(!registration||!this.policy().selections.some(s=>syncNamespace(s)===namespace))throw syncError('scope','此同步集合已关闭或不存在');return registration;}

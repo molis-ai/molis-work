@@ -6,12 +6,14 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { COGNIA_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-cognia";
 import { openCogniaStore } from "./fixtures/plugin-home-stores.js";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
+import { captureHostLog, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 import { openTestHome, type TestHome } from "./fixtures/test-home.js";
 import { residentMcpGrants } from "./fixtures/resident-mcp-grants.js";
 
 // Allow the loaded Linux shard time for two Homes and four real stdio connections.
 // RAC-105-A-16: the resident owns each Home while independent stdio clients exercise the real grants and persistence.
 test("standard Cognia MCP clients share real imports and fixed bytes, isolate Home/read grants, and resume after client restart", { timeout: 90_000 }, async t => {
+  const logged: HostLogEntry[] = []; t.after(captureHostLog(logged));
   const homes = await Promise.all([openTestHome(t), openTestHome(t)]);
   // Cognia works in a partition (batch 108): each Home's clients are bound to one project that has it.
   const projects = new Map(await Promise.all(homes.map(async home => [home, await home.createProject("Knowledge", ["cognia"])] as const)));
@@ -64,5 +66,8 @@ test("standard Cognia MCP clients share real imports and fixed bytes, isolate Ho
     assert.equal((await call(reader, "workspace.get")).materials.length, 0);
     assert.equal((await call(reader, "material.get", { id, revision: 1 })).material.body, "# Evidence\nOriginal bytes");
     const store = openCogniaStore(homes[0]!.home, projects.get(homes[0]!)!.project_id); try { assert.equal(store.read(id, 1).body, "# Evidence\nOriginal bytes"); assert.equal(store.materials().length, 0); } finally { store.close(); }
+    // Cognia writes in its partition while the project is not open; the project's knowledge then waits for its next search there,
+    // which is not a failure to report (it was logged as a scope mismatch after every change).
+    assert.deepEqual(logged.filter(entry => entry.fields?.where === "knowledge.catch_up"), [], "a project that is not open is not a catch-up failure");
   } finally { await Promise.all(clients.map(client => client.close())); }
 });

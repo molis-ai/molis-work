@@ -8,6 +8,8 @@ import type { Page } from "./page.js";
 /** Keeps this window's editing premise separate from background reads. */
 export function mountInputEditor(page: Page) {
   const { s, refs, input, root, q } = page;
+  /** Copies this window could not read, by key: kept as they are (the notice says so) and said once. */
+  const unreadable = new Map<string, string>(), reported = new Map<string, string>();
   const localQuestions = (id: string): Record<string, unknown> | undefined => {
     if (s.questionDrafts.has(id)) return s.questionDrafts.get(id);
     const key = draftKey(page, id) + ":questions";
@@ -23,8 +25,13 @@ export function mountInputEditor(page: Page) {
       if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("invalid");
       return value as Record<string, unknown>;
     } catch {
-      try { sessionStorage.removeItem(key); } catch { /* storage closed */ }
-      if (id === s.current) status(page, uiText.text("coding.input-editor.draft-unreadable"), true);
+      // The words the person left stay where they are, as the notice says; only this read goes without them. The notice
+      // waits for the read that found them to finish drawing the session, which resets the status line.
+      unreadable.set(key, raw);
+      if (id === s.current && reported.get(key) !== raw) {
+        reported.set(key, raw);
+        queueMicrotask(() => { if (id === s.current) status(page, uiText.text("coding.input-editor.draft-unreadable"), true); });
+      }
       return undefined;
     }
   };
@@ -36,7 +43,10 @@ export function mountInputEditor(page: Page) {
       const changed = JSON.stringify(localQuestions(id)) !== JSON.stringify(value.question_drafts);
       refs.draft.adopt(id, value.draft);
       s.questionDrafts.set(id, value.question_drafts);
-      try { sessionStorage.setItem(draftKey(page, id) + ":questions", JSON.stringify(value.question_drafts)); } catch { /* The window still holds its copy. */ }
+      try {
+        const key = draftKey(page, id) + ":questions";
+        if (!unreadable.has(key) || sessionStorage.getItem(key) !== unreadable.get(key)) sessionStorage.setItem(key, JSON.stringify(value.question_drafts));
+      } catch { /* The window still holds its copy. */ }
       if (id === s.current && refs.draft.owns(id)) {
         input.value = value.draft;
         window.molisFit?.(input);

@@ -137,6 +137,10 @@ export function assertContributionMatchesManifest(
 ): void {
   assertKind(manifest, contribution);
   const problems = [...assertActions(manifest, contribution, scope), ...assertStateMachines(manifest, contribution, scope)];
+  if (manifest.overview_projection?.rolling_window && !(scope.partial && scope.outside_project)
+    && (contribution.kind !== "app" || typeof contribution.onDue !== "function")) {
+    problems.push("声明了滚动总览窗口但没有提供 onDue");
+  }
   if (contribution.kind === "integration" && Boolean(manifest.source_presentations?.length) !== (typeof contribution.presentSource === "function")) {
     problems.push("source_presentations 声明与 presentSource 必须一同兑现");
   }

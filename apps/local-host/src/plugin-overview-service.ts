@@ -41,7 +41,10 @@ export function pluginOverviewFor(manifest: PluginManifest, context: Pick<Plugin
       const notify = () => changed(install);
       // A savepoint can rewind the queued callback. The transaction owns deduplication as well as rollback.
       const touch = () => afterCommit(notify, true);
-      const beforeWrite = () => { live(); installation(); };
+      const beforeWrite = () => {
+        live();
+        installation();
+      };
       const rows: PluginOverviewRows = {
         upsert(kind, row) {
           const checkedKind = kindOf(kind);

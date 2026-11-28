@@ -2,6 +2,7 @@ import { refreshedOverview } from "./fixtures/overview-read.js";
 // The platform services batch 106 adds for the unified partitions (specs/unified-partition-plugins §4.1, §5, §6.1): the due registry with
 // 95-3's seven-day expiry, the evidence ledger, and how both follow a partition's and an installation's lifecycle.
 import assert from "node:assert/strict";
+import { assertContributionMatchesManifest } from "@molis-ai/molis-work-plugin-runtime";
 import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -481,6 +482,9 @@ test("UPP-34 parsePluginManifest validates databases.partition SQL safety, overv
   }));
   assert.equal(parsed.market?.category, "plan");
   assert.equal(parsed.overview_projection?.rolling_window, true);
+  assert.throws(() => assertContributionMatchesManifest(parsed, { kind: "app" }), { code: "plugin.contribution_unredeemed" });
+  assert.doesNotThrow(() => assertContributionMatchesManifest(parsed, { kind: "app", onDue: async () => ({}) }));
+  assert.doesNotThrow(() => assertContributionMatchesManifest(parsed, { kind: "app" }, { partial: true, outside_project: true }));
   assert.throws(() => parsePluginManifest(base({ overview_projection: { kinds: ["event"], rolling_window: "yes" } })), /rolling_window/u);
   assert.deepEqual(parsed.overview_projection?.title_text, { key: "sample-todo.overview.title" });
   assert.doesNotThrow(() => parsePluginManifest(base({ overview_projection: { kinds: ["task"], title_text: { literal: "待办" } } })), "literal TextRef accepted consistently");

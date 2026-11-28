@@ -9,7 +9,6 @@ import { describeSqliteSchema } from "@molis-ai/molis-work-storage";
 import { SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import type { PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
-import { WORK_BRIEF_PLUGIN_ID } from "@molis-ai/molis-work-plugin-work-brief";
 import { dualPlugin } from "./fixtures/dual-plugin.js";
 import { homeStores, MolisWorkLocalHost, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
@@ -44,8 +43,8 @@ async function rejectedStore(version: 1 | 2) {
 for (const version of [2, 1] as const) {
   test(`W3-06-F-05 W3-06-F-08 RAC-402 RAC-404 Home ${version === 2 ? "wrong-version 2" : "incomplete current 1"} refuses Goals authority intact while its recovery page opens`, { timeout: 60_000 }, async t => {
     const home = await rejectedStore(version), before = readStore(runtimePath(home));
-    const beforeBytes = await readFile(runtimePath(home));
-    const { host, project, request } = await serveHomeRuntime(t, { homeDirectory: home,
+    const beforeBytes = await readFile(runtimePath(home)), probe = homeProbe("recoveryprobe");
+    const { host, project, request } = await serveHomeRuntime(t, { homeDirectory: home, pluginFixtures: { home: [probe.definition] },
       actionAvailability: projectActionAvailability((options, operation) => withCatalog(options, operation), home) });
     const withCatalog = host.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
     const first = host.homePlugins!.ready();
@@ -74,8 +73,8 @@ for (const version of [2, 1] as const) {
     assert.match(html, /data-home-plugin-unavailable/u);
     assert.match(html, /查看插件状态/u);
     assert.match(html, /Home 插件运行库不可用/u);
-    // A Home plugin's own entry (Work Brief's Home half; Issues runs in partitions since batch 108) keeps its own failure.
-    const own = await request(`/api/plugins/${WORK_BRIEF_PLUGIN_ID}/enable`, { method: "POST", body: {} });
+    // A Home plugin's own entry (a probe: no shipped plugin runs in the Home since batch 109-1) keeps its own failure.
+    const own = await request(`/api/plugins/${probe.id}/enable`, { method: "POST", body: {} });
     assert.equal(own.status, 503, "the unavailable Home entry keeps its own failure");
     assert.deepEqual(readStore(runtimePath(home)), before, "no installs, grants, generations, releases, version or schema were changed");
     assert.deepEqual(await readFile(runtimePath(home)), beforeBytes, "rendering leaves the bad ledger bytes intact");

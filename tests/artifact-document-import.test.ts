@@ -17,6 +17,7 @@ import { blankPng, epub, odt, pptx, rtf, xlsx } from "./fixtures/office-files.js
 import { GoalProjectApplication, boardSnapshot, seedBoard } from "./fixtures/goal-application.js";
 import { partitionLibraryFile } from "./fixtures/plugin-home-stores.js";
 import { openSqliteConnection } from "@molis-ai/molis-work-storage";
+import { writeProjectRoot } from "@molis-ai/molis-work-module-projects";
 
 const controlToken = "artifact-import-test-control-token-0123456789";
 const markdown = "# 导入验收\n\n保留中文正文和 **Markdown**。\n\n<script>importAttack()</script>\n";
@@ -289,8 +290,10 @@ test("invalid, empty, oversized and unauthorized imports leave Artifact records 
 });
 
 test("external document snapshots preserve exact old versions and isolate the same source by project", async t => {
-  const { coordinator, library, get } = await fixture(t);
-  coordinator.initializeBoard({ project_id: "other-project", actor_id: "fixture-owner", idempotency_key: "create-other-project" });
+  const { store, library, get } = await fixture(t);
+  // The other project needs only a root row for the library's 成果 to name it; since batch 109-1 Goals keeps the one board of its library's
+  // own project, so the root is written as the projects module writes it rather than through a second board.
+  writeProjectRoot(store.db, "other-project", "2026-09-22T00:00:00.000Z");
   let document: ImportedArtifactDocument = {
     source: "notion", source_id: "a1b2c3-source", source_url: "https://www.notion.so/a1b2c3-source",
     title: "来源文档", content: "第一次读取的正文", format: "markdown", warnings: [],

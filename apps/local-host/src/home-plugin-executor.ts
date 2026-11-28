@@ -35,7 +35,6 @@ import { pluginModelFor } from "./plugin-model-service.js";
 import { pluginMaterialsFor } from "./plugin-materials-service.js";
 import { pluginConnectionsFor } from "./plugin-connections-service.js";
 import { pluginInstallationsFor, type InstallationDirectoryClient } from "./plugin-installation-directory.js";
-import { pluginEvidenceCollectorFor } from "./plugin-evidence-collector.js";
 import { pluginBackgroundFor } from "./plugin-background-service.js";
 import { pluginImageGenerationFor } from "./plugin-image-generation-service.js";
 import { forgetSandboxImageBindings, sandboxImageDeclaration, sandboxImageGenerationFor } from "./sandbox-image-generation.js";
@@ -163,7 +162,6 @@ export class HomePluginExecutor implements PluginExecutor {
       const materials = pluginMaterialsFor(home, definition, authorized, assertActive, null);
       const connections = pluginConnectionsFor(home, definition, authorized, assertActive);
       const installations = pluginInstallationsFor(manifest, authorized, null, this.options.installations(), assertActive, this.options.home);
-      const evidenceCollector = pluginEvidenceCollectorFor(manifest, authorized, null, this.options.home, assertActive);
       // A platform part that takes text out of projects (Shelf) reads what producers mark `copy_out`, never a list of plugin types (44B review P-07).
       const artifacts = homePluginArtifactsFor(manifest, authorized, this.options.projectArtifacts, assertActive, isHostedPlatformPart(manifest.plugin_id) ? () => copyOutTypes() : undefined);
       directory = manifest.permissions.some(item => item.permission === DIRECTORY_READ_PERMISSION)
@@ -175,7 +173,7 @@ export class HomePluginExecutor implements PluginExecutor {
         ? this.options.storage.forPlugin(authorized, manifest) : undefined;
       terminal = pluginTerminalFor({ home: this.options.home, manifest, context: authorized, ownerFiles: ownerFiles?.client, assertActive });
       const hosted: PluginStartContext = Object.freeze({ ...authorized, ...(home.startedAt ? { host_started_at: home.startedAt } : {}), actor_id: this.options.actorId, sync: syncActivation(this.options.home, manifest, authorized, assertActive), copy: copyActivation(this.options.home, manifest, authorized, assertActive), services: Object.freeze({
-        ui: ui.client, ...(database?.sync ? {sync: database.sync} : {}), interaction: pluginInteraction, terminal: terminal?.client, database: database?.client, ...(sandboxLibrary ? { database_statements: sandboxLibrary.statements } : {}), ...(ownerFiles ? { ownerFiles: ownerFiles.client } : {}), ...(model ? { model } : {}), ...(imageGeneration ? { imageGeneration } : {}), ...(localTools ? { localTools } : {}), ...(projects ? { projects } : {}), ...(materials ? { materials } : {}), ...(connections ? { connections } : {}), ...(directory ? { directory: directory.client } : {}), ...(storage ? { storage } : {}), ...(background ? { background: background.client } : {}), ...(installations ? { installations } : {}), ...(evidenceCollector ? { evidenceCollector } : {}), ...(artifacts ? { artifacts } : {}),
+        ui: ui.client, ...(database?.sync ? {sync: database.sync} : {}), interaction: pluginInteraction, terminal: terminal?.client, database: database?.client, ...(sandboxLibrary ? { database_statements: sandboxLibrary.statements } : {}), ...(ownerFiles ? { ownerFiles: ownerFiles.client } : {}), ...(model ? { model } : {}), ...(imageGeneration ? { imageGeneration } : {}), ...(localTools ? { localTools } : {}), ...(projects ? { projects } : {}), ...(materials ? { materials } : {}), ...(connections ? { connections } : {}), ...(directory ? { directory: directory.client } : {}), ...(storage ? { storage } : {}), ...(background ? { background: background.client } : {}), ...(installations ? { installations } : {}), ...(artifacts ? { artifacts } : {}),
         actions: pluginHostActions(authorized, manifest, { client: this.options.client, actor_id: this.options.actorId, assertActive, pluginCaller: caller }),
       }) });
       // What a connection card binds an image target under (§13.5 C2): the namespace this instance's own image service binds under, nothing when it has none.

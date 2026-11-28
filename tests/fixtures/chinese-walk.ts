@@ -1,4 +1,5 @@
-import { LocalProjectDatabase, seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase} from "@molis-ai/molis-work-app-local-host";
+import { seedDemoGoals } from "./demo-seed.js";
 import { layoutFindings } from "./layout-audit.js";
 import { TEXT_WRAP_AUDIT, type TextWrapIssue } from "./text-wrap-audit.js";
 import { TRUNCATION_AUDIT, type TruncationIssue } from "./truncation-audit.js";

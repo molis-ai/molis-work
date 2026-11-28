@@ -31,7 +31,6 @@ export const FEED_PERMISSIONS: PluginPermissionDeclaration[] = [
   { permission: "sources:read_repository", required: true, reason: "读取 GitHub 研究库里发布的内容", reason_text: { key: "feed.permission.sources-read-repository.reason" } },
   { permission: "schedule:read", required: true, reason: "查看来源是否已设好定时拉取", reason_text: { key: "feed.permission.schedule-read.reason" } },
   { permission: "schedule:write", required: true, reason: "设置按固定间隔自动拉取到期来源", reason_text: { key: "feed.permission.schedule-write.reason" } },
-  { permission: "actions:invoke", required: true, reason: "登记和释放本机留存的消息正文引用", reason_text: { key: "feed.permission.actions-invoke.reason" } },
   { permission: "scenes:use", required: true, reason: "绑定并运行捕捉规则的判断场景", reason_text: { key: "feed.permission.scenes-use.reason" } },
   { permission: "judgments:read", required: true, reason: "读取捕捉规则的判断记录", reason_text: { key: "feed.permission.judgments-read.reason" } },
   { permission: "judgments:write", required: true, reason: "保存捕捉规则的判断结果", reason_text: { key: "feed.permission.judgments-write.reason" } },

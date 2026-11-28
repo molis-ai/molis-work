@@ -202,8 +202,8 @@ test("BL-missed-runs-never-expire /api/runtime/expired/seen isolates homes, igno
     const dueAt = new Date(Date.now() - RUN_MISSED_KEPT_MS - 2 * 86_400_000).toISOString();
     const missedAt = new Date(Date.now() - 86_400_000).toISOString();
     db.db.prepare(
-      "INSERT INTO schedule_missed_runs (project_id, run_id, kind, ref, title, due_at, missed_at) VALUES (?, ?, 'reminder', ?, ?, ?, ?)",
-    ).run(project.project_id, `reminder:r1:${dueAt}`, "r1", "过期提醒", dueAt, missedAt);
+      "INSERT INTO schedule_missed_runs (run_id, kind, ref, title, due_at, missed_at) VALUES (?, 'reminder', ?, ?, ?, ?)",
+    ).run(`reminder:r1:${dueAt}`, "r1", "过期提醒", dueAt, missedAt);
     // The row Schedule keeps with it in the overview (V17), which the panel reads.
     await writeMainOverviewRows(homeA, db, project.project_id, scheduleManifest, rows => rows.upsert("scheduled_run",
       { row_id: `reminder:r1:${dueAt}`, title: "过期提醒", due_at: dueAt, missed_at: missedAt, updated_at: missedAt }));

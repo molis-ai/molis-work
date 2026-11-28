@@ -24,7 +24,8 @@ export interface PluginSyncCollection {
 export interface SyncApprovalOutcomeDeclaration {
   /** The reviewed subject's kind (`review.target.subject.kind`). */
   readonly subject_kind: string;
-  /** The business section and table of this collection that hold the applied rows; the table has a `project_id` column. */
+  /** The business section and table of this collection that hold the applied rows. No partition column is required: a partition's own
+   * main database holds one project (`project_root`), and a table that does carry `project_id` is read with it bound. */
   readonly section: string;
   readonly table: string;
   /** The column holding the platform's decision id. */

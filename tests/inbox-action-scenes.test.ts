@@ -209,7 +209,7 @@ test("QEA-147 Inbox consumes a registered judgment, retains the original binding
     assert.deepEqual(consumed.suggested_behavior_ids, ["inbox.done"]);
     assert.equal(history().length, 3);
     assert.deepEqual(await recommendations(), [consumed]);
-    await host.withProject(reference, runtime => runtime.store.db.prepare("UPDATE feed_items SET body = ? WHERE item_id = ? AND project_id = ?").run("原文已更正", entry.subject_id, reference.project_id));
+    await host.withProject(reference, runtime => runtime.store.db.prepare("UPDATE feed_items SET body = ? WHERE item_id = ?").run("原文已更正", entry.subject_id));
     assert.deepEqual(await recommendations(), [], "changing the underlying material also withdraws advice without changing the Inbox entry");
     assert.ok(history().some(record => record.judgment_id === consumed.judgment_id));
     assert.ok(history().some(record => record.judgment_id === legacy.judgment_id));

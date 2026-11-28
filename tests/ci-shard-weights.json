@@ -659,7 +659,7 @@
  "tests/feed-capture-scenes.test.ts": 30,
  "tests/feed-capture.e2e.test.ts": 171,
  "tests/feed-connectors.test.ts": 16,
- "tests/feed-content-ledger.test.ts": 2,
+ "tests/feed-evidence-holds.test.ts": 2,
  "tests/feed-contract.test.ts": 17,
  "tests/feed-feedback.e2e.test.ts": 36,
  "tests/feed-goal-promotion-authority.test.ts": 55,

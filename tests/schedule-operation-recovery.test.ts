@@ -65,12 +65,12 @@ test('narrow Schedule UI reviews unknown outcomes, cancels safely and rejects a 
   await child.click('[data-schedule-operation-decision=retry]');
   assert.match(await child.evaluate<string>("document.querySelector('[data-operation-review-warning]').textContent"), /可能重复/);
   await child.click('[data-schedule-operation-form] footer [data-schedule-operation-close]');
-  assert.equal(getScheduledOperation(b.store.db, projectId, id)?.state, 'needs_review');
+  assert.equal(getScheduledOperation(b.store.db, id)?.state, 'needs_review');
   await child.click('[data-schedule-operation-decision=skip]');
   new SqlitePluginRuntimeRepository(store.db).save({ ...original, installation_generation: 'replacement' });
   await child.click('[data-schedule-operation-form] [type=submit]');
   await child.waitFor("document.querySelector('[data-operation-review-error]').textContent.includes('安装或版本已变更')");
-  assert.equal(getScheduledOperation(b.store.db, projectId, id)?.state, 'needs_review');
+  assert.equal(getScheduledOperation(b.store.db, id)?.state, 'needs_review');
   await b.evaluate(`{ const original = window.fetch; window.restoreOperationFetch = () => window.fetch = original;
     window.fetch = (url, options) => new URL(url, location.href).pathname === location.pathname ? Promise.resolve(new Response('unavailable', { status: 503 })) : original(url, options); }`);
   await child.click('[data-operation-review-refresh]');
@@ -91,6 +91,6 @@ test('narrow Schedule UI reviews unknown outcomes, cancels safely and rejects a 
   }
   await child.click('[data-schedule-operation-form] [type=submit]');
   await child.waitFor("!document.querySelector('[data-schedule-operation-dialog]').open && !document.querySelector('[data-schedule-operation-decision]')");
-  assert.equal(getScheduledOperation(b.store.db, projectId, id)?.state, 'completed');
-  assert.equal(listScheduledOperationOccurrences(b.store.db, projectId, id)[0]?.state, 'skipped');
+  assert.equal(getScheduledOperation(b.store.db, id)?.state, 'completed');
+  assert.equal(listScheduledOperationOccurrences(b.store.db, id)[0]?.state, 'skipped');
 });

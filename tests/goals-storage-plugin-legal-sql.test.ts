@@ -74,7 +74,7 @@ test("RAC-284 the statement check the modules run under refuses a statement on t
   try {
     const { db, stats } = pluginLegalSql(store);
     new GoalsModule(db, store, {}).commands.createGoal("board-legal", goal("goal-kept"), { actor_id: "user-1", idempotency_key: "create-kept" });
-    assert.equal((db.prepare("SELECT COUNT(*) AS n FROM goals WHERE project_id = ?").get("board-legal") as { n: number }).n, 1, "Goals' own table is allowed");
+    assert.equal((db.prepare("SELECT COUNT(*) AS n FROM goals").get() as { n: number }).n, 1, "Goals' own table is allowed");
     assert.ok(stats.checked >= 1);
     assert.throws(() => db.prepare("SELECT COALESCE(MAX(seq), 0) AS cursor FROM events WHERE project_id = ?").get("board-legal"));
     assert.throws(() => db.prepare("INSERT INTO idempotency_records (project_id, actor_id, operation, idempotency_key, request_hash, outcome_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
@@ -89,20 +89,20 @@ test("RAC-284 supported all/get/run preserve real reads, committed writes and tr
   const { store, dispose } = library();
   try {
     const { db } = pluginLegalSql(store);
-    const update = db.prepare("UPDATE boards SET updated_at = ? WHERE project_id = ?");
-    const read = db.prepare("SELECT updated_at FROM boards WHERE project_id = ?");
-    const result = db.transaction(() => update.run("committed", "board-legal")).immediate();
+    const update = db.prepare("UPDATE boards SET updated_at = ? WHERE id = 1");
+    const read = db.prepare("SELECT updated_at FROM boards WHERE id = 1");
+    const result = db.transaction(() => update.run("committed")).immediate();
     assert.equal(result.changes, 1);
-    assert.deepEqual(read.get("board-legal"), { updated_at: "committed" });
-    assert.deepEqual(read.all("board-legal"), [{ updated_at: "committed" }]);
-    assert.deepEqual(store.db.prepare("SELECT updated_at FROM boards WHERE project_id = ?").get("board-legal"), { updated_at: "committed" });
+    assert.deepEqual(read.get(), { updated_at: "committed" });
+    assert.deepEqual(read.all(), [{ updated_at: "committed" }]);
+    assert.deepEqual(store.db.prepare("SELECT updated_at FROM boards WHERE id = 1").get(), { updated_at: "committed" });
 
     assert.throws(() => db.transaction(() => {
-      update.run("rolled-back", "board-legal");
-      assert.deepEqual(read.get("board-legal"), { updated_at: "rolled-back" });
+      update.run("rolled-back");
+      assert.deepEqual(read.get(), { updated_at: "rolled-back" });
       throw new Error("rollback fixture write");
     }).immediate(), /rollback fixture write/);
-    assert.deepEqual(store.db.prepare("SELECT updated_at FROM boards WHERE project_id = ?").get("board-legal"), { updated_at: "committed" });
+    assert.deepEqual(store.db.prepare("SELECT updated_at FROM boards WHERE id = 1").get(), { updated_at: "committed" });
   } finally { dispose(); }
 });
 
@@ -143,20 +143,20 @@ test("RAC-285 no free-form exec and the platform savepoint rolls back real previ
   try {
     const legal = pluginLegalSql(store);
     const governance = new GovernanceCollaborationModule({ db: legal.governance, journal: store });
-    const before = store.db.prepare("SELECT updated_at FROM boards WHERE project_id = ?").get("board-legal");
-    const update = legal.db.prepare("UPDATE boards SET updated_at = ? WHERE project_id = ?");
+    const before = store.db.prepare("SELECT updated_at FROM boards WHERE id = 1").get();
+    const update = legal.db.prepare("UPDATE boards SET updated_at = ? WHERE id = 1");
     assert.equal(governance.decisions.previewMaterialization(() => {
-      assert.equal(update.run("whole-preview", "board-legal").changes, 1);
-      assert.deepEqual(store.db.prepare("SELECT updated_at FROM boards WHERE project_id = ?").get("board-legal"), { updated_at: "whole-preview" });
+      assert.equal(update.run("whole-preview").changes, 1);
+      assert.deepEqual(store.db.prepare("SELECT updated_at FROM boards WHERE id = 1").get(), { updated_at: "whole-preview" });
       return "whole";
     }), "whole");
-    assert.deepEqual(store.db.prepare("SELECT updated_at FROM boards WHERE project_id = ?").get("board-legal"), before);
+    assert.deepEqual(store.db.prepare("SELECT updated_at FROM boards WHERE id = 1").get(), before);
     assert.equal(governance.decisions.previewMaterializationItem(() => {
-      assert.equal(update.run("item-preview", "board-legal").changes, 1);
-      assert.deepEqual(store.db.prepare("SELECT updated_at FROM boards WHERE project_id = ?").get("board-legal"), { updated_at: "item-preview" });
+      assert.equal(update.run("item-preview").changes, 1);
+      assert.deepEqual(store.db.prepare("SELECT updated_at FROM boards WHERE id = 1").get(), { updated_at: "item-preview" });
       return { keep: false, value: "item" };
     }), "item");
-    assert.deepEqual(store.db.prepare("SELECT updated_at FROM boards WHERE project_id = ?").get("board-legal"), before);
+    assert.deepEqual(store.db.prepare("SELECT updated_at FROM boards WHERE id = 1").get(), before);
     assert.equal(legal.stats.savepoints, 2, "each preview opens one platform savepoint");
     assert.throws(() => legal.db.exec("SAVEPOINT free_form"), /exec is not a plugin statement/);
   } finally { dispose(); }

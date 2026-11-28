@@ -25,8 +25,6 @@ import { pluginLegalSql } from "./fixtures/plugin-legal-sql.js";
 
 const BOARD = "board-events";
 const GOAL = "goal-events";
-const OTHER_BOARD = "board-other";
-const OTHER_GOAL = "goal-other";
 
 function hooks(store: LocalProjectDatabase) {
   // W5-08-MOD-02: Goal events use the Module's business records, not its storage implementation.
@@ -252,29 +250,13 @@ test("old and new type versions keep their own field definitions after a second 
   }
 });
 
-test("invalid structure, missing required fields, a Goal of another project and a later batch item roll back", () => {
+test("invalid structure, missing required fields and a later batch item roll back", () => {
   const data = fixture();
   try {
-    writeProjectRoot(data.store.db, OTHER_BOARD, "2026-10-20T00:00:00.000Z");
-    data.module.commands.initializeBoard({
-      project_id: OTHER_BOARD, actor_id: "user-1", idempotency_key: "init-other",
-    });
-    data.module.commands.createGoal(OTHER_BOARD, {
-      goal_id: OTHER_GOAL, title: "其他 Goal", outcome: "隔离", why: "跨引用", business_logic: "不可借用。",
-      acceptance_criteria: [{
-        criterion_id: "other-criterion",
-        statement: "别的项目的要求",
-        decision_method: "inspection",
-        pass_condition: "不相关",
-      }],
-    }, { actor_id: "user-1", idempotency_key: "create-other" });
+    // Since batch 109-1 a partition's library holds one project, so there is no Goal of another project here to report against.
     data.module.events.configure({
       project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", expected_version: 0, idempotency_key: "cfg-v1",
       types: [storyDelivery(1)],
-    });
-    data.module.events.configure({
-      project_id: OTHER_BOARD, goal_id: OTHER_GOAL, actor_id: "runtime-1", expected_version: 0, idempotency_key: "cfg-other",
-      types: [{ ...storyDelivery(1), type_id: "other-delivery" }],
     });
 
     const before = data.module.events.listEvents(BOARD, GOAL).events.length;
@@ -302,13 +284,6 @@ test("invalid structure, missing required fields, a Goal of another project and 
         events: [reportDelivery({ type_version: 9, fields: { piece: "有内容" } })],
       }),
       (error: unknown) => error instanceof ActionError && error.code === "goals.event_type.version_not_found",
-    );
-    assert.throws(
-      () => data.module.events.report({
-        project_id: OTHER_BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "cross-board",
-        events: [reportDelivery({ fields: { piece: "有内容" } })],
-      }),
-      (error: unknown) => error instanceof ActionError && error.code === "goals.not_found",
     );
     assert.throws(
       () => data.module.events.configure({
@@ -350,7 +325,7 @@ test("invalid structure, missing required fields, a Goal of another project and 
     assert.equal(data.module.events.listEvents(BOARD, GOAL).events.length, before);
     assert.equal(Number(data.store.db.prepare("SELECT COUNT(*) AS count FROM events WHERE project_id = ?").get(BOARD)?.count), beforeJournal);
     assert.equal(data.module.events.readConfig(BOARD, GOAL).version, 1);
-    assert.equal(data.store.db.prepare("SELECT COUNT(*) AS count FROM goal_work_events WHERE project_id = ? AND kind = 'report'").get(BOARD)?.count, 0);
+    assert.equal(data.store.db.prepare("SELECT COUNT(*) AS count FROM goal_work_events WHERE kind = 'report'").get()?.count, 0);
 
     data.module.lifecycle.setTrashed(BOARD, { goal_id: GOAL, trashed: true, reason: "先放回收站" }, {
       actor_id: "user-1", idempotency_key: "trash-goal",
@@ -401,7 +376,7 @@ test("retries replay without duplicates; reused keys conflict; stale config vers
     });
     assert.equal(replayedReport.replayed, true);
     assert.equal(replayedReport.events[0]?.event_id, reported.events[0]?.event_id);
-    assert.equal(data.store.db.prepare("SELECT COUNT(*) AS count FROM goal_work_events WHERE kind = 'report' AND project_id = ?").get(BOARD)?.count, 1);
+    assert.equal(data.store.db.prepare("SELECT COUNT(*) AS count FROM goal_work_events WHERE kind = 'report'").get()?.count, 1);
     assert.throws(
       () => data.module.events.report({
         project_id: BOARD, goal_id: GOAL, actor_id: "runtime-1", idempotency_key: "report-1",

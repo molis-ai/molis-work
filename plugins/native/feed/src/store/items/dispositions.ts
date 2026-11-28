@@ -35,8 +35,8 @@ export class FeedDispositions {
       this.records.db.run(`
         UPDATE feed_items
         SET disposition = ?, revision = revision + 1, updated_at = ?
-        WHERE project_id = ? AND item_id = ?
-      `, disposition, at, projectId, itemId);
+        WHERE item_id = ?
+      `, disposition, at, itemId);
       settleActiveAttention(this.attention, projectId, itemId, disposition === "archived" ? "dismissed" : "done");
       this.records.appendEvent(
         projectId,
@@ -62,8 +62,8 @@ export class FeedDispositions {
       this.records.db.run(`
         UPDATE feed_items
         SET disposition = 'inbox', revision = revision + 1, updated_at = ?
-        WHERE project_id = ? AND item_id = ?
-      `, at, projectId, itemId);
+        WHERE item_id = ?
+      `, at, itemId);
       settleActiveAttention(this.attention, projectId, itemId, "dismissed");
       this.records.appendEvent(
         projectId,
@@ -85,8 +85,8 @@ export class FeedDispositions {
       const at = this.records.now().toISOString();
       this.records.db.run(`
         UPDATE feed_items SET read_at = ?, updated_at = ?
-        WHERE project_id = ? AND item_id = ?
-      `, at, at, projectId, itemId);
+        WHERE item_id = ?
+      `, at, at, itemId);
       this.records.appendEvent(
         projectId,
         itemId,
@@ -117,8 +117,8 @@ export class FeedDispositions {
       this.records.db.run(`
         UPDATE feed_items
         SET disposition = ?, revision = revision + 1, updated_at = ?
-        WHERE project_id = ? AND item_id = ?
-      `, disposition, at, projectId, itemId);
+        WHERE item_id = ?
+      `, disposition, at, itemId);
       settleActiveAttention(this.attention, projectId, itemId, "done");
       this.records.appendEvent(
         projectId,
@@ -139,12 +139,12 @@ export class FeedDispositions {
       const at = this.records.now().toISOString();
       let removed = 0;
       for (;;) {
-        const ids = db.all("SELECT item_id FROM feed_items WHERE project_id = ? AND source_id = ? ORDER BY item_id LIMIT 200", projectId, sourceId) as Array<{ item_id: string }>;
+        const ids = db.all("SELECT item_id FROM feed_items WHERE source_id = ? ORDER BY item_id LIMIT 200", sourceId) as Array<{ item_id: string }>;
         if (!ids.length) return removed;
         for (const { item_id: itemId } of ids) {
           this.records.goalLinks.remove(projectId, itemId);
           this.attention.commands.deleteSubject(projectId, "feed_item", itemId);
-          db.run("DELETE FROM feed_items WHERE project_id = ? AND item_id = ?", projectId, itemId);
+          db.run("DELETE FROM feed_items WHERE item_id = ?", itemId);
           this.records.appendEvent(projectId, itemId, "feed_item.deleted", "feed_item.deleted", "来源本地历史已删除", { source_id: sourceId }, at);
           removed++;
         }

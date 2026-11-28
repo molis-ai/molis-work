@@ -12,12 +12,12 @@ export function insertInitialGoalContract(context: GoalsCommandContext, input: {
   const definition = goal.definition_state ?? "draft";
   const decomposition = goal.decomposition_state ?? "abstract";
   context.repository.db.prepare(`INSERT INTO goals (
-    goal_id, project_id, title, outcome, why, business_logic,
+    goal_id, title, outcome, why, business_logic,
     in_scope_json, out_of_scope_json, constraints_json, required_inputs_json, promised_outputs_json, decomposition_review_json,
     definition_state, decomposition_state, validity_state, fulfillment_state,
     priority, accepted_by, accepted_at, created_at, updated_at
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'valid', 'unmet', ?, ?, ?, ?, ?)`).run(
-    goalId, projectId, goal.title.trim(), goal.outcome.trim(), goal.why.trim(), goal.business_logic.trim(),
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'valid', 'unmet', ?, ?, ?, ?, ?)`).run(
+    goalId, goal.title.trim(), goal.outcome.trim(), goal.why.trim(), goal.business_logic.trim(),
     sqliteJson(goal.in_scope ?? []), sqliteJson(goal.out_of_scope ?? []), sqliteJson(goal.constraints ?? []),
     sqliteJson(goal.required_inputs ?? []), sqliteJson(goal.promised_outputs ?? []),
     goal.decomposition_review == null ? null : sqliteJson(goal.decomposition_review), definition, decomposition,

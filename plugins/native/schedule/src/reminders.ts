@@ -26,8 +26,8 @@ export function getScheduleReminder(db: ScheduleTaskDatabase, id: string): Sched
   return row ? JSON.parse(row.record_json) as ScheduleReminder : null;
 }
 function saveNewScheduleReminder(db: ScheduleTaskDatabase, reminder: ScheduleReminder): void {
-  db.prepare("INSERT INTO schedule_plugin_reminders (id, project_id, plugin_id, installation_id, record_json) VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING")
-    .run(reminder.id, reminder.projectId, reminder.pluginId, reminder.installationId, JSON.stringify(reminder));
+  db.prepare("INSERT INTO schedule_plugin_reminders (id, plugin_id, installation_id, record_json) VALUES (?, ?, ?, ?) ON CONFLICT(id) DO NOTHING")
+    .run(reminder.id, reminder.pluginId, reminder.installationId, JSON.stringify(reminder));
 }
 
 function cancelReminderRecord(db: ScheduleTaskDatabase, schedule: ReminderScheduler, record: ScheduleReminder): void {
@@ -36,10 +36,10 @@ function cancelReminderRecord(db: ScheduleTaskDatabase, schedule: ReminderSchedu
     db.prepare("DELETE FROM schedule_plugin_reminders WHERE id = ?").run(record.id);
 }
 
-export function cancelInstallationReminders(db: ScheduleTaskDatabase, schedule: ReminderScheduler, projectId: string, pluginId: string, installationId: string): number {
+export function cancelInstallationReminders(db: ScheduleTaskDatabase, schedule: ReminderScheduler, pluginId: string, installationId: string): number {
   return db.transaction(() => {
-    const rows = db.prepare("SELECT record_json FROM schedule_plugin_reminders WHERE project_id = ? AND plugin_id = ? AND installation_id = ?")
-      .all(projectId, pluginId, installationId) as Array<{ record_json: string }>;
+    const rows = db.prepare("SELECT record_json FROM schedule_plugin_reminders WHERE plugin_id = ? AND installation_id = ?")
+      .all(pluginId, installationId) as Array<{ record_json: string }>;
     for (const row of rows) cancelReminderRecord(db, schedule, JSON.parse(row.record_json) as ScheduleReminder);
     return rows.length;
   }).immediate();
@@ -68,8 +68,8 @@ export function createScheduleReminders(options: {
       if (typeof input.text !== "string" || !input.text.trim() || [...input.text].length > 200) throw scheduleErrors.job_invalid("提醒文字需要 1 到 200 字");
       return db.transaction(() => {
         const descriptor = authorize(identity);
-        const count = db.prepare("SELECT COUNT(*) AS n FROM schedule_plugin_reminders WHERE project_id = ? AND plugin_id = ? AND installation_id = ? AND json_extract(record_json, '$.installationGeneration') = ?")
-          .get(options.projectId, identity.pluginId, identity.installationId, descriptor.generation) as { n: number };
+        const count = db.prepare("SELECT COUNT(*) AS n FROM schedule_plugin_reminders WHERE plugin_id = ? AND installation_id = ? AND json_extract(record_json, '$.installationGeneration') = ?")
+          .get(identity.pluginId, identity.installationId, descriptor.generation) as { n: number };
         if (count.n >= REMINDERS_PER_INSTALLATION) throw scheduleErrors.job_invalid("这个插件的提醒已经太多了，先取消一些");
         const id = randomUUID(), due = new Date(at).toISOString();
         const job = schedule.register({ plugin_id: SCHEDULE_PLUGIN_ID, capability_id: SCHEDULE_REMINDER_WAKEUP, object_ref: id,
@@ -90,7 +90,7 @@ export function createScheduleReminders(options: {
       }).immediate();
     },
     /** A trusted uninstall path removes only this installation's reminders. */
-    cancelInstallation: (pluginId: string, installationId: string) => cancelInstallationReminders(db, schedule, options.projectId, pluginId, installationId),
+    cancelInstallation: (pluginId: string, installationId: string) => cancelInstallationReminders(db, schedule, pluginId, installationId),
   };
 }
 

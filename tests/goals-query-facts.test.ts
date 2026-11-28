@@ -15,11 +15,10 @@ test("public Query preserves complete rule history and Runtime dependency/replac
   try {
     const coordinator = new GoalProjectApplication(store);
     const goals = new GoalsModule(pluginLegalSql(store).db, store, {}, { approvalRules: (project, history) => projectApprovalRules(store.db, project).read(history).rules });
-    for (const board of ["query-main", "query-other"]) coordinator.initializeBoard({
-      project_id: board, actor_id: "user", idempotency_key: `init:${board}`,
-    });
+    // One library is one partition (batch 109-1): another Project's Goals and approval rules live in its own library, not this one.
+    coordinator.initializeBoard({ project_id: "query-main", actor_id: "user", idempotency_key: "init:query-main" });
     for (const id of ["subject", "dep-a", "dep-z", "replacement-a", "replacement-z", "foreign"]) {
-      goals.commands.createGoal(id === "foreign" ? "query-other" : "query-main", {
+      goals.commands.createGoal("query-main", {
         goal_id: id, title: id, outcome: `${id} outcome`, why: "Query compatibility", business_logic: "Read unchanged Goal facts",
         definition_state: "accepted", decomposition_state: "closed_leaf",
         acceptance_criteria: [{ criterion_id: `${id}-result`, statement: "Result readable", decision_method: "inspection", pass_condition: "Read exact facts" }],
@@ -31,7 +30,6 @@ test("public Query preserves complete rule history and Runtime dependency/replac
       insertHistoricalPolicy(store.db, { policy_binding_id: id, project_id: "query-main", goal_id: "subject", policy: { human_approval }, state,
         created_by: "historical-user", reason: `reason:${id}`, created_at: at });
     }
-    insertHistoricalPolicy(store.db, { policy_binding_id: "rule-foreign", project_id: "query-other", goal_id: "foreign", policy: { human_approval: true }, created_at: at });
     const expectedHistory = [["rule-a", "replaced", true], ["rule-m", "active", false], ["rule-z", "withdrawn", true]].map(([id, state, human_approval]) => ({
       policy_binding_id: id, goal_id: "subject", scope: "goal", policy: { human_approval },
       state, created_by: "historical-user", reason: `reason:${id}`, created_at: at,
@@ -40,8 +38,8 @@ test("public Query preserves complete rule history and Runtime dependency/replac
     assert.equal(goals.query.resolvePolicy("query-main", "subject").human_approval, false, "Historical and foreign rules must not affect current policy");
 
     const relation = store.db.prepare(`INSERT INTO goal_relations
-      (relation_id, project_id, from_goal_id, to_goal_id, type, state, reason, created_by, created_at)
-      VALUES (?, 'query-main', ?, ?, ?, ?, 'historical relation', 'user', ?)`);
+      (relation_id, from_goal_id, to_goal_id, type, state, reason, created_by, created_at)
+      VALUES (?, ?, ?, ?, ?, 'historical relation', 'user', ?)`);
     relation.run("dependency-z", "subject", "dep-z", "depends_on", "active", at);
     relation.run("dependency-a", "subject", "dep-a", "depends_on", "active", at);
     relation.run("inactive-dependency", "subject", "replacement-a", "depends_on", "inactive", at);
@@ -55,8 +53,6 @@ test("public Query preserves complete rule history and Runtime dependency/replac
     assert.deepEqual(goals.query.activeReplacement("query-main", "subject"), {
       relation_id: "replacement-z", replacement_goal_id: "replacement-z", replacement_goal_title: "replacement-z",
     });
-    assert.deepEqual(goals.query.listDependencies("query-other", "subject"), []);
-    assert.equal(goals.query.activeReplacement("query-other", "subject"), null);
 
     const before = boardSnapshot(store, "query-main");
     const view = withPagePacks("zh", chinesePagePacks("goals"), () => buildMolisWorkWebView(store, coordinator, { projectId: "query-main" }));

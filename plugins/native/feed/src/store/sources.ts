@@ -24,7 +24,6 @@ export const sourceErrors = defineErrorCodes("sources", {
 
 type Row = Record<string, unknown>;
 const FEED_SOURCES_COLUMNS = `
-      project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
       source_id TEXT NOT NULL,
       kind TEXT NOT NULL,
       definition_id TEXT,
@@ -44,7 +43,7 @@ const FEED_SOURCES_COLUMNS = `
       last_error_code TEXT,
       imported_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
-      PRIMARY KEY (project_id, source_id)
+      PRIMARY KEY (source_id)
 `;
 
 /**
@@ -54,25 +53,24 @@ const FEED_SOURCES_COLUMNS = `
 export const SOURCES_SCHEMA_SQL = `
     CREATE TABLE IF NOT EXISTS feed_sources (${FEED_SOURCES_COLUMNS});
     CREATE INDEX IF NOT EXISTS feed_sources_project_updated_idx
-      ON feed_sources(project_id, updated_at DESC, source_id);
+      ON feed_sources(updated_at DESC, source_id);
 
     CREATE TABLE IF NOT EXISTS source_events (
       event_id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL,
       source_id TEXT NOT NULL,
       type TEXT NOT NULL CHECK (type IN ('source.created', 'source.updated', 'source.status_changed', 'source.retired')),
       payload_json TEXT NOT NULL,
       at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS source_events_project_source_idx
-      ON source_events(project_id, source_id, at, event_id);
+      ON source_events(source_id, at, event_id);
 `;
 
 /** The pulls a source missed while Molis Work was not running, and the person's decision on each (`SourceMissedPulls`). */
 export const FEED_MISSED_PULLS_COLUMNS = `feed_missed_pulls (
-      project_id TEXT NOT NULL, run_id TEXT NOT NULL, source_id TEXT NOT NULL, title TEXT NOT NULL, due_at TEXT NOT NULL, missed_at TEXT NOT NULL,
+      run_id TEXT NOT NULL, source_id TEXT NOT NULL, title TEXT NOT NULL, due_at TEXT NOT NULL, missed_at TEXT NOT NULL,
       decision TEXT CHECK (decision IN ('run_now', 'skip')), decided_at TEXT,
-      PRIMARY KEY (project_id, run_id)
+      PRIMARY KEY (run_id)
     )`;
 export const FEED_MISSED_PULLS_SCHEMA_SQL = `CREATE TABLE IF NOT EXISTS ${FEED_MISSED_PULLS_COLUMNS};`;
 /** Rows a month past their end are deleted: a decided one a month after the decision, an undecided one a month after it expired. */
@@ -107,35 +105,34 @@ export class SourcesModule implements SourcesApi {
   };
 
   readonly missed: SourceMissedPulls = {
-    record: (projectId, entry) => this.db.transaction(() => {
+    record: (_projectId, entry) => this.db.transaction(() => {
       const at = Date.parse(entry.missed_at);
-      this.db.run(`DELETE FROM feed_missed_pulls WHERE project_id = ? AND ((decision IS NOT NULL AND decided_at < ?) OR (decision IS NULL AND due_at < ?))`, projectId,
-        new Date(at - ENDED_KEPT_MS).toISOString(), new Date(at - ENDED_KEPT_MS - RUN_MISSED_KEPT_MS).toISOString());
-      this.db.run(`INSERT INTO feed_missed_pulls (project_id, run_id, source_id, title, due_at, missed_at) VALUES (?, ?, ?, ?, ?, ?)
-        ON CONFLICT(project_id, run_id) DO NOTHING`, projectId, entry.run_id, entry.source_id, entry.title, entry.due_at, entry.missed_at);
+      this.db.run(`DELETE FROM feed_missed_pulls WHERE ((decision IS NOT NULL AND decided_at < ?) OR (decision IS NULL AND due_at < ?))`, new Date(at - ENDED_KEPT_MS).toISOString(), new Date(at - ENDED_KEPT_MS - RUN_MISSED_KEPT_MS).toISOString());
+      this.db.run(`INSERT INTO feed_missed_pulls (run_id, source_id, title, due_at, missed_at) VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(run_id) DO NOTHING`, entry.run_id, entry.source_id, entry.title, entry.due_at, entry.missed_at);
     }),
-    list: (projectId, limit, keptAfter) => (this.db.all("SELECT * FROM feed_missed_pulls WHERE project_id = ? AND decision IS NULL AND due_at > ? ORDER BY due_at DESC LIMIT ?",
-      projectId, keptAfter, limit) as Row[]).map(missedPull),
-    expired: (projectId, bounds) => Number((this.db.get<{ n: number }>(`SELECT COUNT(*) AS n FROM feed_missed_pulls
-      WHERE project_id = ? AND decision IS NULL AND due_at <= ? AND (? IS NULL OR due_at > ? OR missed_at > ?)`,
-    projectId, bounds.listed_after, bounds.told_at, bounds.counted_after, bounds.told_at))?.n ?? 0),
+    list: (projectId, limit, keptAfter) => (this.db.all("SELECT * FROM feed_missed_pulls WHERE decision IS NULL AND due_at > ? ORDER BY due_at DESC LIMIT ?",
+      keptAfter, limit) as Row[]).map(row => missedPull(row, projectId)),
+    expired: (_projectId, bounds) => Number((this.db.get<{ n: number }>(`SELECT COUNT(*) AS n FROM feed_missed_pulls
+      WHERE decision IS NULL AND due_at <= ? AND (? IS NULL OR due_at > ? OR missed_at > ?)`,
+    bounds.listed_after, bounds.told_at, bounds.counted_after, bounds.told_at))?.n ?? 0),
     get: (projectId, runId) => {
-      const row = this.db.get("SELECT * FROM feed_missed_pulls WHERE project_id = ? AND run_id = ?", projectId, runId) as Row | undefined;
-      return row ? missedPull(row) : null;
+      const row = this.db.get("SELECT * FROM feed_missed_pulls WHERE run_id = ?", runId) as Row | undefined;
+      return row ? missedPull(row, projectId) : null;
     },
-    decide: (projectId, runId, decision, at) => { this.db.run("UPDATE feed_missed_pulls SET decision = ?, decided_at = ? WHERE project_id = ? AND run_id = ?", decision, at, projectId, runId); },
+    decide: (_projectId, runId, decision, at) => { this.db.run("UPDATE feed_missed_pulls SET decision = ?, decided_at = ? WHERE run_id = ?", decision, at, runId); },
   };
 
   constructor(private readonly db: FeedSql) {}
 
   private list(projectId: string): SourceRecord[] {
-    return (this.db.all("SELECT * FROM feed_sources WHERE project_id = ? ORDER BY updated_at DESC, name COLLATE NOCASE, source_id", projectId) as Row[]).map(mapSource).filter((source) => sourceDeletedAt(source) === null);
+    return (this.db.all("SELECT * FROM feed_sources ORDER BY updated_at DESC, name COLLATE NOCASE, source_id") as Row[]).map(row => mapSource(row, projectId)).filter((source) => sourceDeletedAt(source) === null);
   }
 
   private get(projectId: string, sourceId: string): SourceRecord {
-    const row = this.db.get("SELECT * FROM feed_sources WHERE project_id = ? AND source_id = ?", projectId, sourceId) as Row | undefined;
+    const row = this.db.get("SELECT * FROM feed_sources WHERE source_id = ?", sourceId) as Row | undefined;
     if (!row) throw sourceErrors.not_found("找不到这个来源");
-    return mapSource(row);
+    return mapSource(row, projectId);
   }
 
   private find(
@@ -144,8 +141,8 @@ export class SourcesModule implements SourcesApi {
     definitionId: string | null,
     configFingerprint?: string,
   ): SourceRecord | null {
-    const rows = this.db.all("SELECT * FROM feed_sources WHERE project_id = ? AND sync_kind = ?", projectId, syncKind) as Row[];
-    return rows.map(mapSource).filter((source) => sourceDeletedAt(source) === null).find((source) => {
+    const rows = this.db.all("SELECT * FROM feed_sources WHERE sync_kind = ?", syncKind) as Row[];
+    return rows.map(row => mapSource(row, projectId)).filter((source) => sourceDeletedAt(source) === null).find((source) => {
       if (definitionId !== null && source.definition_id !== definitionId) return false;
       return configFingerprint == null || source.config.config_fingerprint === configFingerprint;
     }) ?? null;
@@ -157,16 +154,16 @@ export class SourcesModule implements SourcesApi {
   ): SourceRecord {
     assertSchedule(source.schedule);
     return this.db.transaction(() => {
-      const current = this.db.get("SELECT * FROM feed_sources WHERE project_id = ? AND source_id = ?", source.project_id, source.source_id) as Row | undefined;
-      if (current) assertStatusTransition(mapSource(current).status, source.status);
+      const current = this.db.get("SELECT * FROM feed_sources WHERE source_id = ?", source.source_id) as Row | undefined;
+      if (current) assertStatusTransition(mapSource(current, source.project_id).status, source.status);
       this.db.run(`
       INSERT INTO feed_sources (
-        project_id, source_id, kind, definition_id, sync_kind, name, description,
+        source_id, kind, definition_id, sync_kind, name, description,
         status, enabled, item_count, origin, config_json, schedule_json,
         credential_ref, account_label, last_sync_at, last_outcome,
         last_error_code, imported_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(project_id, source_id) DO UPDATE SET
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(source_id) DO UPDATE SET
         kind = excluded.kind,
         definition_id = excluded.definition_id,
         sync_kind = excluded.sync_kind,
@@ -183,11 +180,11 @@ export class SourcesModule implements SourcesApi {
         last_outcome = excluded.last_outcome,
         last_error_code = excluded.last_error_code,
         updated_at = excluded.updated_at
-      `, source.project_id, source.source_id, source.kind, source.definition_id, source.sync_kind, source.name, source.description, source.status, source.enabled ? 1 : 0, "molis_work", JSON.stringify(source.config), JSON.stringify(source.schedule), source.connection_ref, source.account_label, source.last_sync_at, source.last_outcome, source.last_error_code, source.imported_at, source.updated_at);
+      `, source.source_id, source.kind, source.definition_id, source.sync_kind, source.name, source.description, source.status, source.enabled ? 1 : 0, "molis_work", JSON.stringify(source.config), JSON.stringify(source.schedule), source.connection_ref, source.account_label, source.last_sync_at, source.last_outcome, source.last_error_code, source.imported_at, source.updated_at);
       const eventType = forcedEventType
         ?? (current == null
           ? "source.created"
-          : mapSource(current).status !== source.status
+          : mapSource(current, source.project_id).status !== source.status
             ? "source.status_changed"
             : "source.updated");
       this.appendEvent(source, eventType);
@@ -234,11 +231,11 @@ export class SourcesModule implements SourcesApi {
 
   private listEvents(projectId: string, sourceId?: string): SourceEvent[] {
     const rows = sourceId == null
-      ? this.db.all("SELECT * FROM source_events WHERE project_id = ? ORDER BY at, event_id", projectId)
-      : this.db.all("SELECT * FROM source_events WHERE project_id = ? AND source_id = ? ORDER BY at, event_id", projectId, sourceId);
+      ? this.db.all("SELECT * FROM source_events ORDER BY at, event_id")
+      : this.db.all("SELECT * FROM source_events WHERE source_id = ? ORDER BY at, event_id", sourceId);
     return (rows as Row[]).map((row) => ({
       event_id: asText(row.event_id),
-      project_id: asText(row.project_id),
+      project_id: projectId,
       source_id: asText(row.source_id),
       type: asText(row.type) as SourceEvent["type"],
       payload: parseJson<Record<string, unknown>>(row.payload_json, {}),
@@ -248,20 +245,20 @@ export class SourcesModule implements SourcesApi {
 
   private appendEvent(source: SourceRecord, type: SourceEvent["type"]): void {
     this.db.run(`
-      INSERT INTO source_events (event_id, project_id, source_id, type, payload_json, at)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `, `source-event-${randomUUID()}`, source.project_id, source.source_id, type, JSON.stringify({ status: source.status, enabled: source.enabled }), source.updated_at);
+      INSERT INTO source_events (event_id, source_id, type, payload_json, at)
+      VALUES (?, ?, ?, ?, ?)
+    `, `source-event-${randomUUID()}`, source.source_id, type, JSON.stringify({ status: source.status, enabled: source.enabled }), source.updated_at);
   }
 }
 
 export { sourceDeletedAt } from "../contract/sources.js";
 export {sourceContentReplicationDefinition} from './sources-replication.js';
 
-function mapSource(row: Row): SourceRecord {
+function mapSource(row: Row, projectId: string): SourceRecord {
   const schedule = parseJson<SourceSchedule>(row.schedule_json, { mode: "manual" });
   assertSchedule(schedule);
   return {
-    project_id: asText(row.project_id),
+    project_id: projectId,
     source_id: asText(row.source_id),
     kind: asText(row.kind),
     definition_id: optionalText(row.definition_id),
@@ -319,7 +316,7 @@ function optionalText(value: unknown): string | null {
   return valueText || null;
 }
 
-function missedPull(row: Row): MissedPullRecord {
+function missedPull(row: Row, _projectId: string): MissedPullRecord {
   const decision = row.decision === "run_now" || row.decision === "skip" ? row.decision : null;
   return { run_id: String(row.run_id), source_id: String(row.source_id), title: String(row.title), due_at: String(row.due_at), missed_at: String(row.missed_at), decision };
 }

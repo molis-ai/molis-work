@@ -97,7 +97,8 @@ test("SCS-17 the Ledger batch returns only active edges between exact candidates
 function feedHarness() {
   const db = openTestSqlite(":memory:");
   db.pragma("foreign_keys = ON");
-  db.exec("CREATE TABLE project_root (project_id TEXT PRIMARY KEY); INSERT INTO project_root VALUES ('project-a'); INSERT INTO project_root VALUES ('project-b');");
+  db.exec("CREATE TABLE project_root (project_id TEXT PRIMARY KEY); INSERT INTO project_root VALUES ('project-a');");
+  // A Feed library holds one project (batch 109-1): another project's items live in its own library, so isolation is the library's, not a column's.
   // Feed's tables are its declaration's (FI-5): the platform makes them when it opens a library, and Feed's store does not.
   db.exec(FEED_ITEMS_SCHEMA_SQL);
   const ledger = createContextLedger(db, { authorize: (request) => request.scope.kind === "personal" });
@@ -210,7 +211,6 @@ test("D0195: Feed pages fetch only selected materials and one exact-key ledger b
     assert.equal(feed.query.list("project-a", { limit: 10_000, offset: 0 }).length, 200, "oversized requests cannot bypass the page cap");
     reads.length = 0; batches.length = 0;
     assert.deepEqual(feed.query.list("project-a", { limit: 200, offset: 405 }), []);
-    assert.deepEqual(feed.query.list("project-b", { limit: 200, offset: 0 }), []);
     assert.deepEqual(batches, [], "empty pages do not scan the relationship ledger");
     assert.equal(reads.filter(read => read.sql.includes("FROM feed_materials")).length, 0, "empty pages do not scan materials");
     // FBR-02: metadata pages select no bodies or materials, even when a single item has many attachments.
@@ -224,7 +224,6 @@ test("D0195: Feed pages fetch only selected materials and one exact-key ledger b
     // FBR-03: every material remains accessible through bounded pages and the exact detail reader.
     assert.deepEqual([0, 200, 400].map(offset => feed.query.materials("project-a", target.item_id, offset, 200).length), [200, 200, 6]);
     assert.equal(feed.query.get("project-a", target.item_id, { offset: 400, limit: 200 }).materials.length, 6);
-    assert.deepEqual(feed.query.materials("project-b", target.item_id, 0, 200), []);
     // D0195: full-content callers keep every material; no SQL result exceeds the page bound.
     reads.length = 0;
     assert.equal(feed.query.get("project-a", target.item_id).materials.length, 406);

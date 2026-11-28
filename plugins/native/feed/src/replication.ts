@@ -5,7 +5,7 @@ import type { PluginSyncCollectionDefinition } from "@molis-ai/molis-work-contra
 
 
 
-const COLUMNS = ["project_id", "rule_id", "name", "enabled", "match_json", "created_at", "updated_at", "admission", "judgment_json", "revision"] as const;
+const COLUMNS = ["rule_id", "name", "enabled", "match_json", "created_at", "updated_at", "admission", "judgment_json", "revision"] as const;
 type Row = Record<string, unknown>;
 
 function invalid(message = "Feed 捕捉规则同步数据不合法", code: Parameters<typeof syncError>[0] = "invalid"): never {
@@ -22,10 +22,10 @@ function timestamp(value: unknown): boolean { return typeof value === "string" &
 function size(value: unknown): void {
   if (Buffer.byteLength(JSON.stringify(value)) > 100000000) invalid("捕捉规则超过账号容量上限（100 MB）", "limit");
 }
-function validateRule(value: unknown, projectId: string, ruleId: string): Row {
+function validateRule(value: unknown, ruleId: string): Row {
   const row = object(value);
   exact(row, COLUMNS);
-  if (row.project_id !== projectId || row.rule_id !== ruleId || typeof row.name !== "string" ||
+  if (row.rule_id !== ruleId || typeof row.name !== "string" ||
     !row.name.trim() || row.name !== row.name.trim() || row.name.length > 80 ||
     (row.enabled !== 0 && row.enabled !== 1) || !timestamp(row.created_at) || !timestamp(row.updated_at) ||
     (row.admission !== "suggest" && row.admission !== "inbox") ||
@@ -49,7 +49,7 @@ function validateRule(value: unknown, projectId: string, ruleId: string): Row {
 }
 
 export const feedRuleTracking: PluginSyncCollectionDefinition["tracking"] = [
- {table:"feed_out_rules",key:[{column:"project_id"},{literal:"feed_rule"},{column:"rule_id"}]},
+ {table:"feed_out_rules",key:[{scope:"projectId"},{literal:"feed_rule"},{column:"rule_id"}]},
 ];
 export function feedRuleCollection(projectId: string): PluginSyncCollectionDefinition {
  return {tracking:feedRuleTracking,create(db,context) {
@@ -66,20 +66,20 @@ export function feedRuleCollection(projectId: string): PluginSyncCollectionDefin
     belongsToProject(key,target) { keyId(key); return target === projectId; },
     read(key) {
       const id = keyId(key);
-      const row = db.prepare("SELECT * FROM feed_out_rules WHERE project_id=? AND rule_id=?").get(projectId, id);
+      const row = db.prepare("SELECT * FROM feed_out_rules WHERE rule_id=?").get(id);
       if (!row) return null;
-      validateRule(row, projectId, id);
+      validateRule(row, id);
       const value = { format: /* @version format.feed.portable */ 1, spaceId: context.spaceId, project: { id: projectId, title: context.project(projectId).title }, rule: row };
       size(value);
       return value;
     },
     apply(key, value) {
       const id = keyId(key);
-      const active = db.prepare("SELECT enabled FROM feed_out_rules WHERE project_id=? AND rule_id=?")
-        .get(projectId, id) as { enabled: number } | undefined;
+      const active = db.prepare("SELECT enabled FROM feed_out_rules WHERE rule_id=?")
+        .get(id) as { enabled: number } | undefined;
       if (active?.enabled === 1) throw syncError("busy", "本机捕捉规则正在启用，不能被远端记录覆盖");
       if (value === null) {
-        db.prepare("DELETE FROM feed_out_rules WHERE project_id=? AND rule_id=?").run(projectId, id);
+        db.prepare("DELETE FROM feed_out_rules WHERE rule_id=?").run(id);
         return;
       }
       size(value);
@@ -89,11 +89,11 @@ export function feedRuleCollection(projectId: string): PluginSyncCollectionDefin
       exact(project, ["id", "title"]);
       if (wire.format !== /* @version format.feed.portable */ 1 || wire.spaceId !== context.spaceId || project.id !== projectId ||
         typeof project.title !== "string" || !project.title.trim() || project.title.length > 120) invalid();
-      const rule = validateRule(wire.rule, projectId, id);
+      const rule = validateRule(wire.rule, id);
       // Restored rules are intentionally disabled until explicitly enabled on this device.
       const values = COLUMNS.map(column => column === "enabled" ? 0 : rule[column] as string|number|null);
       db.prepare(`INSERT INTO feed_out_rules (${COLUMNS.join(",")}) VALUES (${COLUMNS.map(() => "?").join(",")})
-        ON CONFLICT(project_id,rule_id) DO UPDATE SET ${COLUMNS.filter(column => column !== "project_id" && column !== "rule_id").map(column => `${column}=excluded.${column}`).join(",")}`)
+        ON CONFLICT(rule_id) DO UPDATE SET ${COLUMNS.filter(column => column !== "rule_id").map(column => `${column}=excluded.${column}`).join(",")}`)
         .run(...values);
       context.authorize();
     },

@@ -1,4 +1,15 @@
-import type { GoalsSqliteDatabase, GovernanceSqliteDatabase } from "./goals-modules.js";
+import { listProjectRoots } from "@molis-ai/molis-work-module-projects";
+import { bindLibraryPartition, type GoalsSqliteDatabase, type GovernanceSqliteDatabase } from "./goals-modules.js";
+
+/**
+ * Bind a project library's partition to the connections Goals reads through, as the plugin binds its trusted start context (batch 109-1):
+ * here the library's one root row, read on its own connection when Goals asks, since a test may write the root after composing Goals.
+ */
+export function withLibraryPartition<T extends object>(wrapper: T, library: { prepare(sql: string): { all(...params: unknown[]): unknown[] } }): T {
+  const partition = () => listProjectRoots(library)[0]?.project_id ?? "";
+  for (const connection of [library, wrapper]) bindLibraryPartition(connection, partition);
+  return wrapper;
+}
 
 /**
  * A project connection (the project library's own), as Governance meets it, for a test that composes the module by hand

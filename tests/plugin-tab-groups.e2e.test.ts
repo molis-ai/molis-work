@@ -5,6 +5,7 @@ import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http"
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
+import { runningPluginPlatform } from "@molis-ai/molis-work-app-local-host";
 
 /** WCAG contrast of every tab title in a group against the tint it sits on, composited over the desk. */
 const GROUP_CONTRAST = `(() => {
@@ -204,8 +205,11 @@ test("RAC-2515 FULL16: revision updates and a hidden refresh retain the item tab
   t.diagnostic("FULL16 real read handoff " + JSON.stringify(takeoverRead));
   await feed.evaluate("t403ReadHandoff.releaseInitial()");
   await waitFor("t403OwningPolls>=2 && t403PollingPage===document.querySelector('[data-plugin-owner=\"io.molis.work.feed\"][data-plugin-surface=workbench]').dataset.pluginPage");
-  assert.ok(localHost.homePlugins);
-  const platform = await localHost.homePlugins.ready();
+  assert.ok(localHost);
+  // Feed runs in the project since batch 109-1: its page reads the project platform's Feed revision.
+  const reference = localHost.projects().find(project => project.project_id === projectId);
+  assert.ok(reference);
+  const platform = await localHost.withProject(reference, runtime => runningPluginPlatform(runtime.store, projectId!, "io.molis.work.feed"));
   assert.ok(platform);
   // An open item takes the whole Feed page (36A-3): the list, and this row in it, stays behind 返回 through a revision.
   const rowState = () => feed.evaluate<{ visible: boolean }>(`(()=>{const target=document.querySelector('[data-frame-asset=feed][data-frame-asset-id="${b.item_id}"]');return{visible:Boolean(target?.isConnected),workbench:{...document.querySelector('[data-feed-workbench]').dataset},filters:[...document.querySelectorAll('[data-feed-search],[data-feed-source-filter],[data-feed-type-filter],[data-feed-time-filter],[data-feed-status-filter]')].map(field=>({name:[...field.attributes].find(a=>a.name.startsWith('data-feed-')).name,value:field.value})),rows:[...document.querySelectorAll('[data-feed-entry-id]')].map(row=>({id:row.dataset.feedEntryId,type:row.dataset.feedEntryType,source:row.dataset.feedEntrySourceId,status:row.dataset.feedEntryStatus,visible:row.checkVisibility(),hidden:row.closest('[data-feed-item-wrap]')?.hidden})),ancestors:(()=>{const nodes=[];for(let node=target;node;node=node.parentElement)nodes.push({tag:node.tagName,class:node.className,hidden:node.hidden,display:getComputedStyle(node).display});return nodes;})()};})()`);
@@ -218,7 +222,7 @@ test("RAC-2515 FULL16: revision updates and a hidden refresh retain the item tab
   }
   const revision = platform.viewRevision("io.molis.work.feed");
   await waitFor(`t403PolledRevision===${JSON.stringify(revision)}`);
-  assert.equal(await evaluate("t403PolledRevision"), revision, "the actual owning page reads the Home instance's Feed revision");
+  assert.equal(await evaluate("t403PolledRevision"), revision, "the actual owning page reads its project's Feed revision");
   const beforeInvalidation = await feed.evaluate<number>("t403Invalidations");
   platform.invalidateView("io.molis.work.feed");
   const nextRevision = platform.viewRevision("io.molis.work.feed");

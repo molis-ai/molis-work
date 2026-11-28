@@ -24,9 +24,9 @@ function number(value: unknown): number {
   return Number(value ?? 0);
 }
 
-export function mapGoalTreeProposalDecision(row: GovernanceRow, approval: ProjectTrustedDecision): GoalTreeProposalDecisionRecord {
+export function mapGoalTreeProposalDecision(row: GovernanceRow, approval: ProjectTrustedDecision, partition: string): GoalTreeProposalDecisionRecord {
   return {
-    decision_id: text(row.effect_id), project_id: text(row.project_id),
+    decision_id: text(row.effect_id), project_id: partition,
     proposal_id: text(row.proposal_id), item_id: text(row.item_id),
     decision: text(row.result) as GoalTreeProposalDecisionRecord["decision"],
     actor_id: approval.actor_id,
@@ -45,11 +45,12 @@ export interface GoalTreeApprovalHistory {
 }
 
 export function mapGoalTreeProposalItem(
+  partition: string,
   row: GovernanceRow,
   decision: GoalTreeProposalDecisionRecord | null,
 ): GoalTreeProposalItemRecord {
   return {
-    item_id: text(row.item_id), proposal_id: text(row.proposal_id), project_id: text(row.project_id),
+    item_id: text(row.item_id), proposal_id: text(row.proposal_id), project_id: partition,
     ordinal: number(row.ordinal), kind: text(row.kind) as GoalTreeProposalItemRecord["kind"],
     operation: text(row.operation) as GoalTreeProposalItemRecord["operation"],
     payload: storedJson(row, "goal_tree_proposal_items", "payload_json", {}), source_refs: storedJson(row, "goal_tree_proposal_items", "source_refs_json", []),
@@ -67,12 +68,13 @@ export function mapGoalTreeProposalItem(
 }
 
 export function mapGoalTreeProposal(
+  partition: string,
   row: GovernanceRow,
   items: GoalTreeProposalItemRecord[],
   decisions: GoalTreeProposalDecisionRecord[],
 ): GoalTreeProposalRecord {
   return {
-    proposal_id: text(row.proposal_id), project_id: text(row.project_id),
+    proposal_id: text(row.proposal_id), project_id: partition,
     root_goal_id: optionalText(row.root_goal_id), submitted_by: text(row.submitted_by),
     submitted_session_id: optionalText(row.submitted_session_id),
     state: text(row.state) as GoalTreeProposalRecord["state"], version: number(row.version),

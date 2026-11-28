@@ -6,7 +6,7 @@ import { rm } from "node:fs/promises";
 import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 import { LocalHostHttpClient, projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
+import { seedDemoGoals } from "./fixtures/demo-seed.js";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { feedManifest, feedSourceActions, feedQueryActions } from "@molis-ai/molis-work-plugin-feed";
 import { openTestHome } from "./fixtures/test-home.js";

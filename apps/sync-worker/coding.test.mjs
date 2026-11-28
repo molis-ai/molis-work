@@ -28,7 +28,7 @@ test('S-116 PCSYNC-15/22/23 actual Coding sessions and complete saved plans cros
  for(let index=0;index<16;index++){
   const id='saved-session-'+index;await source.create(noEffect,{project_id:project.project_id,session_id:id,title:'Saved session '+index,runtime_id:'prologue',at:'2026-10-19T00:00:00Z'});
   await source.savePlan(noEffect,project.project_id,id,0,{revision:1,content,source:{session_id:id,run_id:'source-planner-'+index,task,workspace_path:'/source-only-native-directory'},confirmed:null});
-  await source.inputs.write(noEffect,project.project_id,id,0,{draft:task,question_drafts:{question:'Full unsent answer '+index}});
+  await source.inputs.write(noEffect,id,0,{draft:task,question_drafts:{question:'Full unsent answer '+index}});
  }
  const identity={project_id:project.project_id,plugin_id:codingManifest.plugin_id,install_id:'coding-source',actor_id:'web-user'};
  const adapter=await createPrologueNodeAdapter({app:{appId:'io.molis.work',appVersion:'0.0.0'},storageRoot:join(homes[0],'agent-runtime'),modelConfiguration:async()=>({protocol:'anthropic-compatible',endpoint:'https://1.1.1.1/v1/messages',model:'fixture',credential_ref:'fixture'}),resolveCredential:()=> 'fixture-only'});
@@ -56,7 +56,7 @@ test('S-116 PCSYNC-15/22/23 actual Coding sessions and complete saved plans cros
   assert.equal(session.title,'Saved session '+index);assert.equal(session.state,'idle');assert.equal(session.runtime_session_id,null);
   assert.equal(target.backgroundOf(project.project_id,id),null);assert.equal(target.stepsOf(project.project_id,id),null);
   assert.deepEqual(plan.content,content);assert.equal(plan.source.task,task);assert.equal(plan.source.workspace_path,'');assert.equal(plan.confirmed,null);assert.equal(plan.revision,1);
-  assert.deepEqual(target.inputs.read(project.project_id,id),{draft:task,question_drafts:{question:'Full unsent answer '+index},revision:1});
+  assert.deepEqual(target.inputs.read(id),{draft:task,question_drafts:{question:'Full unsent answer '+index},revision:1});
  }
  const namespace=JSON.stringify([coding.selection.plugin_id,coding.selection.publisher_id,coding.selection.publisher_signature,coding.selection.collection_id,coding.selection.schema_version]);
  const saved=await cloud.db.prepare('SELECT value FROM sync_events WHERE namespace=? ORDER BY revision DESC LIMIT 1').bind(namespace).first();
@@ -66,7 +66,7 @@ test('S-116 PCSYNC-15/22/23 actual Coding sessions and complete saved plans cros
  const before=(await cloud.db.prepare('SELECT COUNT(*) AS n FROM sync_events').first()).n;await clients[0].run();await clients[1].run();assert.equal((await cloud.db.prepare('SELECT COUNT(*) AS n FROM sync_events').first()).n,before);
  await source.rename(noEffect,project.project_id,'saved-session-0','A later saved title','2026-10-19T00:03:00Z');await clients[0].run();await clients[1].run();clients.forEach(client=>assert.equal(client.status().error,null));
  assert.equal(target.get(project.project_id,'saved-session-0').title,'A later saved title');assert.equal(target.plan(project.project_id,'saved-session-0').source.task,task);assert.equal(target.plan(project.project_id,'saved-session-0').revision,2);
- assert.deepEqual(target.inputs.read(project.project_id,'saved-session-0'),{draft:task,question_drafts:{question:'Full unsent answer 0'},revision:2});
+ assert.deepEqual(target.inputs.read('saved-session-0'),{draft:task,question_drafts:{question:'Full unsent answer 0'},revision:2});
  assert.equal(source.get(project.project_id,'saved-session-0').runtime_session_id,runtime.session_id);
  const history=target.savedHistory(project.project_id,'saved-session-0');assert.equal(history.length,1);const view=savedAgentHistoryView(history[0]);assert.equal(view.runs.length,2);assert.match(JSON.stringify(view),/后续问题/);assert.match(JSON.stringify(view),/完整原始答复/);assert.equal(modelCalls,2,'receiver and preparation read saved events without any model execution');
 });

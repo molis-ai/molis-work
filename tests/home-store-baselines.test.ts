@@ -13,14 +13,6 @@ const shape = (sql: string) => { const db = new DatabaseSync(":memory:"); try { 
 const libraries = homeStores().stores.flatMap(store => store.library ? [[store.path, store.library.baseline] as const] : []);
 const pluginRuntimeBaseline = () => homeStores().stores.find(store => store.path === "plugin-runtime")!.library!.baseline;
 
-test("FI-6: Feed's Home reference ledger declares a valid v1 baseline schema", () => {
-  const ledger = homeStores().stores.find(store => store.path === "feed-content");
-  assert.equal(ledger?.owner, "io.molis.work.feed");
-  assert.equal(ledger?.library?.baseline.version, 1);
-  assert.deepEqual(ledger?.library?.baseline.upgrades ?? [], []);
-  assert.ok(Object.keys(shape(ledger!.library!.baseline.schema).tables).length > 0);
-});
-
 for (const [name, baseline] of libraries) {
   test(`N41-PERSONAL-01 the ${name} store stays at v1 with zero upgrade steps, initializes cleanly and reopens intact`, () => {
     assert.equal(baseline.version, 1, `${name}: pre-release Home store baseline stays at version 1`);

@@ -122,7 +122,7 @@ for (const disposition of ["service", "project", "delete"] as const) test(`W2-18
       });
       t.mock.timers.tick(30000); await new Promise(resolve => setTimeout(resolve, 50));
       assert.equal(owner.calls(), 1, "prepared operation is never dispatched again after cancellation");
-      await waitAutomatic(() => host.withProject(project.reference, runtime => getScheduledOperation(runtime.store.db, project.project_id, created.scheduleId)?.state === "needs_review"));
+      await waitAutomatic(() => host.withProject(project.reference, runtime => getScheduledOperation(runtime.store.db, created.scheduleId)?.state === "needs_review"));
     } else assert.equal(host.status().projects.some(row => row.project_id === project.project_id), false);
   } finally { release.resolve(); await served.close(); await host.close(); await rm(home, { recursive: true, force: true }); }
 });

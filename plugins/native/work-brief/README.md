@@ -1,8 +1,8 @@
 # Work Brief
 
-项目的简报：各来源此刻怎么样、几句话的现状（每句后面是它的依据）、要你处理什么、和上次比变了什么、下一步。装了 Work Brief 的项目，简报开头的几句话（连同每句的依据）经概况的 `lede` 交给平台首页，首页一处画完；它自己的页留着看各版本和修改。移除后首页照常，只是没有这几句话。个人简报把各项目简报里要你处理的事和没处置的下一步汇到一处，带项目或个人的标签。
+项目的简报：各来源此刻怎么样、几句话的现状（每句后面是它的依据）、要你处理什么、和上次比变了什么、下一步。装了 Work Brief 的项目，简报开头的几句话（连同每句的依据）经概况的 `lede` 交给平台首页，首页一处画完；它自己的页留着看各版本和修改。移除后首页照常，只是没有这几句话。每个分区（项目与个人空间）的简报在平台概况表里留一行 `brief`（标题与开头一句），个人空间的总览经 `overview.read@1` 读这些行，把各处的简报汇到一处（第 109 批起，取代原来的个人简报）。
 
-包名：`@molis-ai/molis-work-plugin-work-brief`。工作区内部包，Home 与项目两个实例（`createHomeWorkBriefPlugin()`、`createWorkBriefPlugin()`，登记上的 `runtime` 与 `project_runtime`），不在宿主里手写装配。需求见 [specs/work-brief/spec.md](../../../specs/work-brief/spec.md)，合同设计见 [contract-design.md](../../../specs/work-brief/contract-design.md)，版式见 [docs/design/archive/work-brief-core/](../../../docs/design/archive/work-brief-core/README.md)。
+包名：`@molis-ai/molis-work-plugin-work-brief`。工作区内部包，每个启用它的分区一个实例（`createWorkBriefPlugin()`，登记上的 `project_runtime`），库是分区库 `<分区>/libraries/work-brief.db`（`databases.partition`），不在宿主里手写装配。需求见 [specs/work-brief/spec.md](../../../specs/work-brief/spec.md)，合同设计见 [contract-design.md](../../../specs/work-brief/contract-design.md)，版式见 [docs/design/archive/work-brief-core/](../../../docs/design/archive/work-brief-core/README.md)。
 
 ## 从哪里读代码
 
@@ -10,21 +10,20 @@
 
 | 文件 | 用途 |
 | --- | --- |
-| [src/plugin.ts](src/plugin.ts)、[src/home-plugin.ts](src/home-plugin.ts) | 项目那一半与 Home 那一半：把库、动作目录接到处理器上 |
+| [src/plugin.ts](src/plugin.ts) | 分区实例：把库、动作目录接到处理器上，并写概况表的 `brief` 行 |
 | [src/actions.ts](src/actions.ts) | 动作合同（列出、读取、保存、刷新、修改、处理提案、固定、下一步） |
 | [src/briefs.ts](src/briefs.ts) | 简报的保存、刷新、人工修改与提案合并 |
 | [src/reading.ts](src/reading.ts) | 以调用者身份读各来源的概况和每条依据（`actions:delegate`） |
 | [src/model.ts](src/model.ts) | 简报、版本、依据、下一步的形状，两版之间的比较 |
 | [src/fix.ts](src/fix.ts) | 把一个版本固定成成果 |
 | [src/next.ts](src/next.ts) | 下一步：按 SDK 的操作卡规则执行一次、放一放、交给助理 |
-| [src/personal.ts](src/personal.ts) | 个人简报：跨项目汇总 |
 | [src/presentation.ts](src/presentation.ts) | 呈现声明与首页概况（开头几句话经 `lede` 交给首页） |
-| [src/store.ts](src/store.ts)、[src/database.ts](src/database.ts) | Home 库 `work-brief` 的表与读写 |
+| [src/store.ts](src/store.ts)、[src/database.ts](src/database.ts) | 分区库 `work-brief` 的表与读写 |
 | [src/browser/](src/browser/) | 页面：`client.ts` 接动作，`brief.ts` 画简报与个人简报，`parts.ts` 是小零件 |
 
 ## 开发要求
 
-- 负责：简报及其版本、每句话保存时的依据（对象、当时的版本号和标题）、人工修改、待处理的提案、下一步的处置、固定的版本、个人事项的汇总。
+- 负责：简报及其版本、每句话保存时的依据（对象、当时的版本号和标题）、人工修改、待处理的提案、下一步的处置、固定的版本、本分区简报在概况表里的 `brief` 行。
 - 不负责：别的插件的内容和状态（只经它们公开的概况、读取器和动作读，页面上的对象交给平台挂载位）；定时（Schedule）；调用模型（本插件不调 AI，草稿由助理经 `work-brief.briefs.save` 交进来）。
 - 公开入口：`@molis-ai/molis-work-plugin-work-brief`（`src/index.ts`，经 `dist` 导出）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`。不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。

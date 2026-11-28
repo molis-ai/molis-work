@@ -18,7 +18,7 @@ import {
   createGoalsApplication, GOALS_PLUGIN_ID, GoalInputBindings, GoalsModule, GovernanceCollaborationModule, GovernanceEventDecisions, GovernanceProvenance, readMolisWorkSnapshot,
   type GoalsApplication,
 } from "./goals-modules.js";
-import { goalsSqlite, governanceSqlite } from "./governance-sqlite.js";
+import { goalsSqlite, governanceSqlite, withLibraryPartition } from "./governance-sqlite.js";
 
 const approvalOwner = { kind: "plugin", plugin_id: GOALS_PLUGIN_ID, publisher_signature: goalsManifest.publisher.signature } as const;
 type TestDecisionSubject = { kind: "goal" | "goal-tree-proposal"; id: string };
@@ -175,14 +175,14 @@ export class GoalProjectApplication {
   ) {
     const journal = owned ? ownedJournal(this.store) : this.store;
     const approvals = fixtureApprovals(store, this.clock);
-    const governanceModule = new GovernanceCollaborationModule({ db: governanceSqlite(this.store.db), journal, ...approvals });
+    const governanceModule = new GovernanceCollaborationModule({ db: withLibraryPartition(governanceSqlite(this.store.db), this.store.db), journal, ...approvals });
     this.governanceQuery = governanceModule.query;
     this.governance = { provenance: governanceModule.provenance, query: governanceModule.query, records: governanceModule.records,
       decisions: governanceModule.decisions, eventDecisions: governanceModule.eventDecisions };
     const ledger = createContextLedger(this.store.db, { authorize: access => access.scope.kind === "personal", now: () => this.clock() });
     this.goalInputs = new GoalInputBindings(this.store.db, owned ? ownedLedger(ledger) : ledger);
     let goalsModule!: GoalsModule;
-    goalsModule = new GoalsModule(goalsSqlite(this.store.db), journal,
+    goalsModule = new GoalsModule(withLibraryPartition(goalsSqlite(this.store.db), this.store.db), journal,
       { validateRelationGraph: (projectId, input) => goalsModule.planning.validateRelationAddition(projectId, input) },
       { now: this.clock,
         approvalRules: (project, history) => projectApprovalRules(store.db, project).read(history, approvalOwner).rules,

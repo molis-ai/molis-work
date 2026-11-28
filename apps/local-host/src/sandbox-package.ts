@@ -8,7 +8,7 @@ import { effectsFromContract, parseSandboxUi, sandboxIntegrationManifest, sandbo
 import { Buffer } from 'node:buffer';
 import { isDeepStrictEqual } from 'node:util';
 import { pluginErrors, SANDBOX_PACKAGE_FILES, type PluginManifest, type SandboxAgentBody, type SandboxPackageManifest, type PluginPackagePayload, type SandboxPackagePrompt } from '@molis-ai/molis-work-contracts/platform/plugin';
-import { SANDBOX_INTEGRATION_CONTRACT, SANDBOX_INTEGRATION_OPERATIONS, type SandboxEffects, type SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import { isSandboxSourceOperation, SANDBOX_INTEGRATION_SOURCE_SLOT, SANDBOX_INTEGRATION_CONTRACT, SANDBOX_INTEGRATION_OPERATIONS, type SandboxEffects, type SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { CONNECTOR_REQUEST_SERVICES } from '@molis-ai/molis-work-contracts/services/connector-host';
 import { parseContentPackage, type ContentPackage, parsePluginManifest, parsePluginPackageManifest, refuseDeclarations } from '@molis-ai/molis-work-plugin-sdk';
 import { PLUGIN_ICON_NAMES } from '@molis-ai/molis-work-plugin-sdk/ui';
@@ -320,6 +320,7 @@ export function readSandboxPackage(payload: PluginPackagePayload): SandboxPackag
     refuseManifestShape(fixed.permissions, '清单不是沙箱插件的形状：入口、权限、路由、界面声明要与包的其他文件一致，不能自带别的');
   }
   validated('清单', () => parsePluginManifest(expected));
+  if (contract.home_source) assertSignedSource(expected, contract);
   validated('升级段', () => assertPluginUpgradeSteps(expected));
   if (expected.databases?.home) validated('Home 库', () => assertPluginHomeSchema(expected.databases!.home!.schema));
   return { manifest: expected, localePacks, agentBodies, contract, parts, nodes, ...(presentation ? { presentation } : {}), ...(ui ? { ui } : {}), acceptance, prompts, entrypoint, permissions };
@@ -390,16 +391,6 @@ export function readSandboxIntegrationPackage(payload: PluginPackagePayload): Sa
 
   if (!isDeepStrictEqual(jsonFile(files, SANDBOX_PACKAGE_FILES.manifest), JSON.parse(JSON.stringify(manifest)))) refuse('manifest.json 与包的清单不一致');
   const services = manifest.connection_services ?? [], integrations = manifest.integrations ?? [];
-  if (!integrations.length) refuse('集成包要在清单里声明 integrations');
-  // One source and its one service: the registry binds a source to the plugin, so a package of two could not tell them apart.
-  if (integrations.length > 1 || services.length > 1) refuse('集成包现在只声明一个来源和它的一个连接服务');
-  const document = integrations.find(item => item.kind !== 'source');
-  if (document) refuse('集成 ' + document.integration_id + '：集成包现在只做 Feed 的来源（source），外部文档导入等 W5-11（BL-694），网页搜索等第 62 批');
-  for (const service of services) {
-    const platform = Object.hasOwn(CONNECTOR_REQUEST_SERVICES, service.service_id);
-    if (platform && service.origins) refuse('服务 ' + service.service_id + ' 在平台的请求表里，它的来源只由平台定，包里不能写 origins');
-    if (!platform && !service.origins) refuse('服务 ' + service.service_id + ' 不在平台的请求表里，要写它的 origins');
-  }
   const contract = validated('contract.json', () => { const raw = jsonFile(files, SANDBOX_PACKAGE_FILES.contract); assertContract(raw); return raw; });
   if (contract.pluginId !== manifest.plugin_id) refuse('contract.json 的 pluginId 与清单的 plugin_id 不一致');
   const expected = sandboxIntegrationManifest({ pluginId: manifest.plugin_id, version: manifest.version, name: manifest.name, publisher: manifest.publisher, contract, textDeclarations: manifest,
@@ -410,8 +401,35 @@ export function readSandboxIntegrationPackage(payload: PluginPackagePayload): Sa
 
   if (contract.pages.length || contract.entities.length) refuse('集成包的合同没有页面和实体');
   if (contract.presentation !== undefined) refuse('集成包的合同不能声明对象呈现');
+  assertSignedSource(manifest, contract);
+  const permissions = validated('contract.json 的权限', () => effectsFromContract(contract));
+  return { manifest, localePacks: signedLocalePacks(localeManifestWithContractReasons(manifest, contract), files), contract, entrypoint, permissions };
+}
+
+function assertSignedSource(manifest: PluginManifest, contract: SandboxPluginContract): void {
+  const services = manifest.connection_services ?? [], integrations = manifest.integrations ?? [];
+  if (!integrations.length) refuse('集成包要在清单里声明 integrations');
+  // One source and its one service: the registry binds a source to the plugin, so a package of two could not tell them apart.
+  if (integrations.length > 1 || services.length > 1) refuse('集成包现在只声明一个来源和它的一个连接服务');
+  const document = integrations.find(item => item.kind !== 'source');
+  if (document) refuse('集成 ' + document.integration_id + '：集成包现在只做 Feed 的来源（source），外部文档导入等 W5-11（BL-694），网页搜索等第 62 批');
+  for (const service of services) {
+    const platform = Object.hasOwn(CONNECTOR_REQUEST_SERVICES, service.service_id);
+    if (platform && service.origins) refuse('服务 ' + service.service_id + ' 在平台的请求表里，它的来源只由平台定，包里不能写 origins');
+    if (!platform && !service.origins) refuse('服务 ' + service.service_id + ' 不在平台的请求表里，要写它的 origins');
+  }
+  const operations = manifest.kind === 'integration' ? contract.operations : contract.operations.filter(op => isSandboxSourceOperation(op.id));
+  if (manifest.kind === 'app') {
+    const references = [
+      ...contract.pages.flatMap(page => page.regions.flatMap(region => region.operationIds)),
+      ...(contract.read_groups ?? []).flatMap(group => group.operations),
+      ...contract.operations.flatMap(op => op.effects.background ?? []),
+    ];
+    if (references.some(isSandboxSourceOperation)) refuse('个人来源的专用操作只能由 Home 的来源调用');
+    if (contract.operations.some(op => !isSandboxSourceOperation(op.id) && op.effects.connections?.includes(SANDBOX_INTEGRATION_SOURCE_SLOT))) refuse('个人来源的账号只在来源拉取时可用');
+  }
   const ids = Object.entries(SANDBOX_INTEGRATION_OPERATIONS);
-  for (const operation of contract.operations) {
+  for (const operation of operations) {
     if (operation.read_protocol !== undefined || operation.action_protocol !== undefined || operation.external !== undefined) refuse('集成包的操作不能声明平台协议或外发标记');
     const entry = ids.find(([, id]) => id === operation.id) ?? refuse('合同里有平台之外的操作：' + operation.id);
     const fixed = SANDBOX_INTEGRATION_CONTRACT[entry[0] as keyof typeof SANDBOX_INTEGRATION_OPERATIONS];
@@ -419,8 +437,6 @@ export function readSandboxIntegrationPackage(payload: PluginPackagePayload): Sa
       if (!isDeepStrictEqual(JSON.parse(JSON.stringify(operation[field])), JSON.parse(JSON.stringify(fixed[field])))) refuse('操作 ' + operation.id + ' 的 ' + field + ' 要与平台给的一样');
     }
   }
-  for (const id of [SANDBOX_INTEGRATION_OPERATIONS.health, SANDBOX_INTEGRATION_OPERATIONS.poll]) if (!contract.operations.some(item => item.id === id)) refuse('合同缺少操作 ' + id);
-  if (Boolean(manifest.source_presentations?.length) !== contract.operations.some(item => item.id === SANDBOX_INTEGRATION_OPERATIONS.presentation)) refuse('来源展示声明与 integration.presentation 操作必须一同兑现');
-  const permissions = validated('contract.json 的权限', () => effectsFromContract(contract));
-  return { manifest, localePacks: signedLocalePacks(localeManifestWithContractReasons(manifest, contract), files), contract, entrypoint, permissions };
+  for (const id of [SANDBOX_INTEGRATION_OPERATIONS.health, SANDBOX_INTEGRATION_OPERATIONS.poll]) if (!operations.some(item => item.id === id)) refuse('合同缺少操作 ' + id);
+  if (Boolean(manifest.source_presentations?.length) !== operations.some(item => item.id === SANDBOX_INTEGRATION_OPERATIONS.presentation)) refuse('来源展示声明与 integration.presentation 操作必须一同兑现');
 }

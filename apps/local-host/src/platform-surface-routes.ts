@@ -4,6 +4,7 @@ import { PLATFORM_SURFACES, type PlatformSurfaceId } from "@molis-ai/molis-work-
 import { handleCharactersHttp, hostCharactersInvoke } from "./characters-http.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { bindLocalWebActions } from "./local-web-actions.js";
+import { projectArtifactDeclaration } from "./declared-types.js";
 import { resolveConfiguredHome } from "./product-home.js";
 import { handleSessionsHttp } from "./sessions-http.js";
 import type { CatalogRequestContext } from "./web-catalog-routes.js";
@@ -22,7 +23,7 @@ interface PlatformSurfaceHttp {
  */
 const SURFACE_HTTP: Readonly<Record<PlatformSurfaceId, PlatformSurfaceHttp>> = {
   artifacts: {
-    project: ({ request, response, url, options, userActions, controlToken, composition, serverOptions, readArtifactDisplay }) => composition.handleArtifactNativePluginHttp(request, response, url.pathname, {
+    project: ({ request, response, url, options, userActions, controlToken, composition, serverOptions, readArtifactDisplay, store }) => composition.handleArtifactNativePluginHttp(request, response, url.pathname, {
       projectId: options.projectId, routePrefix: options.routePrefix ?? "",
       projectTitle: options.project?.display_name ?? "Molis Work",
       actions: userActions(ARTIFACT_ACTION_PERMISSIONS), controlToken,
@@ -31,7 +32,7 @@ const SURFACE_HTTP: Readonly<Record<PlatformSurfaceId, PlatformSurfaceHttp>> = {
       // Each 成果 type's owner previews its own versions (A4): a plugin's preview runs on its installation's grants, not on the person's (V-21).
       ownerActions: permissions => userActions(permissions),
       placementReader: userActions([PLACEMENT_READ_PERMISSION]),
-      readArtifactDisplay,
+      typeFor: version => projectArtifactDeclaration(store.db, version), readArtifactDisplay,
       desktopShell: composition.isDesktopShellRequest(request, url), pageCsp: composition.PAGE_CSP,
     }),
   },

@@ -157,6 +157,9 @@ type CharacterTemplateRequest = { origin: BlueprintPartOrigin; request_id: strin
 export type CharacterTemplateAdoptionInput = CharacterTemplateRequest & CharacterTemplateSelection<RoleTemplate>;
 
 const observation = { type: "string", pattern: "\\S" } as const;
+export interface SignedCharacterTemplateRef { install_id: string; generation: string; role_id: string }
+export interface SignedCharacterTemplate extends SignedCharacterTemplateRef { name: string; purpose: string }
+const signedTemplateRef = { install_id: observation, generation: observation, role_id: observation };
 const templateRequest = { origin: BLUEPRINT_PART_ORIGIN_SCHEMA, request_id: observation };
 // TextRef's combinations are checked by the SDK after the gateway checks the wire envelope.
 type CharacterTemplateAdoptionEnvelope = CharacterTemplateRequest & CharacterTemplateSelection<InferActionInput<typeof ROLE_TEMPLATE_SCHEMA>>;
@@ -196,6 +199,8 @@ function roleAction<I, O>(capabilityId: string, version: number, operation: "que
  * work there is no project layer. Choosing a role grants nothing: a role only narrows what a task already opens.
  */
 export const characterRoleActions: {
+  signedTemplates: ActionDefinition<Record<string, never>, { templates: SignedCharacterTemplate[] }>;
+  adoptSigned: ActionDefinition<SignedCharacterTemplateRef & { request_id: string }, CharacterTemplateAdoptionResult>;
   fromTemplate: ActionDefinition<CharacterTemplateAdoptionInput, CharacterTemplateAdoptionResult>;
   read: ActionDefinition<CharacterRoleReadInput, CharacterRoleReadOutput>;
   list: ActionDefinition<CharacterRoleListInput, CharacterRoleCatalog>;
@@ -208,6 +213,10 @@ export const characterRoleActions: {
   restore: ActionDefinition<CharacterRestoreInput, { role: CharacterRole }>;
   defaults: ActionDefinition<CharacterDefaultSelection, { defaults: CharacterDefaults; effective: EffectiveCharacterSelection }>;
 } = {
+  signedTemplates: roleAction("characters.roles.templates.list", /* @version action.characters.roles.templates.list */ 1, "query", "随包角色", "列出此项目可采用的签名插件角色", ["user"], {
+    input: closedObjectSchema({}), output: closedObjectSchema({ templates: { type: "array", items: closedObjectSchema({ ...signedTemplateRef, name: observation, purpose: observation }) } }) }),
+  adoptSigned: roleAction("characters.roles.templates.adopt", /* @version action.characters.roles.templates.adopt */ 1, "command", "采用随包角色", "从选定安装的签名正文创建项目角色", ["user"], {
+    input: closedObjectSchema({ ...signedTemplateRef, request_id: observation }), output: CHARACTER_TEMPLATE_ADOPTION_RESULT_SCHEMA }),
   fromTemplate: roleAction("characters.from_template", /* @version action.characters.from_template */ 1, "command", "采用角色模板", "按已确认的选择创建或复用角色；同一请求重放原回执",
     ["user"], { input: CHARACTER_TEMPLATE_ADOPTION_INPUT_SCHEMA, output: CHARACTER_TEMPLATE_ADOPTION_RESULT_SCHEMA }),
   read: roleAction("characters.roles.read", /* @version action.characters.roles.read */ 1, "query", "批读角色与采用回执", "按角色引用或采用请求读取角色及回执",

@@ -157,7 +157,7 @@ test("FSS-46 (types): the patterns take what the design lists and nothing that c
   for (const range of ["", "U+", "u+0131", "U+1234567", "U+00FF-", "U+-00FF", "U+0000-00FF, U+0131", "U+4??", "0131", "U+GGGG"]) assert.doesNotMatch(range, UI_FILE_PATTERNS.unicode_range);
   for (const id of ["font.inter-latin-variable", "font-scheme.system-sans", "locale.workbench", "spec.molis-interface", "font.noto-sans-sc-400"]) assert.match(id, UI_FILE_PATTERNS.resource_id);
   for (const id of ["", "Font.a", ".a", "a.", "a..b", "1a", "a/b", "a b", "../a"]) assert.doesNotMatch(id, UI_FILE_PATTERNS.resource_id);
-  for (const route of ["/assets/inter-latin-variable.woff2", "/assets/noto-sans-sc-400.woff2", "/assets/molis-work-plugins/characters.js", "/assets/ui-skin/folio-3.css", "/assets/locale/workbench.en.0a1b.js"]) assert.match(route, UI_FILE_PATTERNS.route);
+  for (const route of ["/assets/inter-latin-variable.woff2", "/assets/noto-sans-sc-400.woff2", "/assets/platform/characters.js", "/assets/ui-skin/folio-3.css", "/assets/locale/workbench.en.0a1b.js"]) assert.match(route, UI_FILE_PATTERNS.route);
   for (const route of ["", "/assets", "/assets/", "/assets//a", "/assets/../a", "/assets/./a", "/assets/.a", "/other/a", "assets/a", "//example.com/a", "https://example.com/assets/a", "data:font/woff2;base64,AAAA", "/assets/a?x=1", "/assets/a#x", "/assets/a%2fb", "/assets/a b", "/assets/a\\b"]) assert.doesNotMatch(route, UI_FILE_PATTERNS.route);
   for (const name of ["page", "nav-bg", "hue-green-fill", "r-tag", "on-accent"]) assert.match(name, UI_FILE_PATTERNS.role_name);
   for (const name of ["", "--page", "Page", "1a", "a_b", "a b"]) assert.doesNotMatch(name, UI_FILE_PATTERNS.role_name);

@@ -11,11 +11,6 @@ export class RuntimePluginDirectory {
 
   constructor(running?: PluginDirectory) { this.entries = pluginDirectoryFor(running); }
 
-  /** The entry with this shell key or Manifest id. */
-  entry(id: string): PluginDirectoryEntry | undefined {
-    return this.entries.find(entry => entry.id === id || entry.plugin_id === id);
-  }
-
   /** The plugin a page may point at for this service: the first one that says so, in the directory's order. */
   offering(offer: PluginOffer): PluginDirectoryEntry | undefined {
     return this.entries.find(entry => entry.offers?.includes(offer));

@@ -66,7 +66,7 @@ export const operations = {
   },
 };`;
 
-export function signedBackgroundPackage(publisher = newPublisher(), options: { dependency?: boolean; statusDependency?: boolean; model?: boolean; version?: string; id?: string } = {}) {
+export function signedBackgroundPackage(publisher = newPublisher(), options: { projectWorker?: boolean; dependency?: boolean; statusDependency?: boolean; model?: boolean; version?: string; id?: string } = {}) {
   return signedPackage(publisher, (files, manifest) => {
     const contract = JSON.parse(files[SANDBOX_PACKAGE_FILES.contract]!) as SandboxPluginContract;
     const read = contract.operations[0]!, launch = contract.operations[1]!;
@@ -87,8 +87,12 @@ export function signedBackgroundPackage(publisher = newPublisher(), options: { d
       op('job.work','command',object({job_id:text,mode:text,model_text:text},['job_id','mode']),{type:'boolean'}, {storage:['read'],homeDatabase:['read','write'],ownerFiles:['write'],connections:['github'],materials:['read'],
         ...(options.dependency ? {capabilities:['fixture.bgwait']} : {})}, {input:{job_id:'example',mode:'fast'},output:true}),
     );
+    if (options.projectWorker) {
+      contract.operations.find(operation => operation.id === 'job.release')!.project_instance = true;
+      launch.effects.background!.push('job.release');
+    }
     Object.assign(manifest, sandboxPluginManifest({ pluginId: manifest.plugin_id, version: manifest.version, name: manifest.name, publisher: manifest.publisher, presentation: false,
-      runtime: {scope:'home'}, upgradesFrom:['1.0.0'], effects:effectsFromContract(contract),contract, homeDatabase:{version:1,schema},ownerFiles:[{name:'data',kind:'directory'}],
+      runtime: {scope:'home', ...(options.projectWorker ? {dual_instance: true} : {})}, upgradesFrom:['1.0.0'], effects:effectsFromContract(contract),contract, homeDatabase:{version:1,schema},ownerFiles:[{name:'data',kind:'directory'}],
       connections:{slots:[{slot_id:'github',service_id:'github',reason:'读取已绑定的测试账号'}]} }));
     files[SANDBOX_PACKAGE_FILES.contract]=JSON.stringify(contract); files[SANDBOX_PACKAGE_FILES.entrypoint]=BODY;
     if(options.model) files[SANDBOX_PACKAGE_FILES.prompts]=JSON.stringify([{id:'summary',title:'Controlled answer',purpose:'Hold one controlled provider result',body:'Return the controlled answer.'}]);

@@ -1919,6 +1919,7 @@ export declare const goalEntryActions: {
                 capability_id: string;
                 version: number;
             };
+            agent_scenario?: import("@molis-ai/molis-work-contracts/platform/actions").AgentActionScenario;
             title: string;
             title_text?: import("@molis-ai/molis-work-contracts/platform/ui").TextRef;
             description: string;
@@ -2001,6 +2002,7 @@ export declare const goalEntryActions: {
         action: {
             audiences: readonly ["user"];
             subject_kinds: string[];
+            agent_scenario?: import("@molis-ai/molis-work-contracts/platform/actions").AgentActionScenario;
             title: string;
             title_text?: import("@molis-ai/molis-work-contracts/platform/ui").TextRef;
             description: string;
@@ -2101,6 +2103,7 @@ export declare const goalEntryActions: {
                 capability_id: string;
                 version: number;
             };
+            agent_scenario?: import("@molis-ai/molis-work-contracts/platform/actions").AgentActionScenario;
             title: string;
             title_text?: import("@molis-ai/molis-work-contracts/platform/ui").TextRef;
             description: string;
@@ -2183,6 +2186,7 @@ export declare const goalEntryActions: {
         action: {
             audiences: readonly ["user"];
             subject_kinds: string[];
+            agent_scenario?: import("@molis-ai/molis-work-contracts/platform/actions").AgentActionScenario;
             title: string;
             title_text?: import("@molis-ai/molis-work-contracts/platform/ui").TextRef;
             description: string;
@@ -2279,6 +2283,7 @@ export declare const goalEntryActions: {
             }];
             readonly audiences: readonly ["user"];
             readonly subject_kinds: string[];
+            readonly agent_scenario?: import("@molis-ai/molis-work-contracts/platform/actions").AgentActionScenario;
             readonly title: string;
             readonly title_text?: import("@molis-ai/molis-work-contracts/platform/ui").TextRef;
             readonly description: string;
@@ -2368,6 +2373,7 @@ export declare const goalEntryActions: {
                 capability_id: string;
                 version: number;
             };
+            readonly agent_scenario?: import("@molis-ai/molis-work-contracts/platform/actions").AgentActionScenario;
             readonly title: string;
             readonly title_text?: import("@molis-ai/molis-work-contracts/platform/ui").TextRef;
             readonly description: string;

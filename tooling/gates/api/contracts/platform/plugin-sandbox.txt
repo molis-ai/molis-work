@@ -33,6 +33,14 @@ export type SandboxActionProtocol = {
     target?: PlacementRelationTarget;
     subject_kinds?: readonly string[];
 } | {
+    kind: 'image_generation';
+    role: import('./plugin-role-protocols.js').ImageGenerationRole;
+} | {
+    kind: 'workflow_receive';
+    title: string;
+    icon: string;
+    subject_kind: string;
+} | {
     kind: 'settings';
     role: 'read' | 'write';
 };
@@ -89,6 +97,7 @@ export interface SandboxDataOperation extends SandboxOperationFields {
 
 export interface SandboxEffects {
     storage?: Array<'read' | 'write'>;
+    scenes?: string[];
     artifacts?: Array<'read' | 'write'>;
     capabilities?: string[];
     events?: string[];
@@ -433,8 +442,48 @@ export interface SandboxPluginContract {
     read_groups?: readonly SandboxReadGroupDeclaration[];
     help?: SandboxHelpDeclaration;
     operations: SandboxOperationContract[];
+    agent_scenario?: {
+        id: string;
+        title: string;
+        instructions: string;
+        tools: {
+            operation: string;
+            review?: {
+                kind: string;
+                title: string;
+                fields: {
+                    field: string;
+                    label: string;
+                }[];
+            };
+        }[];
+    };
+    scenes?: {
+        id: string;
+        title: string;
+        description: string;
+        trigger: string;
+        instructions: string;
+        subject_kind: string;
+        options: {
+            key: string;
+            description: string;
+        }[];
+    }[];
     presentation?: PresentationDeclaration;
     settings_entries?: SandboxSettingsDeclaration;
+    artifact_types?: readonly {
+        artifact_type_id: string;
+        schema_version: number;
+        title: string;
+        preview_operation: string;
+        searchable_fields?: readonly string[];
+    }[];
+    home_source?: {
+        readonly integrations: readonly import('./plugin-integrations.js').PluginIntegrationDeclaration[];
+        readonly connection_services: readonly import('./plugin-integrations.js').PluginConnectionServiceDeclaration[];
+        readonly source_presentations?: readonly string[];
+    };
     entities: Array<{
         id: string;
         schema: SandboxSchema;
@@ -503,6 +552,15 @@ export type SandboxReadProtocol = {
 } | {
     kind: 'presentation_overview';
 } | {
+    kind: 'artifact_preview';
+} | {
+    kind: 'search_entries';
+    kinds: readonly {
+        kind: string;
+        title: string;
+        glyph?: string;
+    }[];
+} | {
     kind: 'resume_summary';
     subject_kinds: readonly string[];
 } | {
@@ -541,12 +599,30 @@ export interface SandboxSdk {
             value: SandboxJson;
         }>>;
     };
+    scenes: {
+        run(localId: string, input: {
+            content: string;
+        }): Promise<SandboxJson>;
+    };
     artifacts: {
         get(reference: {
             artifact_id: string;
             version: number;
         }): Promise<SandboxJson>;
-        put(value: SandboxJson): Promise<SandboxJson>;
+        put(value: {
+            artifact_id: string;
+            version: number;
+            artifact_type_id: string;
+            schema_version: number;
+            title: string;
+            media_type: string;
+            subject: {
+                kind: string;
+                id: string;
+            };
+            revision: string;
+            payload: SandboxJson;
+        }): Promise<SandboxJson>;
     };
     capability: {
         call(id: string, input: SandboxJson): Promise<SandboxJson>;
@@ -631,7 +707,7 @@ export interface SandboxSdk {
     interaction: import('./plugin-interaction.js').PluginInteractionClient;
 }
 
-export type SandboxSdkMethod = 'storage.get' | 'storage.set' | 'storage.delete' | 'storage.list' | 'projects.exist' | 'artifacts.get' | 'artifacts.put' | 'capability.call' | 'events.publish' | 'network.request' | 'resource.read' | 'projectDatabase.get' | 'projectDatabase.all' | 'projectDatabase.transaction' | 'connections.request' | 'connections.describe' | 'connections.release' | 'homeDatabase.get' | 'homeDatabase.all' | 'homeDatabase.transaction' | 'materials.imageTextAvailable' | 'materials.readDocuments' | 'materials.extract' | 'materials.readSource' | 'materials.readLocalPage' | 'materials.claimOriginal' | 'materials.readOriginalRange' | 'materials.releaseOriginal' | 'materials.attach' | 'materials.readAttachment' | 'materials.readAttachmentPart' | 'ownerFiles.stat' | 'ownerFiles.list' | 'ownerFiles.read' | 'ownerFiles.write' | 'model.choices' | 'model.availability' | 'model.complete' | 'model.settings.read' | 'model.settings.save' | 'imageGeneration.connections' | 'imageGeneration.inspect' | 'imageGeneration.bind' | 'imageGeneration.unbind' | 'imageGeneration.generate' | 'imageGeneration.readRange' | 'imageGeneration.releaseResult' | 'background.start' | 'background.cancel' | 'interaction.questionHtml' | 'interaction.cardHtml' | 'interaction.nextStepsHtml';
+export type SandboxSdkMethod = 'storage.get' | 'storage.set' | 'storage.delete' | 'storage.list' | 'projects.exist' | 'scenes.run' | 'artifacts.get' | 'artifacts.put' | 'capability.call' | 'events.publish' | 'network.request' | 'resource.read' | 'projectDatabase.get' | 'projectDatabase.all' | 'projectDatabase.transaction' | 'connections.request' | 'connections.describe' | 'connections.release' | 'homeDatabase.get' | 'homeDatabase.all' | 'homeDatabase.transaction' | 'materials.imageTextAvailable' | 'materials.readDocuments' | 'materials.extract' | 'materials.readSource' | 'materials.readLocalPage' | 'materials.claimOriginal' | 'materials.readOriginalRange' | 'materials.releaseOriginal' | 'materials.attach' | 'materials.readAttachment' | 'materials.readAttachmentPart' | 'ownerFiles.stat' | 'ownerFiles.list' | 'ownerFiles.read' | 'ownerFiles.write' | 'model.choices' | 'model.availability' | 'model.complete' | 'model.settings.read' | 'model.settings.save' | 'imageGeneration.connections' | 'imageGeneration.inspect' | 'imageGeneration.bind' | 'imageGeneration.unbind' | 'imageGeneration.generate' | 'imageGeneration.readRange' | 'imageGeneration.releaseResult' | 'background.start' | 'background.cancel' | 'interaction.questionHtml' | 'interaction.cardHtml' | 'interaction.nextStepsHtml';
 
 export interface SandboxSettingsDeclaration {
     readonly entries: SettingEntryDeclaration[];
@@ -684,6 +760,8 @@ export type SandboxWorkerMessage = {
     args: SandboxJson[];
 };
 
+export declare function isSandboxSourceOperation(id: string): boolean;
+
 // Declarations the exports above refer to, which no entry exports itself:
 
 interface SandboxOperationFields {
@@ -697,6 +775,8 @@ interface SandboxOperationFields {
     }>;
     effects: SandboxEffects;
     external?: true;
+    project_instance?: true;
+    ui_event?: string;
     draft?: true;
     examples: SandboxOperationExample[];
 }

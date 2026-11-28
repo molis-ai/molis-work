@@ -33,6 +33,8 @@ export interface SandboxSchema {
 /** All effects default to denied; installation grants must explicitly contain them. */
 export interface SandboxEffects {
   storage?: Array<'read' | 'write'>;
+  /** Local ids of this package's configurable judgment scenes this command may run. */
+  scenes?: string[];
   artifacts?: Array<'read' | 'write'>;
   capabilities?: string[];
   events?: string[];
@@ -107,6 +109,10 @@ interface SandboxOperationFields {
   effects: SandboxEffects;
   /** Whether the operation sends content outside the Home. Separate from the effects it has permission to use. */
   external?: true;
+  /** Place an otherwise instance-neutral operation in the project half of a dual-instance application. */
+  project_instance?: true;
+  /** Local event name announced on this installation's Workbench stage after its component command succeeds. */
+  ui_event?: string;
   /** Its input is the person's unsent draft: the work records keep that it was saved, not its words (`ActionMetadata.draft`). */
   draft?: true;
   examples: SandboxOperationExample[];
@@ -147,6 +153,8 @@ export interface SandboxDataOperation extends SandboxOperationFields {
 export type SandboxReadProtocol = { kind: 'subject_context'; subject_kind: string }
   | { kind: 'presentation_values'; subject_kinds: readonly string[] }
   | { kind: 'presentation_overview' }
+  | { kind: 'artifact_preview' }
+  | { kind: 'search_entries'; kinds: readonly { kind: string; title: string; glyph?: string }[] }
   | { kind: 'resume_summary'; subject_kinds: readonly string[] }
   | { kind: 'work_terminal_prompt'; subject_kind: string };
 
@@ -165,6 +173,8 @@ export interface SandboxReadOperation extends SandboxOperationFields {
 /** Fixed platform action protocols whose operations may be queries or commands (`placement_relation` and `settings`). */
 export type SandboxActionProtocol =
   | { kind: 'placement_relation'; relation: string; role: PlacementRelationRole; target?: PlacementRelationTarget; subject_kinds?: readonly string[] }
+  | { kind: 'image_generation'; role: import('./plugin-role-protocols.js').ImageGenerationRole }
+  | { kind: 'workflow_receive'; title: string; icon: string; subject_kind: string }
   | { kind: 'settings'; role: 'read' | 'write' };
 
 export interface SandboxProtocolOperation extends SandboxOperationFields {
@@ -251,8 +261,18 @@ export interface SandboxPluginContract {
   /** Optional on-demand help topics shown via the platform's Scheme A help entry (VUX-55, VUX-59). */
   help?: SandboxHelpDeclaration;
   operations: SandboxOperationContract[];
+  agent_scenario?: { id: string; title: string; instructions: string; tools: { operation: string;
+    review?: { kind: string; title: string; fields: { field: string; label: string }[] } }[] };
+  scenes?: { id: string; title: string; description: string; trigger: string; instructions: string; subject_kind: string; options: { key: string; description: string }[] }[];
   presentation?: PresentationDeclaration;
   settings_entries?: SandboxSettingsDeclaration;
+  /** A dual-instance application's personal source is redeemed only by its Home installation. */
+  artifact_types?: readonly { artifact_type_id: string; schema_version: number; title: string; preview_operation: string; searchable_fields?: readonly string[] }[];
+  home_source?: {
+    readonly integrations: readonly import('./plugin-integrations.js').PluginIntegrationDeclaration[];
+    readonly connection_services: readonly import('./plugin-integrations.js').PluginConnectionServiceDeclaration[];
+    readonly source_presentations?: readonly string[];
+  };
   entities: Array<{ id: string; schema: SandboxSchema; description?: string }>;
   /** Present, possibly empty, on every design made since SMP-11; absent on a contract frozen before it. */
   state_machines?: SandboxStateMachine[];
@@ -449,9 +469,11 @@ export interface SandboxSdk {
     delete(key: string): Promise<void>;
     list(prefix?: string): Promise<Array<{ key: string; value: SandboxJson }>>;
   };
+  scenes: { run(localId: string, input: { content: string }): Promise<SandboxJson> };
   artifacts: {
     get(reference: { artifact_id: string; version: number }): Promise<SandboxJson>;
-    put(value: SandboxJson): Promise<SandboxJson>;
+    put(value: { artifact_id: string; version: number; artifact_type_id: string; schema_version: number; title: string; media_type: string;
+      subject: { kind: string; id: string }; revision: string; payload: SandboxJson }): Promise<SandboxJson>;
   };
   capability: { call(id: string, input: SandboxJson): Promise<SandboxJson> };
   events: { publish(id: string, payload: SandboxJson): Promise<void> };
@@ -572,7 +594,7 @@ export interface SandboxSdk {
 export type SandboxOperations = Record<string, (input: SandboxJson, sdk: SandboxSdk) => Promise<SandboxJson>>;
 export type SandboxSdkMethod = 'storage.get' | 'storage.set' | 'storage.delete' | 'storage.list'
   | 'projects.exist'
-  | 'artifacts.get' | 'artifacts.put' | 'capability.call' | 'events.publish' | 'network.request' | 'resource.read'
+  | 'scenes.run' | 'artifacts.get' | 'artifacts.put' | 'capability.call' | 'events.publish' | 'network.request' | 'resource.read'
   | 'projectDatabase.get' | 'projectDatabase.all' | 'projectDatabase.transaction' | 'connections.request' | 'connections.describe' | 'connections.release'
   | 'homeDatabase.get' | 'homeDatabase.all' | 'homeDatabase.transaction'
   | 'materials.imageTextAvailable' | 'materials.readDocuments' | 'materials.extract' | 'materials.readSource' | 'materials.readLocalPage'
@@ -617,6 +639,10 @@ const SOURCE: Record<string, SandboxSchema> = {
   source_id: text(128, 1), config_json: text(SANDBOX_INTEGRATION_LIMITS.configLength), has_connection: { type: 'boolean' },
 };
 const object = (properties: Record<string, SandboxSchema>, required: string[]): SandboxSchema => ({ type: 'object', properties, required, additionalProperties: false });
+export function isSandboxSourceOperation(id: string): boolean {
+  return Object.values<string>(SANDBOX_INTEGRATION_OPERATIONS).includes(id);
+}
+
 const ITEM = object({
   externalId: text(256, 1), title: text(512), summary: text(4096), body: text(65_536), url: { type: 'string', format: 'uri', maxLength: 4096 },
   occurredAt: { type: 'string', format: 'date-time' }, kind: { type: 'string', enum: ['message', 'notification', 'issue', 'pr', 'mention', 'update'] },

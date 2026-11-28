@@ -23,6 +23,7 @@ export interface SandboxServiceContext {
 export interface SandboxServices {
   /** Must serialize by identity and atomically commit only if callback succeeds and signal remains active. */
   storage?: { transaction<T>(context: SandboxServiceContext, mutate: (entries: Map<string, SandboxJson>) => T): Promise<T> };
+  scenes?: { run(context: SandboxServiceContext, localId: string, input: SandboxJson): Promise<SandboxJson> };
   artifacts?: { get(context: SandboxServiceContext, reference: { artifact_id: string; version: number }): Promise<SandboxJson>; put(context: SandboxServiceContext, value: SandboxJson): Promise<SandboxJson> };
   capability?: { call(context: SandboxServiceContext, id: string, input: SandboxJson): Promise<SandboxJson> };
   events?: { publish(context: SandboxServiceContext, id: string, payload: SandboxJson): Promise<void> };
@@ -352,6 +353,14 @@ export class SandboxBroker {
         : interaction.cardHtml(object<Parameters<PluginInteractionClient['cardHtml']>[0]>(0), { redo: options.redo === true });
     }
     switch (method) {
+      case 'scenes.run': {
+        count(2);
+        permit('scenes', string(0));
+        await context.beforeEffect?.();
+        const result = this.services.scenes ? await this.services.scenes.run(context, string(0), args[1]!) : missing();
+        await context.beforeEffect?.();
+        return result;
+      }
       case 'artifacts.get': {
         count(1); permit('artifacts', 'read');
         const ref = args[0];

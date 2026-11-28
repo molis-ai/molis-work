@@ -8,7 +8,7 @@ import type { AccountDriver, CliDriver, DocumentDriver, IntegrationDriverDefinit
 import type { IntegrationBinding } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { createGithubProvider } from "@molis-ai/molis-work-integration-github";
 import { createGmailProvider } from "@molis-ai/molis-work-integration-gmail";
-import { completeApiOAuth, connectorProtocolSecrets, homeIntegrationRegistry, integrationDriverDirectory, startApiOAuth, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { completeApiOAuth, connectorProtocolSecrets, homeIntegrationRegistry, IntegrationRegistry, integrationDriverDirectory, startApiOAuth, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { catalogConnectorIds, createCatalogProvider } from "@molis-ai/molis-work-integration-catalog";
 import { createFileSecretStore } from "@molis-ai/molis-work-storage";
 import { connectorControl } from "./fixtures/connector-control.js";
@@ -366,4 +366,39 @@ test("44C-2 PSD-08 the Host does not start on two integrations that declare the 
     { order: 1, cli: { "service-a": { ...cli, managed_environment: { SHARED_VAR: "1" } } } },
     { order: 2, cli: { "service-b": { ...cli, managed_environment: { SHARED_VAR: "2" } } } },
   ]), /two integrations declare the managed CLI environment variable SHARED_VAR/u);
+});
+
+test("44C-2 PSD-08 retries only the failed built-in driver and releases its failed start", async t => {
+  const original = IntegrationRegistry.prototype.enable;
+  const starts: string[] = [], stops: string[] = [];
+  let interrupted: string | undefined;
+  t.mock.method(IntegrationRegistry.prototype, "enable", function (this: IntegrationRegistry, driver: Parameters<IntegrationRegistry["enable"]>[0]) {
+    const id = driver.manifest.plugin_id;
+    return original.call(this, { ...driver,
+      async start(context) {
+        starts.push(id);
+        if (starts.length === 2) { interrupted = id; throw new Error("temporary device failure"); }
+        return driver.start(context);
+      },
+      async stop(context) { stops.push(id); await driver.stop?.(context); },
+    });
+  });
+  await withIntegrationHome(async home => {
+    const registry = await homeIntegrationRegistry(home.directory);
+    assert.ok(interrupted);
+    assert.deepEqual(stops, [interrupted]);
+    assert.ok(starts.length > 2);
+    const activeBefore = registry.listIntegrations().map(item => item.declaration.integration_id);
+    assert.ok(activeBefore.length > 0);
+    assert.equal(registry.pluginName(interrupted), undefined);
+    const count = starts.length;
+    const [first, concurrent] = await Promise.all([homeIntegrationRegistry(home.directory), homeIntegrationRegistry(home.directory)]);
+    assert.equal(first, registry);
+    assert.equal(concurrent, registry);
+    assert.deepEqual(starts.slice(count), [interrupted]);
+    assert.ok(registry.pluginName(interrupted));
+    assert.ok(activeBefore.every(id => registry.integration(id)));
+    assert.equal(await homeIntegrationRegistry(home.directory), registry);
+    assert.equal(starts.length, count + 1);
+  });
 });

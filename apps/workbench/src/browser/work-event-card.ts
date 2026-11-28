@@ -43,7 +43,7 @@ export interface EventCardLine {
 
 export function installEventCards(host: WorkBarHost, line: EventCardLine): { mount(slot: HTMLElement, card: EventCardOpen): EventCardHandle; page(slot: HTMLElement, card: EventCardOpen): EventCardHandle; park(card: EventCardOpen): void; paint(): void; setItem(item: string | null): void; sideChanged(): void } {
   /** Where 「放到…」 can put a card's result, asked once per page (M4): the platform's Shelf, then each receive station of the project. */
-  const receivers: { asked: boolean; targets?: readonly { station: string; title: string; icon: string }[] } = { asked: false };
+  const receivers: { asked: boolean; targets?: Parameters<typeof renderCardResult>[0]["targets"] } = { asked: false };
   const { molisWorkRequest: request } = globalThis as typeof globalThis & { molisWorkRequest?: UiRequest };
   const live = new Set<() => void>(), baseKey = `molis.work-line.parked:${document.body.dataset.projectId ?? ""}`;
   let key = baseKey;

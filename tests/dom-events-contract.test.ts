@@ -158,6 +158,20 @@ test("registered names, and a condition choosing between two of them, pass; even
   ].join("\n")) }), []);
 });
 
+test("PSD-03 M6 recognizes only the signed command's stage announcement", () => {
+  const file = "apps/workbench/src/browser/plugin-frame/fetch.ts";
+  const sender = tree.read(file)!;
+  const expression = 'new CustomEvent("plugin:" + stage.pluginId + "/" + announcement)';
+  assert.ok(sender.includes(expression));
+  for (const change of [
+    sender.replace("stage.root.dispatchEvent(" + expression, "document.dispatchEvent(" + expression),
+    sender.replace(expression, expression.slice(0, -1) + ", { bubbles: true })"),
+    sender.replace("response.ok && method", "method"),
+    sender.replace(expression, expression.replace('"plugin:"', '"plugin: "')),
+    sender + "\nfunction extra() { new CustomEvent(variable); }",
+  ]) assert.ok(problemsWith({ [file]: change }).some((problem: string) => problem.includes(file) && problem.includes("not a string literal")));
+});
+
 test("a CustomEvent whose name the gate cannot read fails instead of being skipped", () => {
   for (const make of ["new CustomEvent(name)", "new CustomEvent(EVENT_NAME, { detail })", 'new CustomEvent("molis:" + kind)', "new CustomEvent(`molis:${kind}`)",
     'new CustomEvent(open ? "molis:side-open" : other)', "new CustomEvent(pick())", "new CustomEvent<Detail>(name)", "new CustomEvent<{ a: 1 }>(EVENT_NAME, { detail })",

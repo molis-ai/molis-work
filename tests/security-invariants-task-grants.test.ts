@@ -19,7 +19,7 @@ import { sandboxPluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { agentHostCapabilities, type AgentActionClient, type AgentRunView, type AgentRuntimeAdapter, type AgentSessionView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import {
-  agentTaskGrantActions, type TaskGrantSetCategory, type TaskGrantListResult, type TaskGrantSubject,
+  agentTaskGrantActions, type TaskGrantCategoryReference, type TaskGrantSetCategory, type TaskGrantListResult, type TaskGrantSubject,
 } from "@molis-ai/molis-work-contracts/services/agent-task-grants";
 import { KNOWLEDGE_PROVIDER_ID, knowledgeActions } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { SCHEDULE_PLUGIN_ID, scheduleActions } from "@molis-ai/molis-work-plugin-schedule";
@@ -215,6 +215,10 @@ async function world(t: TestContext) {
       action_grants: [...current.action_grants, ...grants.map(grant => ({ ...grant, generation: randomUUID() }))] }, null, 2)}\n`);
   };
   return { home, localHost, served: served!, reader, rounds, hold, off, open, list, call, person, found, exact, records, plant };
+}
+
+function categoryReference({ provider_id, group_id, installation }: TaskGrantCategoryReference): TaskGrantCategoryReference {
+  return { provider_id, ...(group_id ? { group_id } : {}), ...(installation ? { installation } : {}) };
 }
 
 test("S-task-grant-subjects a task's grant subject is the Host's: no default actions, then only the categories the person turned on for that one task", { timeout: 120_000 }, async t => {
@@ -458,7 +462,7 @@ test("S-task-grant-subjects R5 every category list offers is one set takes as a 
   const offered = (await w.list(a.project)).categories;
   assert.ok(offered.length > 2, "the built-in plugins, the fixtures and project knowledge offer categories");
   for (const [index, category] of offered.entries()) {
-    const reference = { provider_id: category.provider_id, ...(category.group_id ? { group_id: category.group_id } : {}) };
+    const reference = categoryReference(category);
     await a.set(`k${index}`, [reference]).catch((error: unknown) => assert.fail(`list offered ${JSON.stringify(reference)} and set refused it: ${String(error)}`));
   }
   await a.set("daily", [a.shelf]);
@@ -652,7 +656,7 @@ test("S-task-grant-subjects a task reads a partition plugin's items only in its 
   }
   const todo = (await w.list(a.project)).categories.filter(category => category.plugin_id === "io.molis.work.todo");
   assert.ok(todo.length, "Todo offers a category");
-  await a.set("daily", todo.map(category => ({ provider_id: category.provider_id, ...(category.group_id ? { group_id: category.group_id } : {}) })));
+  await a.set("daily", todo.map(categoryReference));
   await a.run({ grant_subject: "daily" }, async gateway => {
     assert.ok(gateway);
     const view = (await gateway.discover()).find(item => item.capability_id === "todo.items.list");
@@ -683,7 +687,7 @@ test("S-task-grant-subjects uninstalling a plugin takes its tasks' grants with i
   const category = listed.categories[0];
   assert.ok(category, "the project offers a category");
   await client.invoke(caller, ref(agentTaskGrantActions.set), { plugin_install_id: install, key: "daily", expected_revision: "",
-    categories: [{ provider_id: category.provider_id, ...(category.group_id ? { group_id: category.group_id } : {}) }] });
+    categories: [categoryReference(category)] });
   const subjects = async () => (await readMcpToolPreference(home.home)).action_grants.filter(grant => grant.client_id.startsWith(`agent:task:${project.project_id}:${install}:`));
   assert.ok((await subjects()).length > 0);
   await home.web.post(`/api/plugins/${PACKAGE_PLUGIN_ID}/uninstall`, { keep_data: true });

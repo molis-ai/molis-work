@@ -20,6 +20,7 @@ export type PageActionRequest = ({
   mode: "component_submit";
   component_id: string;
   payload: unknown;
+  onEvent?(localName: string): void;
 }) & {
   project_id: string | null;
   signal: AbortSignal;
@@ -43,7 +44,7 @@ function submitComponent(request: Extract<PageActionRequest, { mode: "component_
   if (!submit) throw new ActionError("actions.forbidden", "此页面没有已安装的组件提交入口");
   return withPluginPermissionChecks(context, async () => {
     await request.beforeEffect();
-    const { reference, operationId, input, ownPermissions, permissions, assertCurrent } = submit(request.component_id, request.payload);
+    const { reference, operationId, input, uiEvent, ownPermissions, permissions, assertCurrent } = submit(request.component_id, request.payload);
     const check = (_reference?: ActionReference, needed: readonly string[] = []) => {
       request.assertCurrent();
       for (const permission of ownPermissions) context.requireGrant(permission);
@@ -63,8 +64,11 @@ function submitComponent(request: Extract<PageActionRequest, { mode: "component_
       throw new ActionError(view.availability.code ?? "actions.unavailable", view.availability.reason ?? "组件提交当前不可用", { kind: view.availability.kind });
     check(reference, view.action.permissions);
     // The Kernel checks the current registration after its async policy checks and carries this exact page into sandbox effects.
-    return bindActionClient(options.client, () => caller).invoke({ ...reference, operation: view.operation, action: view.action }, input,
+    const result = await bindActionClient(options.client, () => caller).invoke({ ...reference, operation: view.operation, action: view.action }, input,
       { beforeEffect: request.beforeEffect, assert_authority_current: request.assertCurrent });
+    check();
+    if (uiEvent) request.onEvent?.(uiEvent);
+    return result;
   });
 }
 

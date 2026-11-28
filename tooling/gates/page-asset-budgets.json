@@ -42,7 +42,7 @@
     "pluginPacks": {
       "maxBytes": 2800000,
       "prefixes": ["/assets/molis-work-plugins/"],
-      "assets": ["/assets/molis-work-pages-editor.js"]
+      "assets": ["/assets/molis-work-pages-editor.js", "/assets/platform/characters.js", "/assets/platform/sessions.js"]
     },
     "fonts": {
       "maxBytes": 7200000,

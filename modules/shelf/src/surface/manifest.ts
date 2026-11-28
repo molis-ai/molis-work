@@ -19,7 +19,7 @@ export const shelfManifest: PluginManifest = {
   host_api_version: /* @version host.api */ 1,
   plugin_id: SHELF_PLUGIN_ID,
   version: /* @version product.release */ "0.1.0",
-  name: "Shelf",
+  name: "Shelf", name_text: { key: "shelf.directory.name" },
   summary: "把文件放上来处理副本，原件不动。", summary_text: { key: "shelf.directory.summary" },
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-shelf-binding" },

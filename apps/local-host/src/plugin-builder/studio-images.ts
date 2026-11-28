@@ -41,7 +41,15 @@ export function studioImages(options: AgentStudioOptions, installed: Awaited<Ret
   });
   const catalog = async (signal?: AbortSignal) => {
     signal?.throwIfAborted();
-    return generators(options.actions?.inspect ? await options.actions.inspect(person([], signal)) : []);
+    const declared = options.actions?.inspect ? await options.actions.inspect(person([], signal)) : [];
+    const roles = declared.filter(view => view.provider.kind === 'plugin' && view.provider.plugin_install_id && imageGenerationRoleOf(view.action));
+    const checked = await Promise.all(roles.map(async view => {
+      const current = await actions.client.discoverOne(person(view.action.permissions, signal),
+        { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id });
+      return current && current.provider.plugin_install_id === view.provider.plugin_install_id
+        && current.provider.project_id === view.provider.project_id ? current : undefined;
+    }));
+    return generators(checked.filter((view): view is ActionView => view !== undefined));
   };
   const recordOf = (scope: 'project' | 'home', id: string) => scope === 'home' ? options.homeInstallation?.(id)
     : currentProjectPlatform(options.store, options.projectId)?.runtime.list().find(record => record.install_id === id)
@@ -102,7 +110,7 @@ export function studioImages(options: AgentStudioOptions, installed: Awaited<Ret
     return group;
   }
   const mockups: NonNullable<AgentBuilderPorts['mockups']> = {
-    available: async () => Boolean(await choose().catch(() => undefined)),
+    available: async signal => Boolean(await choose(signal).catch(() => undefined)),
     async select(key) {
       for await (const item of choices()) if (item.key === key) return item.owner;
       throw changed();

@@ -73,7 +73,7 @@ export interface AgentBuilderPorts {
    * the picture is ready, or with the reason it is not; a failed request is never repeated (it may have cost money).
    */
   mockups?: {
-    available(): Promise<boolean>;
+    available(signal?: AbortSignal): Promise<boolean>;
     select?(key: string): Promise<import('./agent-model.js').StudioImageBinding>;
     draw(request: { key: string; prompt: string; previous?: AgentProposal['mockup'];
       checkpoint(value: { binding: import('./agent-model.js').StudioImageBinding; jobId?: string }): void },
@@ -286,18 +286,20 @@ export class AgentBuilderWorkflow {
    */
   private async drawMockups(id: string, proposals: AgentProposal[], recovering = false, requested = false) {
     const mockups = this.ports.mockups;
-    if (!mockups || this.closed || !recovering && !requested && !await mockups.available().catch(() => false)) return;
+    if (!mockups || this.closed) return;
     const abort = new AbortController(); this.drawing.add(abort);
-    const set = (candidateId: string, mockup: NonNullable<AgentProposal['mockup']>) => { if (!this.closed) this.change(id, build => { const item = build.candidates.find(candidate => candidate.id === candidateId); if (item) item.mockup = mockup; }); };
-    const locale = this.ports.designLanguages?.().current;
-    const resolvedLocale = mockupInstructionLocale(locale);
-    const hostInstruction = this.ports.instruction?.(BUILDER_MOCKUP);
-    // Avoid mixing Chinese default instructions with non-zh proposal details when BUILDER_MOCKUP lacks a translation for `locale`.
-    const instructions = hostInstruction && (resolvedLocale === 'zh' || hostInstruction !== BUILDER_MOCKUP.body)
-      ? hostInstruction
-      : agentBodyIn(BUILDER_MOCKUP, resolvedLocale === 'zh' ? undefined : resolvedLocale);
-    const copyLocale = hostInstruction && hostInstruction !== BUILDER_MOCKUP.body ? locale : resolvedLocale;
     try {
+      if (!recovering && !requested && !await mockups.available(abort.signal).catch(() => false)) return;
+      if (abort.signal.aborted) return;
+      const set = (candidateId: string, mockup: NonNullable<AgentProposal['mockup']>) => { if (!this.closed) this.change(id, build => { const item = build.candidates.find(candidate => candidate.id === candidateId); if (item) item.mockup = mockup; }); };
+      const locale = this.ports.designLanguages?.().current;
+      const resolvedLocale = mockupInstructionLocale(locale);
+      const hostInstruction = this.ports.instruction?.(BUILDER_MOCKUP);
+      // Avoid mixing Chinese default instructions with non-zh proposal details when BUILDER_MOCKUP lacks a translation for `locale`.
+      const instructions = hostInstruction && (resolvedLocale === 'zh' || hostInstruction !== BUILDER_MOCKUP.body)
+        ? hostInstruction
+        : agentBodyIn(BUILDER_MOCKUP, resolvedLocale === 'zh' ? undefined : resolvedLocale);
+      const copyLocale = hostInstruction && hostInstruction !== BUILDER_MOCKUP.body ? locale : resolvedLocale;
       await Promise.all(proposals.map(async proposal => {
         let picture = proposal.mockup ?? { status: 'drawing' as const };
         if (recovering && !picture.binding) {

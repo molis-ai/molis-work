@@ -1,7 +1,7 @@
 import { studioImageInstallation } from './fixtures/builder-workflow-design.js';
 import { openStudioChrome, dedicatedBuilderBrowser } from './fixtures/plugin-builder-browser.js';
 import { serveHomeRuntime } from './fixtures/home-runtime.js';
-import { LOCAL_PERSON_ACTOR_ID, type ActionDefinition } from '@molis-ai/molis-work-contracts/platform/actions';
+import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionDefinition } from '@molis-ai/molis-work-contracts/platform/actions';
 import { verifyPluginPackageSignature } from '@molis-ai/molis-work-plugin-runtime';
 import { studioHarnessRequests, framedStudioPage, isolatedStudioHarness } from "./fixtures/studio-framed-page.js";
 import { pluginPagesFor, sendLocalWebJson, authorizeLocalWebRequest, HomeConsentLedger, type LocalMutationState } from "@molis-ai/molis-work-app-local-host";
@@ -24,6 +24,7 @@ import { builtinRegistrations } from '../apps/local-host/dist/agent-definitions/
 import { builderInstructions, builderPrompts, handleAgentStudioHttp, releaseAgentStudio } from '../apps/local-host/dist/plugin-builder/agent-surface.js';
 import { pluginControlActions, pluginInstallActions, handleInstalledPluginHttp } from '@molis-ai/molis-work-app-local-host';
 import { ensureInstalledPlugins, releaseInstalledPlugins } from '../apps/local-host/dist/installed-plugin-host.js';
+import { imagesActions, IMAGES_ACTION_PERMISSIONS } from '@molis-ai/molis-work-plugin-images';
 import { signedImageService } from './fixtures/signed-image-service.js';
 import { person as installPerson, ref as actionRef } from './fixtures/home-sandbox.js';
 import { agentStudioFixture } from '../scripts/agent-studio-preview-fixture.mjs';
@@ -91,13 +92,13 @@ function harness(designerAnswers: string[], options: { jev?: string | Error } = 
 // T405-FULL-04: real G1–G6 include the Seatbelt typecheck and sandbox workers.
 const nativeBuildChecks = { skip: process.platform !== 'darwin' && 'Real G1–G6 require macOS Seatbelt (/usr/bin/sandbox-exec)' };
 
-async function startStudioFixture(t: TestContext, setup: { configure?: (answer: ReturnType<typeof JSON.parse>) => void; browserExecutable?: string; browserPassed?: boolean; probeTrials?: boolean; trialPage?: (key: string, buildId: string, send: (path: string, body?: unknown) => Promise<unknown>) => Promise<void> } = {}) {
+async function startStudioFixture(t: TestContext, setup: { plugins?: readonly string[]; configure?: (answer: ReturnType<typeof JSON.parse>) => void; browserExecutable?: string; browserPassed?: boolean; probeTrials?: boolean; trialPage?: (key: string, buildId: string, send: (path: string, body?: unknown) => Promise<unknown>) => Promise<void> } = {}) {
   let closeStudio: (() => Promise<void>) | undefined, server: ReturnType<typeof createServer> | undefined;
   t.after(async () => {
     try { await closeStudio?.(); }
     finally { if (server?.listening) await new Promise<void>(resolve => { server!.close(() => resolve()); server!.closeAllConnections(); }); }
   });
-  const f = await serveHomeRuntime(t, { completeText: null }), project = await f.project('Shared revision sources');
+  const f = await serveHomeRuntime(t, { completeText: null }), project = await f.project('Shared revision sources', setup.plugins);
   const store = await f.host.withProject(project.reference, runtime => runtime.store, { activatePlugins: true });
   closeStudio = async () => { try { await releaseAgentStudio(store, project.project_id); } finally { await releaseInstalledPlugins(store, project.project_id); } };
   const answer = JSON.parse(detail('共享清单'));
@@ -869,6 +870,46 @@ test('44C-06 Studio polls the original installed signed service across restart, 
     await client.invoke(who, actionRef(pluginControlActions.disable), { plugin_id: remaining.pluginId });
     assert.equal((await studio.image(created.build.id, ready.id)).status, 404, 'a stopped installation no longer supplies its picture');
   } finally { await browser.close(); }
+});
+
+// 44C-06 / PSD-02: the Host distinguishes a permissionless inspection from an available connection.
+test('Studio offers an enabled image connection requiring role permissions after reopening the project workflow', async t => {
+  const studio = await startStudioFixture(t, { plugins: ['images'] });
+  const { f, project } = studio;
+  const client = bindActionClient(f.host.actionClient(project.reference), () => ({
+    actor_id: LOCAL_PERSON_ACTOR_ID, audience: 'user', project_id: project.project_id, permissions: IMAGES_ACTION_PERMISSIONS,
+  }));
+  const { connection } = await client.invoke(imagesActions.saveConnection, {
+    name: 'Studio local', api_format: 'openai-images', base_url: 'http://127.0.0.1:12345/v1', model: 'fixture',
+  });
+  const choices = () => studio.send<{ choices: Array<{ key: string; title: string }> }>('/image-services');
+  const offered = (await choices()).choices.find(choice => choice.title.endsWith(' · ' + connection.id));
+  assert.ok(offered, 'the configured Images connection is available on the Studio endpoint');
+  await studio.restartStudio();
+  assert.ok((await choices()).choices.some(choice => choice.key === offered.key), 'the same binding remains selectable after restart');
+});
+
+// 44C-06 / W7: a late availability response cannot start an image charge after Studio shuts down.
+test('closing Studio while image availability is pending leaves the proposals undrawn', { timeout: 10_000 }, async () => {
+  const h = harness([PROPOSALS]);
+  const started = Promise.withResolvers<AbortSignal | undefined>();
+  const reply = Promise.withResolvers<boolean>();
+  let draws = 0;
+  h.ports.mockups = {
+    available(signal) { started.resolve(signal); return reply.promise; },
+    async draw() { draws++; return { reason: 'unexpected draw' }; },
+  };
+  const workflow = new AgentBuilderWorkflow(memoryStorage(), h.ports);
+  try {
+    const created = workflow.create('做一个笔记插件');
+    const signal = await started.promise;
+    await workflow.close();
+    reply.resolve(true);
+    await new Promise<void>(resolve => setImmediate(resolve));
+    assert.equal(draws, 0);
+    assert.equal(signal?.aborted, true);
+    assert.ok(workflow.store.require(created.id).candidates.every(item => item.mockup === undefined));
+  } finally { reply.resolve(false); await workflow.close(); }
 });
 
 test('with an image service each proposal gets one picture (never a second try); choosing does not wait for them; without one nothing changes', async () => {

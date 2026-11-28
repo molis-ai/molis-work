@@ -359,8 +359,16 @@ test('PCSYNC-15 a stale inspected revision or state is rejected before any histo
 
 for(const change of ['edit','device-stop'] as const)test('PCSYNC-15 delayed retention never authorizes a newer local state: '+change,async t=>{
   const {f,page,namespace,conflict}=await conflictedPages(t);
-  f.onRetention(async()=>{if(change==='edit')f.withStore(1,s=>s.update(page.id,{title:'newer local C'}));else await f.clients[1].setDevice(false);return undefined;});
+  let deviceStopped: Promise<void> | undefined;
+  f.onRetention(async () => {
+    if (change === 'edit') f.withStore(1, store => store.update(page.id, { title: 'newer local C' }));
+    // Stopping cancels the request now and finishes once resolve releases the device queue.
+    // The simulated server can acknowledge its own write independently.
+    else deviceStopped = f.clients[1].setDevice(false);
+    return undefined;
+  });
   await assert.rejects(()=>f.clients[1].resolve(namespace,conflict.key,'remote',conflict.revision,conflict.state),/内容已变化|状态已变化/);
+  await deviceStopped;
   assert.equal(f.withStore(1,s=>s.get(page.id).title),change==='edit'?'newer local C':'local B');assert.equal(f.withReplica(1,r=>r.conflicts().length),1);
   assert.equal(f.retained.length,1,'a retained backup does not claim that the user choice committed');assert.deepEqual(f.retained[0]!.mutation.value,conflict.local);
   assert.equal(f.clients[1].recoveries(namespace).length,0);

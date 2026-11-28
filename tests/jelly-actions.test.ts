@@ -33,7 +33,7 @@ test("UPP-15 Jelly is a partition plugin with sixteen typed actions and no model
   assert.equal(Object.keys(a).length, 16);
   assert.equal(jellyManifest.runtime, undefined, "no Home runtime: one instance per partition it is enabled in");
   assert.equal(jellyManifest.databases?.partition?.store_name, "jelly");
-  assert.deepEqual(jellyManifest.overview_projection, { kinds: ["event"] });
+  assert.deepEqual(jellyManifest.overview_projection, { kinds: ["event"], rolling_window: true });
   assert.equal(jellyManifest.routes, undefined); assert.equal(jellyManifest.settings_entries, undefined);
   assert.ok(!JELLY_ACTION_PERMISSIONS.includes("model:invoke"));
   const directory = await f.bound.discover();

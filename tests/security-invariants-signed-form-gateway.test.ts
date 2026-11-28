@@ -89,6 +89,7 @@ operations["notes.add"] = async (input, sdk) => {
     return (await answer.json()).value;
   };
   return { ...f, project, other, prefix, endpoint, componentReadPath, open, post, submission, read, records, record, client, caller,
+    storedValues: () => storage.snapshotInstallationData(record.install_id),
     unapprovedCalls: () => unapprovedCalls,
     withdrawApproval() {
       // Change only the original package approval in this fixture, keeping the installation and both providers live.
@@ -148,6 +149,8 @@ test("S-47 SCS-11 QEA-138 project signed form submits through the original page 
   assert.equal(await saved.json(), true);
   const rows = [{ id: "1", text: "once" }];
   assert.deepEqual(await f.read(fresh), rows, "one submit writes one row");
+  assert.deepEqual(f.storedValues(),
+    [{ item_key: "notes", item_value: JSON.stringify(rows) }], "the installation snapshot sees the real sandbox write");
   const caller = { ...f.caller, permissions: ["storage:private", dependencyGrant] }, views = await operationsOf(f.client, caller);
   assert.equal(await operate(f.client, caller, views, "notes.add", { text: "directory" }), true,
     "the actual exposed action accepts the same operation the raw HTTP path refused");
@@ -170,6 +173,7 @@ test("S-47 SCS-11 QEA-138 original signed page refuses same-version digest repla
   } finally { f.records.save(f.record); }
   const fresh = await f.open();
   assert.deepEqual(await f.read(fresh), [], "neither the stale submit nor the already-running sandbox writes");
+  const beforeReplacement = f.storedValues();
   for (const [target, provider, changed] of [
     ["project", "system.signed_form_replacement", "provider"],
     ["home", undefined, "scope"],
@@ -179,7 +183,9 @@ test("S-47 SCS-11 QEA-138 original signed page refuses same-version digest repla
       const response = await f.atWrite(() => call("late after " + changed + " change"), () => { restoreProvider = f.replaceWait(target, provider); });
       assert.equal(response.ok, false, await response.text());
     } finally { restoreProvider?.(); }
-    assert.deepEqual(await f.read(fresh), [], "a different " + changed + " cannot finish the original write");
+    // An immediate page read can itself be fenced while the restored provider is being published.
+    assert.deepEqual(f.storedValues(), beforeReplacement,
+      "a different " + changed + " cannot finish the original write");
   }
   let restoreApproval: (() => void) | undefined;
   try {

@@ -120,6 +120,7 @@ async function startStudioFixture(t: TestContext, setup: { plugins?: readonly st
   const coded: Array<{ id: string; before: string }> = [];
   let firstRoot = '';
   const actions = f.host.actionRegistry(project.reference);
+  const actionClient = f.host.actionClient(project.reference);
   let reverseDirectory = false;
   const options: Parameters<typeof handleAgentStudioHttp>[3] = {
     store, projectId: project.project_id, homeDirectory: f.home, actorId: LOCAL_PERSON_ACTOR_ID,
@@ -127,7 +128,7 @@ async function startStudioFixture(t: TestContext, setup: { plugins?: readonly st
     models: async () => [{ provider_id: 'scripted', model_id: 'scripted', label: 'Scripted' }],
     // This existing executable rejects Chrome flags; BuilderBrowser cannot fall back to a personal browser.
     browserExecutable: setup.browserExecutable ?? process.execPath,
-    actions: { registry: actions, client: f.host.actionClient(project.reference), inspect: async caller => { const rows = await f.host.inspectActions(caller, project.reference); return reverseDirectory ? [...rows].reverse() : rows; }, project_id: project.project_id },
+    actions: { registry: actions, client: actionClient, inspect: async caller => { const rows = await f.host.inspectActions(caller, project.reference); return reverseDirectory ? [...rows].reverse() : rows; }, project_id: project.project_id },
     choice: { selectionAvailable: () => false, choose: async question => ({ choice: question.candidates[0]!.key, model: 'scripted', elapsedMs: 0 }) },
     agents: async build => ({ close: async () => {}, records: async () => [], async run(request) {
       const task = JSON.parse(request.task);
@@ -195,7 +196,7 @@ async function startStudioFixture(t: TestContext, setup: { plugins?: readonly st
     }
     throw new Error('revision fixture did not settle');
   };
-  return { f, project, answer, words, coded, helper, nested, send, wait, trialKeys, origin,
+  return { f, project, actionClient, answer, words, coded, helper, nested, send, wait, trialKeys, origin,
     reverseDirectory() { reverseDirectory = !reverseDirectory; }, restartStudio: () => releaseAgentStudio(store, project.project_id),
     image: (build: string, candidate: string) => fetch(origin + options.routePrefix + '/api/plugin-builder/studio/builds/' + build + '/mockups/' + candidate),
     rootFor: (build: AgentBuild) => join(dirname(firstRoot), build.design!.contract.revision),
@@ -886,7 +887,11 @@ test('Studio offers an enabled image connection requiring role permissions after
   const offered = (await choices()).choices.find(choice => choice.title.endsWith(' · ' + connection.id));
   assert.ok(offered, 'the configured Images connection is available on the Studio endpoint');
   await studio.restartStudio();
+  const batch = t.mock.method(studio.actionClient, 'discoverMatching');
+  const single = t.mock.method(studio.actionClient, 'discoverOne');
   assert.ok((await choices()).choices.some(choice => choice.key === offered.key), 'the same binding remains selectable after restart');
+  assert.equal(batch.mock.callCount(), 1, 'all image roles use one availability snapshot');
+  assert.equal(single.mock.callCount(), 0, 'Studio does not rediscover each role separately');
 });
 
 // 44C-06 / W7: a late availability response cannot start an image charge after Studio shuts down.

@@ -4,6 +4,7 @@ import { ActionError, IMAGE_GENERATION_ROLES, imageGenerationRoleOf, type Action
 import type { StudioImageBinding } from '@molis-ai/molis-work-plugin-studio';
 import { assertStageInstallation, installedStageIdentity } from '../installed-stage-identity.js';
 import type { ensureInstalledPlugins } from '../installed-plugin-host.js';
+import { matchingActions } from '../local-host-types.js';
 import { imageTypeOf } from '../material-attachments.js';
 import { currentProjectPlatform } from '../project-plugins.js';
 import type { AgentBuilderPorts, AgentStudioOptions, Studio } from './agent-surface.js';
@@ -39,17 +40,22 @@ export function studioImages(options: AgentStudioOptions, installed: Awaited<Ret
   const person = (permissions: readonly string[], signal?: AbortSignal): ActionCallContext => ({
     actor_id: options.actorId ?? 'web-user', project_id: actions.project_id, audience: 'user', permissions, signal,
   });
-  const catalog = async (signal?: AbortSignal) => {
+  const catalog = async (signal?: AbortSignal, owner?: StudioImageBinding) => {
     signal?.throwIfAborted();
-    const declared = options.actions?.inspect ? await options.actions.inspect(person([], signal)) : [];
-    const roles = declared.filter(view => view.provider.kind === 'plugin' && view.provider.plugin_install_id && imageGenerationRoleOf(view.action));
-    const checked = await Promise.all(roles.map(async view => {
-      const current = await actions.client.discoverOne(person(view.action.permissions, signal),
-        { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id });
-      return current && current.provider.plugin_install_id === view.provider.plugin_install_id
-        && current.provider.project_id === view.provider.project_id ? current : undefined;
-    }));
-    return generators(checked.filter((view): view is ActionView => view !== undefined));
+    const declared = await options.actions?.inspect?.(person([], signal)) ?? [];
+    const roles = declared.filter(({ action, provider }) => imageGenerationRoleOf(action) && provider.kind === 'plugin'
+      && provider.plugin_install_id && (!owner || provider.provider_id === owner.provider_id && provider.plugin_install_id === owner.install_id
+        && (provider.project_id ?? null) === (owner.scope === 'project' ? owner.project_id : null)));
+    if (!roles.length) return [];
+    const permissions = [...new Set(roles.flatMap(view => view.action.permissions))];
+    // One availability snapshot for the declared roles. Each actual invocation still uses only its own permissions.
+    const key = (row: Pick<ActionView, 'capability_id' | 'version'>, provider: ActionView['provider']) =>
+      JSON.stringify([provider.project_id, provider.plugin_install_id, provider.provider_id, row.capability_id, row.version]);
+    const declaredKeys = new Set(roles.map(view => key(view, view.provider)));
+    const checked = await matchingActions(actions.client, person(permissions, signal),
+      (definition, provider) => declaredKeys.has(key(definition, provider)));
+    const byKey = new Map(checked.map(view => [key(view, view.provider), view]));
+    return generators(roles.flatMap(view => byKey.get(key(view, view.provider)) ?? []));
   };
   const recordOf = (scope: 'project' | 'home', id: string) => scope === 'home' ? options.homeInstallation?.(id)
     : currentProjectPlatform(options.store, options.projectId)?.runtime.list().find(record => record.install_id === id)
@@ -98,15 +104,15 @@ export function studioImages(options: AgentStudioOptions, installed: Awaited<Ret
     for await (const { key, title } of choices()) offered.push({ key, title });
     return offered;
   }
-  async function bound(owner: StudioImageBinding, signal?: AbortSignal) {
-    assertOwner(owner);
-    const group = (await catalog(signal)).find(({ roles }) => {
-      const p = roles.generate.provider;
-      return p.provider_id === owner.provider_id && p.plugin_install_id === owner.install_id && (p.project_id ?? null) === (owner.scope === 'project' ? owner.project_id : null);
-    });
-    if (!group) throw changed();
+  async function checkConnection(group: Generator, owner: StudioImageBinding, signal?: AbortSignal) {
     const listed = await invoke<{ connections: Service[] }>(group, 'services.list', {}, owner, signal);
     if (!listed.connections.some(service => service.id === owner.connection_id && service.available !== false)) throw changed();
+  }
+  async function bound(owner: StudioImageBinding, signal?: AbortSignal) {
+    assertOwner(owner);
+    const [group] = await catalog(signal, owner);
+    if (!group) throw changed();
+    await checkConnection(group, owner, signal);
     return group;
   }
   const mockups: NonNullable<AgentBuilderPorts['mockups']> = {
@@ -130,8 +136,8 @@ export function studioImages(options: AgentStudioOptions, installed: Awaited<Ret
       request.checkpoint({ binding: owner, jobId });
       for (let waited = 0; job.status === 'running' && waited < 180_000; waited += 3_000) {
         await delay(3_000, undefined, { signal });
-        const current = await bound(owner, signal);
-        ({ job } = await invoke<{ job: Job }>(current, 'generations.get', { id: jobId }, owner, signal));
+        await checkConnection(group, owner, signal);
+        ({ job } = await invoke<{ job: Job }>(group, 'generations.get', { id: jobId }, owner, signal));
         if (job.id !== jobId || job.connection_id !== owner.connection_id) throw changed();
       }
       return job.status === 'succeeded' && job.images[0] ? { jobId, imageId: job.images[0].id, binding: owner }

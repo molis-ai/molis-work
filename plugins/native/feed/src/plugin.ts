@@ -60,6 +60,16 @@ const idOf = (value: { capability_id: string; version: number }) => `${value.cap
 /** The source actions after which an account source holds no account any more. */
 const RELEASES_ACCOUNT = new Set([feedSourceActions.disconnect.capability_id, feedSourceActions.delete.capability_id]);
 /** Commands whose writes can change whether or when a Feed source needs an automatic scheduled wakeup. */
+// Feed's open pages read again after each of its commands that succeeds, as the Home half's did before batch 109-1 (the Host refreshed
+// that instance's views); a scheduled pull that found nothing says `view_changed: false` and tells no page.
+const COMMANDS = new Set(FEED_PROJECT_ACTIONS.filter(definition => definition.operation === "command").map(idOf));
+function tellOpenPages(ui: { invalidate(): void } | undefined, caller: Pick<ActionExecutionContext, "signal" | "assert_authority_current">): void {
+  if (!ui || caller.signal?.aborted) return;
+  try { caller.assert_authority_current?.(); } catch { return; }
+  // A courtesy after the work is done: a plugin being stopped cannot be told, and that never changes the result.
+  try { ui.invalidate(); } catch { /* the pages read again on their own */ }
+}
+
 const WAKE_SENSITIVE = new Set([
   feedSourceActions.register.capability_id,
   feedSourceActions.update.capability_id,
@@ -266,6 +276,10 @@ export function createFeedPlugin(): PluginDefinition {
       ...writer.writing(FEED_PROJECT_ACTIONS.filter(definition => !own.has(idOf(definition))), mine.filter(binding => !own.has(idOf(binding))),
         (capabilityId, transaction) => { if (WAKE_SENSITIVE.has(capabilityId)) wakeup.sync(transaction); }),
       ...mine.filter(binding => own.has(idOf(binding))),
-    ] };
+    ].map(binding => COMMANDS.has(idOf(binding)) ? { ...binding, handle: async (caller: ActionExecutionContext, input: unknown) => {
+      const result = await binding.handle(caller, input);
+      if ((result as { view_changed?: unknown } | null | undefined)?.view_changed !== false) tellOpenPages(services?.ui, caller);
+      return result;
+    } } : binding) };
   } };
 }

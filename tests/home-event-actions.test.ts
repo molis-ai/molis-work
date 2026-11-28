@@ -74,7 +74,8 @@ test("formal unknown plugins supply namespaced events and checked navigation thr
 
 test("native event providers project original Feed, Inbox and source state", async () => {
   const { mkdtemp, rm } = await import("node:fs/promises"); const { tmpdir } = await import("node:os"); const { join } = await import("node:path");
-  const { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoGoals } = await import("@molis-ai/molis-work-app-local-host");
+  const { MolisWorkLocalHost, molisWorkHostProjectReference } = await import("@molis-ai/molis-work-app-local-host");
+  const { seedDemoGoals } = await import("./fixtures/demo-seed.js");
   const { createEvidenceContentStore, runWithMolisWorkHome } = await import("@molis-ai/molis-work-storage");
   const home = await mkdtemp(join(tmpdir(), "native-home-events-"));
   await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();

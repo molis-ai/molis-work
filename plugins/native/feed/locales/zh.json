@@ -556,7 +556,6 @@
     "feed.actions.presentation-values.title": "Feed 摘要字段",
     "feed.actions.presentation-values.description": "按当前权限读取这些 Feed 条目要展示的字段，读不到或已删除的会如实标明，不修改数据。",
     "feed.actions.presentation-overview.title": "Feed 首页概况",
-    "feed.actions.presentation-overview.description": "读取 Feed 的当前概况、靠前的消息和快捷入口；只读，不调用模型。",
-    "feed.project-deletion.data": "Feed 留存正文的引用记录"
+    "feed.actions.presentation-overview.description": "读取 Feed 的当前概况、靠前的消息和快捷入口；只读，不调用模型。"
   }
 }

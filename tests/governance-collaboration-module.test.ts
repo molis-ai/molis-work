@@ -11,7 +11,8 @@ import {
   deriveGoalTreeProposalState,
 } from "./fixtures/goals-modules.js";
 
-import { DEMO_PROJECT_ID, seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID} from "@molis-ai/molis-work-app-local-host";
+import { seedDemoGoals } from "./fixtures/demo-seed.js";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { GOALS_PLUGIN_ID, goalsManifest } from "@molis-ai/molis-work-plugin-goals";
 import { projectReviewDecisions } from "@molis-ai/molis-work-service-project-approvals";

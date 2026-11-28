@@ -14,6 +14,7 @@ import { DEMO_PROJECT_ID, seedDemoBoard, LocalProjectDatabase, scheduleServiceFo
 import { nextScheduleDueAt } from "@molis-ai/molis-work-service-scheduler";
 import { sourceContentReplicationDefinition } from '@molis-ai/molis-work-plugin-feed/store';
 import {createProjectReplicaSection,replicaTransaction} from '@molis-ai/molis-work-storage';
+import { SINGLE_PROJECT_ROOT_SQL } from '@molis-ai/molis-work-module-projects';
 import { accountSourceRecord } from "./fixtures/feed-account-source.js";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { authorizeMcpActions } from "../apps/local-host/dist/mcp-action-client.js";
@@ -201,7 +202,9 @@ for (const mode of ["grant-revoked", "disabled", "paused", "reconfigured", "dele
       if(mode.startsWith('replica-restored')){
         // Same visible description/configuration and numeric business state, but a newly adopted source branch.
         // The owner restore invalidates the old read even when its provider subsequently fails.
-        const section=createProjectReplicaSection(store.replicationDatabase,sourceContentReplicationDefinition(),PROJECT),wire=section.validate(section.read());
+        // Feed's source tables hold only this library's project (batch 109-1); read them as the platform's sync sections do, by the library's one root.
+        const owner=sourceContentReplicationDefinition(),definition={...owner,tables:owner.tables.map(table=>({...table,where:`? = ${SINGLE_PROJECT_ROOT_SQL.id}`}))};
+        const section=createProjectReplicaSection(store.replicationDatabase,definition,PROJECT),wire=section.validate(section.read());
         replicaTransaction(store.replicationDatabase,()=>{section.clear();section.write(wire);});
       }
       const before = sources.feed.snapshot(PROJECT);

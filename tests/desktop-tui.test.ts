@@ -11,7 +11,8 @@ import test from "node:test";
 import { WebSocket, type RawData } from "ws";
 
 
-import { DEMO_PROJECT_ID, MolisWorkLocalHost, projectActionAvailability, workspaceRefFor, seedDemoGoals, terminalRuntimeRecipe } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, MolisWorkLocalHost, projectActionAvailability, workspaceRefFor, terminalRuntimeRecipe } from "@molis-ai/molis-work-app-local-host";
+import { seedDemoGoals } from "./fixtures/demo-seed.js";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { resolveWebControlToken, WEB_CONTROL_TOKEN_RELATIVE_PATH } from "@molis-ai/molis-work-app-local-host";
 import { NATIVE_DESKTOP_BOOTSTRAP_SCRIPT } from "@molis-ai/molis-work-app-desktop";

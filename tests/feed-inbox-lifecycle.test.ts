@@ -9,8 +9,9 @@ import test from "node:test";
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createTestSourcePull, completedSourcePull } from "./fixtures/source-pull.js";
 import {
-  DEMO_PROJECT_ID, LocalProjectDatabase, MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, seedDemoGoals,
+  DEMO_PROJECT_ID, LocalProjectDatabase, MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard,
 } from "@molis-ai/molis-work-app-local-host";
+import { seedDemoGoals } from "./fixtures/demo-seed.js";
 import { FEED_ACTION_PERMISSIONS, feedSourceActions } from "@molis-ai/molis-work-plugin-feed";
 import { createLocalFeedApplication, createLocalFeedSourceScheduler, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 

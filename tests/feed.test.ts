@@ -5,7 +5,8 @@ import { join } from "node:path";
 import test from "node:test";
 
 
-import { DEMO_PROJECT_ID, seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID} from "@molis-ai/molis-work-app-local-host";
+import { seedDemoGoals } from "./fixtures/demo-seed.js";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 

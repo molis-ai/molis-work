@@ -11,8 +11,9 @@ import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/p
 import { UI_VIEW_GROUPS } from "@molis-ai/molis-work-contracts/platform/ui";
 import {
   DEMO_PROJECT_ID, LocalProjectDatabase, createPluginPlatform, ensureProjectPlugins, mergePluginDirectories, openProjectVersionStores, registeredBuiltinText,
-  releaseProjectPlugins, runningPluginDirectory, runWithLocale, runWithRegisteredText, seedDemoBoard, seedDemoGoals, BUILTIN_PLUGIN_IDS,
+  releaseProjectPlugins, runningPluginDirectory, runWithLocale, runWithRegisteredText, seedDemoBoard, BUILTIN_PLUGIN_IDS,
 } from "@molis-ai/molis-work-app-local-host";
+import { seedDemoGoals } from "./fixtures/demo-seed.js";
 import {
   BUILTIN_PLUGIN_CATALOG, CLIENT_SCRIPT, builtinPluginDirectory, clientPluginDirectory, creatableKinds, homeStarts,
   islandEntries, pluginDirectoryFor, railEntries, renderPluginDirectoryData, sanitizePluginDirectory, scriptJson, settingsEntries, type PluginDirectoryEntry,

@@ -14,7 +14,8 @@ import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/p
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { pluginLocaleReader } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { MolisWorkLocalHost, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
-import { DEMO_PROJECT_ID, seedDemoBoard, seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, seedDemoBoard} from "@molis-ai/molis-work-app-local-host";
+import { seedDemoGoals } from "./fixtures/demo-seed.js";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
@@ -151,10 +152,11 @@ test("Artifact HTTP links exact versions, exports opaque records and preserves e
 });
 
 test("Artifact HTTP keeps unknown and cross-project versions missing and rejects malformed exact references", async (t) => {
-  const { coordinator, library, get, surface, direct } = await fixture(t);
+  const { store, library, get, surface, direct } = await fixture(t);
   const sampled = library.artifacts.query.listArtifacts(DEMO_PROJECT_ID).length;
   library.artifacts.commands.registerVersion(registration());
-  coordinator.initializeBoard({ project_id: "other-project", actor_id: "owner", idempotency_key: "other-project" });
+  // A version of another project in the same file: the partition library has one Goals board (batch 109-1), so the other project is only a root row.
+  store.db.prepare("INSERT INTO project_root (project_id, created_at) VALUES (?, ?)").run("other-project", new Date().toISOString());
   library.artifacts.commands.registerVersion(registration({ project_id: "other-project", artifact_id: "other-only" }));
   for (const path of [exactPath(2), "/artifacts/missing/versions/1", "/artifacts/other-only/versions/1"]) {
     // Opened directly, the workbench opens on that version and says it is missing there.

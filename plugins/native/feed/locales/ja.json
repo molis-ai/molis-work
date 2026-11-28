@@ -596,7 +596,6 @@
     "feed.actions.presentation-values.title": "Feed の表示情報",
     "feed.actions.presentation-values.description": "現在の権限の範囲で指定された Feed 項目の表示情報を読み取ります。取得できない項目や削除済み項目はそのまま示し、データは変更しません。",
     "feed.actions.presentation-overview.title": "Feed のホーム概要",
-    "feed.actions.presentation-overview.description": "Feed の概要、主な記事、開始入口を読み取ります。読み取り専用で、モデルは呼び出しません。",
-    "feed.project-deletion.data": "Feed が保持する本文の参照記録"
+    "feed.actions.presentation-overview.description": "Feed の概要、主な記事、開始入口を読み取ります。読み取り専用で、モデルは呼び出しません。"
   }
 }

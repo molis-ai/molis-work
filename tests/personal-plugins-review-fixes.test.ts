@@ -51,7 +51,7 @@ import { HOST_FRAMED_SURFACES } from "@molis-ai/molis-work-app-workbench";
 import { ensureProjectPlugins, releaseProjectPlugins } from "../apps/local-host/dist/project-plugins.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import { serveTestHost } from "./fixtures/test-home.js";
-import { seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
+import { seedDemoGoals } from "./fixtures/demo-seed.js";
 import { HOME_DOCK } from "./fixtures/home-dock-scene.js";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));

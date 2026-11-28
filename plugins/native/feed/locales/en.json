@@ -604,7 +604,6 @@
     "feed.actions.presentation-values.title": "Feed display fields",
     "feed.actions.presentation-values.description": "Reads display fields for the requested Feed items within your current access, marking unavailable or deleted items without modifying data.",
     "feed.actions.presentation-overview.title": "Feed home overview",
-    "feed.actions.presentation-overview.description": "Reads a brief Feed overview, top items, and quick entry points. Read-only and doesn’t call a model.",
-    "feed.project-deletion.data": "Feed retained body references"
+    "feed.actions.presentation-overview.description": "Reads a brief Feed overview, top items, and quick entry points. Read-only and doesn’t call a model."
   }
 }

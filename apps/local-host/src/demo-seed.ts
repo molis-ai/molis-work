@@ -33,7 +33,8 @@ export function seedDemoBoard(databasePath: string, projectId = DEMO_PROJECT_ID)
  * project-scoped plugin's declared `manifest.demo_seed` action without naming any specific plugin.
  * Home-scoped plugins (`manifest.runtime?.scope`) seed on first open in the real Home via `initializeDemoPlugins`.
  */
-export async function seedDemoProject(databasePath: string, projectId = DEMO_PROJECT_ID): Promise<void> {
+export async function seedDemoProject(databasePath: string, projectId = DEMO_PROJECT_ID,
+  options: { /** Plugins installed in the project whose samples a test fixture leaves out (it names them, the Host does not). */ readonly leaveOut?: readonly string[] } = {}): Promise<void> {
   seedDemoBoard(databasePath, projectId);
   registerDemoDeliverable(databasePath, projectId);
   // Loaded lazily: the Host imports the catalog, which imports this seed.
@@ -50,7 +51,7 @@ export async function seedDemoProject(databasePath: string, projectId = DEMO_PRO
     for (const [platform, state] of platforms.flatMap(platform => platform.supervisor.states().map(state => [platform, state] as const))) {
       if (state.status !== "running" || !state.install_id) continue;
       const manifest = platform.supervisor.manifest(state.plugin_id);
-      if (!manifest?.demo_seed || manifest.runtime?.scope) continue;
+      if (!manifest?.demo_seed || manifest.runtime?.scope || options.leaveOut?.includes(manifest.plugin_id)) continue;
       const ref = manifest.demo_seed;
       const definition = manifest.actions?.find(action => action.capability_id === ref.capability_id && action.version === ref.version);
       if (!definition) continue;

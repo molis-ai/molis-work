@@ -421,7 +421,8 @@ test("AC-10-6: while Coding waits, the page reads the run again and the card, th
   await evaluate(`(() => { window.__reads = 0; const original = window.fetch; window.fetch = (...args) => { if (String(args[0]).includes('?window=')) window.__reads++; return original(...args); }; })()`);
   await owner.click(`${CODING_COMPOSER} [data-composer-send]`);
   await waitFor(`Boolean(document.querySelector(${JSON.stringify(card)}))`, 30_000);
-  await evaluate(`(() => { window.__card = document.querySelector(${JSON.stringify(card)}); document.querySelector(${JSON.stringify(field)}).focus(); })()`);
+  // As the person pressing into the field: Chrome 158 ignores a plugin frame's focus() without a user gesture.
+  await evaluate(`(() => { window.__card = document.querySelector(${JSON.stringify(card)}); document.querySelector(${JSON.stringify(field)}).focus(); })()`, undefined, "person");
   await command("Input.insertText", { text: "写到一半的话" }, sessionId);
   await evaluate(`document.querySelector(${JSON.stringify(field)}).setSelectionRange(3, 3)`);
   // Scrolled up with the wheel, as a person reading back does.

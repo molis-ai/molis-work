@@ -199,7 +199,9 @@ function words(labels: unknown): ComposerSnapshot["labels"] {
 }
 
 /** The parts that decide what the composer is mounted with; a change mounts it anew rather than refreshing. */
-const shape = (snapshot: ComposerSnapshot) => JSON.stringify([snapshot.entry, snapshot.stop, snapshot.mentions, snapshot.attachments, snapshot.sources, snapshot.voice, snapshot.submitKeys, snapshot.draft]);
+/** What needs a new mount. A strip's words are not: they follow the language and are applied in place (`apply`), so the box and its caret stay. */
+const shape = (snapshot: ComposerSnapshot) => JSON.stringify([snapshot.entry, snapshot.stop, snapshot.mentions,
+  snapshot.attachments && { accept: snapshot.attachments.accept, pictures: Boolean(snapshot.attachments.pictures) }, snapshot.sources, snapshot.voice, snapshot.submitKeys, snapshot.draft]);
 
 /** Rebuild the child's submission result at the frame boundary; checking still belongs to the original mount's call. */
 function outcomeOf(value: BridgedOutcome, check: (key: number) => Promise<ComposerCalls["check"][1]>): ComposerOutcome {
@@ -287,10 +289,12 @@ export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLEle
     if (Boolean(snapshot?.receiver) !== named) { named = !named; changed(); }
     if (!snapshot || !receiver) return;
     receiver.options.labels = snapshot.labels as MwComposerAiLabels;
+    const pictures = snapshot.attachments?.pictures;
+    if (pictures && receiver.options.attachments?.pictures) receiver.options.attachments.pictures = { ...pictures };
     if (!bound) return;
     bound.setRunning(snapshot.running); bound.hold(snapshot.hold);
     if (field && field.placeholder !== snapshot.placeholder) field.placeholder = snapshot.placeholder;
-    const drawn = JSON.stringify([snapshot.labels, snapshot.receiver, snapshot.delivery, snapshot.pause, snapshot.controls, snapshot.commands, snapshot.commandMenu]);
+    const drawn = JSON.stringify([snapshot.labels, snapshot.attachments?.pictures, snapshot.receiver, snapshot.delivery, snapshot.pause, snapshot.controls, snapshot.commands, snapshot.commandMenu]);
     // The lines read on every draw can change with nothing else (a picture refused, the chip's prompt as words are typed): drawn
     // again without the bar's start, so a menu that is open stays.
     const lines = JSON.stringify([snapshot.notice, snapshot.required, snapshot.chip]);

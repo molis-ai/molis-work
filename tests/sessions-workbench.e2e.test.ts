@@ -396,6 +396,13 @@ for (const outcome of ["back", "failure"] as const) {
       await evaluate("document.querySelector('[data-sessions-back]').click()");
     }
     await evaluate("window.__releaseHistory(); new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+    if (outcome === "failure") {
+      // Since #2345 a failed read of a listed row stays on that row with the error and a retry, not a transcript; the
+      // person returns to the list from there.
+      await waitFor("Boolean(document.querySelector('[data-sessions-detail] .mw-alert[data-tone=\"danger\"] [data-detail-retry]'))");
+      assert.equal(await evaluate("Boolean(document.querySelector('[data-sessions-detail] .mw-transcript'))"), false);
+      await evaluate("document.querySelector('[data-sessions-back]').click()");
+    }
     await waitFor("document.querySelector('[data-work-surface=\"sessions\"]').dataset.expanded === 'false'");
     assert.equal(await evaluate("Boolean(document.querySelector('[data-sessions-detail] .mw-transcript'))"), false);
     assert.equal(await evaluate("Boolean(document.querySelector('[data-sessions-detail][data-assistant-context]'))"), false);

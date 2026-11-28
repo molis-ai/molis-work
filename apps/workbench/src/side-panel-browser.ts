@@ -307,10 +307,11 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
     const version=approval.dataset.reviewVersion;
     deciding.add(id);paintApprovalBusy();
     try{
+      // W2-18-BROWSER-GRANT-01: the site is saved first; a refused save throws here, so the step is not approved.
+      if(site)await setSite(site,'allow');
       await molisWorkRequest(routePrefix+'/api/agent/reviews/decide',{body:{review_id:id,version,decision},fallback:globalThis.t.text("workbench.side-panel-browser.answer-was-not-sent")});
       if(reviewing===id)renderApproval(null);
       void pollReviews();
-      if(site)await setSite(site,'allow');
     }catch(error){fail(error);}
     finally{deciding.delete(id);if(reviewing===id)paintApprovalBusy();}
   };

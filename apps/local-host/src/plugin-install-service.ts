@@ -602,7 +602,13 @@ export class PluginInstallService {
             let projectAttempted = false;
             let projectError: unknown;
             let completed = false;
-            const runComplete = complete ? () => { if (!completed) { completed = true; complete(); } } : undefined;
+            const runComplete = complete
+              ? () => {
+                  if (completed) return;
+                  completed = true;
+                  complete();
+                }
+              : undefined;
             try {
               await this.ports.installInHome(release, assertCurrent, runComplete, {
                 ...sharedSecrets,

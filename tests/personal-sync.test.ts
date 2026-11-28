@@ -367,7 +367,8 @@ for(const change of ['edit','device-stop'] as const)test('PCSYNC-15 delayed rete
     else deviceStopped = f.clients[1].setDevice(false);
     return undefined;
   });
-  await assert.rejects(()=>f.clients[1].resolve(namespace,conflict.key,'remote',conflict.revision,conflict.state),/内容已变化|状态已变化/);
+  const expected = change === 'edit' ? /内容已变化/ : { code: 'sync_replication.sync_scope', message: '同步已停止' };
+  await assert.rejects(() => f.clients[1].resolve(namespace, conflict.key, 'remote', conflict.revision, conflict.state), expected);
   await deviceStopped;
   assert.equal(f.withStore(1,s=>s.get(page.id).title),change==='edit'?'newer local C':'local B');assert.equal(f.withReplica(1,r=>r.conflicts().length),1);
   assert.equal(f.retained.length,1,'a retained backup does not claim that the user choice committed');assert.deepEqual(f.retained[0]!.mutation.value,conflict.local);

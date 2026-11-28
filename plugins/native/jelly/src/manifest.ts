@@ -38,7 +38,7 @@ export const jellyManifest: PluginManifest = {
   ],
   // Each partition's own calendar and notes (specs/unified-partition-plugins §4.2, batch 108); its open entries are the overview's events.
   databases: { partition: JELLY_DATABASE },
-  overview_projection: { kinds: ["event"] },
+  overview_projection: { kinds: ["event"], rolling_window: true },
   sync: jellySync,
   ui: { locales: { default: "zh", available: ["zh", "en", "ja"] },
     help: {

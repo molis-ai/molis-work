@@ -513,12 +513,30 @@ test("B2R-04 a dormant future series enters its reminder window after a ten-day 
   assert.ok(!registry.entries(a.project_id).some(row => row.entry_key === key));
   for (const project of [a, b]) await f.host.closeProject(project.reference);
   await assembly.assembly.stopPlugin(jellyManifest.plugin_id);
+  // Stop the automatic arm in this clock-controlled case. Drive the same durable timer after the long shutdown.
+  t.mock.method(assembly.services.timer, "arm", () => {});
+  const { LocalHostHttpClient, projectPluginRevision } = await import("@molis-ai/molis-work-test-kit/local-host-http");
+  const web = new LocalHostHttpClient({ origin: f.origin, controlToken: f.token });
+  for (const method of ["DELETE", "POST"]) {
+    const expected_revision = await projectPluginRevision(web, a.project_id);
+    const result = await f.request(`/api/settings/projects/${encodeURIComponent(a.project_id)}/plugins`, { method, body: { plugin_id: "jelly", expected_revision } });
+    assert.equal(result.status, 200);
+    assert.equal(registry.entries(a.project_id).some(row => row.entry_key === "overview:refresh"), method === "POST");
+    assert.deepEqual(assembly.assembly.instances(), []);
+  }
   t.mock.timers.enable({ apis: ["Date"], now: current + 10 * 86_400_000 });
   try {
     await assembly.services.timer.fire();
     assert.equal(registry.entries(a.project_id).find(row => row.entry_key === key)?.due_at, day + "T09:55:00.000Z");
     assert.ok(registry.entries(a.project_id).some(row => row.entry_key === "overview:refresh" && Date.parse(row.due_at) > Date.now()));
     assert.deepEqual(assembly.assembly.instances().map(row => [row.partition_id, row.plugin_id]), [[a.project_id, jellyManifest.plugin_id]]);
+    t.mock.timers.setTime(Date.parse(day + "T09:55:00.000Z"));
+    await assembly.services.timer.fire();
+    await assembly.services.timer.fire();
+    const response = await f.request("/api/assistant/notices");
+    assert.equal(response.status, 200);
+    const { notices } = await response.json() as { notices: { open?: { project_id?: string } }[] };
+    assert.equal(notices.filter(notice => notice.open?.project_id === a.project_id && JSON.stringify(notice).includes(series.id)).length, 1);
   } finally { t.mock.timers.reset(); }
 });
 

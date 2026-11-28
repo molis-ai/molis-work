@@ -105,4 +105,4 @@ const { rows } = await globalThis.molisWorkRequest<OverviewReadResult>("/api/run
 
 路由检查本人页面身份，经 `overview.read@1` 取出可读分区和当前字段。个人助理从动作目录调用同一动作，按本人授予的项目与字段读取。插件提供本分区投影，其 SDK 调用不能代读个人空间。见[工作台路由](../../apps/local-host/src/runtime-overview-http.ts)、[总览动作](../../apps/local-host/src/overview-actions.ts)和[页面使用位置](../../apps/workbench/src/browser/personal-tasks.ts)。本次休眠同步装配支持声明了 `partitionSync` 的内置分区插件；外部签名包的能力见[沙箱入口](../../apps/local-host/src/plugin-host-services.ts)。
 
-有滚动窗口的插件可用 `services.due.register` 登记合同常量 `OVERVIEW_REFRESH_ENTRY_KEY`。即使关机超过七天，平台也只唤醒原分区的原插件来重建当前窗口。处理器在提交前调用 `beforeEffect` 并登记下次刷新。此键不产生用户通知；普通日程的漏提醒仍以七天为限。
+滚动窗口在 Manifest 声明 `overview_projection.rolling_window: true`。从分区移除后再启用，若原分区库仍在，平台为该安装登记一次立即到期的窗口刷新。首次启用空库由插件按实际写入自行登记。有滚动窗口的插件可用 `services.due.register` 登记合同常量 `OVERVIEW_REFRESH_ENTRY_KEY`。即使关机超过七天，平台也只唤醒原分区的原插件来重建当前窗口。处理器在提交前调用 `beforeEffect` 并登记下次刷新。此键不产生用户通知；普通日程的漏提醒仍以七天为限。

@@ -38,16 +38,10 @@ export function pluginOverviewFor(manifest: PluginManifest, context: Pick<Plugin
     join: (transaction, write) => joinPluginTransaction(database, transaction, (afterCommit, live) => {
       live();
       const install = installation();
-      let touched = false;
-      const beforeWrite = () => {
-        live();
-        if (!touched) installation();
-      };
-      const touch = () => {
-        if (touched) return;
-        touched = true;
-        afterCommit(() => changed(install));
-      };
+      const notify = () => changed(install);
+      // A savepoint can rewind the queued callback. The transaction owns deduplication as well as rollback.
+      const touch = () => afterCommit(notify, true);
+      const beforeWrite = () => { live(); installation(); };
       const rows: PluginOverviewRows = {
         upsert(kind, row) {
           const checkedKind = kindOf(kind);

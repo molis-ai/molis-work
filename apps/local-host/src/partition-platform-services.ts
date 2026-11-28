@@ -1,7 +1,7 @@
 import { existsSync, lstatSync, realpathSync } from "node:fs";
 import path from "node:path";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { OVERVIEW_MAIN_TABLE, type OverviewReadResult, type OverviewKind, type PluginManifest, type PluginPersonSettingsDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { OVERVIEW_MAIN_TABLE, type OverviewReadResult, type PluginDueEntry, type OverviewKind, type PluginManifest, type PluginPersonSettingsDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { DUE_REGISTRY_STORE, DueTimer, openDueRegistry, type DueEntryOwner, type DueEntryRecord, type DueExpiredRecord, type DueRegistry } from "@molis-ai/molis-work-service-scheduler";
 import { EVIDENCE_STORE, openEvidenceLedger } from "@molis-ai/molis-work-service-evidence";
 import { PERSON_SETTINGS_STORE, openPersonSettings, type PersonSettingsInstallation } from "@molis-ai/molis-work-service-person-settings";
@@ -198,6 +198,14 @@ const canonical = (home: string) => { try { return realpathSync(home); } catch {
 /** The services the Host runs for this Home now, if it runs them: a plugin's own due entry then arms the timer at once. */
 export function runningPartitionPlatformServices(home: string): PartitionPlatformServices | undefined {
   return running.get(canonical(home));
+}
+
+/** Persist a wake before or after the timer starts. A running timer immediately observes the committed entry. */
+export function registerPartitionDue(home: string, owner: DueEntryOwner, entry: PluginDueEntry): DueEntryRecord {
+  const services = runningPartitionPlatformServices(home);
+  if (services) return services.registerDue(owner, entry);
+  const due = openDueRegistry(home);
+  try { return due.register(owner, entry); } finally { due.close(); }
 }
 
 export class PartitionPlatformServices {

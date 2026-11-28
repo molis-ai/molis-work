@@ -144,6 +144,8 @@ export interface OverviewRowByKind {
 /** `overview_projection` in the Manifest: which kinds the plugin keeps, and an optional static one-line label for the overview. No columns, no SQL. */
 export interface PluginOverviewProjectionDeclaration {
   readonly kinds: readonly OverviewKind[];
+  /** A retained partition library needs its owner to roll the window after enablement. Receives OVERVIEW_REFRESH_ENTRY_KEY through onDue. */
+  readonly rolling_window?: true;
   /** Optional static one-line label shown in the overview (checked with the same TextRef rules as other Manifest directory titles). */
   readonly title_text?: TextRef;
 }

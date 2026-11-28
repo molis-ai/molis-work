@@ -63,7 +63,7 @@ export const OBSERVATION_COVERAGE_PLAN: readonly CoveragePlanEntry[] = [
   // Every wakeup of a project clock, in its own operation; the action it fired is the exit's record under the same call number.
   { owner: "service:scheduler", fact: "scheduler.wakeup", entries: [SCHEDULE_ENTRY], state: "complete" },
   // Each fallen-due entry of a partition's due registry handed to its (plugin, partition) instance (batch 108): succeeded when it raised a
-  // durable reminder, no_action when it had none, failed (and retried) if activation or the notification write fails (`partition-observation.ts`).
+  // durable reminder, no_action for a rolling-window refresh (including after re-enable), failed and retried for an activation or notification failure.
   { owner: "service:scheduler", fact: "scheduler.due_wakeup", entries: [SCHEDULE_ENTRY], state: "complete" },
   // Each start and stop of a per-partition plugin instance, with why (opened, due, push, sync; idle, switched off, partition gone, Host
   // closing) and the error's code when it failed (`PartitionPluginAssembly` lifecycle, batch 108).

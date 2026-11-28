@@ -6,7 +6,7 @@ import { currentPluginInvocation, inPluginInstance } from "@molis-ai/molis-work-
 import { openDueRegistry, type DueEntryOwner } from "@molis-ai/molis-work-service-scheduler";
 import { openPersonSettings, type PersonSettingsCaller } from "@molis-ai/molis-work-service-person-settings";
 import type { PartitionPluginScope } from "./partition-plugin-assembly.js";
-import { runningPartitionPlatformServices } from "./partition-platform-services.js";
+import { registerPartitionDue, runningPartitionPlatformServices } from "./partition-platform-services.js";
 
 /**
  * The two services a plugin reaches through the unified partitions (specs/unified-partition-plugins §4.1, §4.2 第 4 条, batch 108): the person
@@ -123,8 +123,7 @@ export function pluginDueFor(home: string | undefined, scope: PartitionPluginSco
   return Object.freeze<PluginDueClient>({
     register(input) {
       assertActive();
-      const services = runningPartitionPlatformServices(home);
-      return entry(services ? services.registerDue(owner, input) : withRegistry(registry => registry.register(owner, input)));
+      return entry(registerPartitionDue(home, owner, input));
     },
     cancel(entryKey) {
       assertActive();

@@ -475,11 +475,13 @@ test("UPP-34 parsePluginManifest validates databases.partition SQL safety, overv
 
   // Valid unified partition manifest with literal/own-key title_text, market, and dependencies (enable_with).
   const parsed = parsePluginManifest(base({
-    overview_projection: { kinds: ["task", "event"], title_text: { key: "sample-todo.overview.title" } },
+    overview_projection: { kinds: ["task", "event"], rolling_window: true, title_text: { key: "sample-todo.overview.title" } },
     market: { category: "plan" },
     dependencies: [{ plugin_id: "io.molis.work.helper", enable_with: true, reason: "提供日程同步" }],
   }));
   assert.equal(parsed.market?.category, "plan");
+  assert.equal(parsed.overview_projection?.rolling_window, true);
+  assert.throws(() => parsePluginManifest(base({ overview_projection: { kinds: ["event"], rolling_window: "yes" } })), /rolling_window/u);
   assert.deepEqual(parsed.overview_projection?.title_text, { key: "sample-todo.overview.title" });
   assert.doesNotThrow(() => parsePluginManifest(base({ overview_projection: { kinds: ["task"], title_text: { literal: "待办" } } })), "literal TextRef accepted consistently");
   assert.doesNotThrow(() => parsePluginManifest(base({ overview_projection: { kinds: ["task"], title_text: { key: "common.control.confirm" } } })), "common key accepted");

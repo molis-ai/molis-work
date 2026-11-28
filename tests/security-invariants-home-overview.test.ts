@@ -40,7 +40,14 @@ test("S-49 UPP-37 services.overview stamps the installation, writes only declare
   assert.deepEqual(changed, [installId]);
   // Another installation's rows in the same table are not this one's to change.
   store.db.prepare("INSERT INTO plugin_overview_rows (install_id, kind, row_id, title, state, waiting, updated_at) VALUES ('someone-else', 'background_task', 's1', 'x', 'running', 0, ?)").run(ROW.updated_at);
-  await write(rows => rows.removePrefix("background_task", "s"));
+  await library.transaction(async () => {}, tx => overview.join(tx, rows => {
+    rows.remove("background_task", "absent");
+    tx.savepoint(() => {
+      rows.upsert("background_task", { ...ROW, row_id: "rolled-back" });
+      return { keep: false, value: undefined };
+    });
+    rows.removePrefix("background_task", "s");
+  }));
   assert.deepEqual(changed, [installId, installId], "removing an existing row refreshes the index");
   assert.deepEqual(rows(), [{ install_id: "someone-else", kind: "background_task", row_id: "s1", state: "running" }], "it reaches only its own rows");
 

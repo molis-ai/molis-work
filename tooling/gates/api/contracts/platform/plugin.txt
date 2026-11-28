@@ -5474,6 +5474,7 @@ export interface PluginOverviewClient {
 
 export interface PluginOverviewProjectionDeclaration {
     readonly kinds: readonly OverviewKind[];
+    readonly rolling_window?: true;
     readonly title_text?: TextRef;
 }
 

@@ -12,7 +12,7 @@
 2. **平台服务的 sink。** 宿主装配时给每个服务一个只认它前缀的 `ObservationSink`。服务在一件事开始时（一轮 Agent 运行、一次唤醒、一次连接器拉取）`bind(origin)`，之后在回调里随时 `record(fact)`：即使那时动作的异步上下文已经结束，身份也不会丢。检索、读取与记忆写入是动作调用，随出口记，不另设 sink。
 3. **上报动作。** 外壳只经宿主签发入口凭据的界面阶段路由上报 `ui.*`；插件在 Manifest `capabilities.consumes` 声明 `observation.report@1`，只能上报以自己 `plugin_id` 开头的事实。每次至多 100 条、1 MiB；每个上报方每天至多 20,000 条、64 MiB。
 
-分区总览的后台重建完成后，`home.overview_rebuild` 只记成功刷新数和失败数。前台总览查询沿用动作出口的读取记录。
+重加保留日历库触发的窗口刷新沿用 `scheduler.due_wakeup`，成功刷新记为 `no_action`。分区总览的后台重建完成后，`home.overview_rebuild` 只记成功刷新数和失败数。前台总览查询沿用动作出口的读取记录。
 
 ## 接入一种新事实
 

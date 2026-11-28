@@ -17,7 +17,7 @@ import { notePartitionInstalls, pluginInstallRecords } from "./plugin-install-re
 import { BUILTIN_PLUGIN_REGISTRY, builtinPluginByManifestId, PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import {
   ATTENTION_OVERVIEW_SOURCE, attentionOverviewLibrary, forgetInstallationPlatformRecords, forgetPartitionMainOverviewRows,
-  markPartitionChanged, partitionOverviewLibraries, PartitionPlatformServices, type OverviewInstallation,
+  markPartitionChanged, partitionOverviewLibraries, PartitionPlatformServices, registerPartitionDue, type OverviewInstallation,
 } from "./partition-platform-services.js";
 import { onAttentionChangeOf } from "./attention-changes.js";
 import type { PluginPlatform, PluginPlatformEntry } from "./plugin-platform.js";
@@ -123,6 +123,13 @@ export function partitionPluginMembershipChanged(home: string, pluginId: string,
   const installId = installed?.install_id ?? installIdentity(manifest);
   if (enabled) {
     if (manifest.overview_projection?.kinds.length) partitionChanged(home, partitionId, installId);
+    if (manifest.overview_projection?.rolling_window) {
+      const [library] = partitionOverviewLibraries(home, [{ partition_id: partitionId, plugins: [{ install_id: installId, manifest }] }]);
+      if (library && existsSync(library.path)) {
+        registerPartitionDue(home, { partition_id: partitionId, plugin_id: pluginId, install_id: installId },
+          { entry_key: OVERVIEW_REFRESH_ENTRY_KEY, due_at: new Date().toISOString() });
+      }
+    }
     return;
   }
   if (host?.services) host.services.pluginDisabled(installId, partitionId);

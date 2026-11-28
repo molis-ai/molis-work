@@ -8,14 +8,14 @@ import {syncError} from './sync-errors.js';
  * sign-out waits for the operation holding the sync lock, so a response that never comes must not hold that lock.
  */
 function untilAborted(pending:Promise<Response>,signal:AbortSignal):Promise<Response>{
-  if(signal.aborted){pending.catch(()=>undefined);return Promise.reject(signal.reason);}
+  if(signal.aborted){
+    pending.catch(()=>undefined);
+    return Promise.reject(signal.reason);
+  }
   return new Promise<Response>((resolve,reject)=>{
     const stop=()=>reject(signal.reason);
     signal.addEventListener('abort',stop,{once:true});
-    pending.then(
-      response=>{signal.removeEventListener('abort',stop);resolve(response);},
-      error=>{signal.removeEventListener('abort',stop);reject(error);},
-    );
+    pending.finally(()=>signal.removeEventListener('abort',stop)).then(resolve,reject);
   });
 }
 

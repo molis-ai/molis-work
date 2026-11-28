@@ -24,7 +24,7 @@ export function createJellyPlugin(): PluginDefinition {
       const roll = async (check: () => void) => {
         await database.transaction(
           async () => check(),
-          refillJellyOverview,
+          transaction => refillJellyOverview(transaction, true),
         );
         armJellyWindow(database, due, true);
       };

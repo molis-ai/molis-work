@@ -543,6 +543,38 @@ test("B2R-04 a dormant future series enters its reminder window after a ten-day 
   } finally { t.mock.timers.reset(); }
 });
 
+test("B2R-03 B2R-04 Jelly resumes beyond its original window and delivers only reminders younger than seven days, once", async t => {
+  const f = await serveHomeRuntime(t), project = await f.project("Sleeping calendar", ["jelly"]);
+  const assembly = existingPartitionPluginHost(f.home);
+  assert.ok(assembly?.services);
+  t.mock.method(assembly.services.timer, "arm", () => {});
+  const client = bindActionClient(f.host.actionClient(project.reference), () => runtimePerson(jellyActions.createSeries.action.permissions, project.project_id));
+  const dayAt = (offset: number) => new Date(start + offset * 86_400_000).toISOString().slice(0, 10);
+  const start = Date.now(), keys: string[] = [];
+  for (const offset of [92, 95]) {
+    const day = dayAt(offset);
+    const { series } = await client.invoke(jellyActions.createSeries, { series: { title: "Day " + offset, start_date: day, end_date: day, until: day,
+      time_zone: "UTC", start_time: 600, end_time: 660, reminder_minutes: 5, weekdays: [new Date(day).getUTCDay() || 7] } });
+    keys.push(series.id + "@" + day);
+  }
+  const registry = assembly.services.due;
+  assert.ok(registry.entries(project.project_id).every(entry => !keys.some(key => entry.entry_key === "event:" + key)));
+  assert.ok(registry.entries(project.project_id).some(entry => entry.entry_key === "overview:refresh"));
+  await f.host.closeProject(project.reference);
+  await assembly.assembly.stopPlugin(jellyManifest.plugin_id);
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse(dayAt(99) + "T09:55:00.000Z") });
+  try {
+    await assembly.services.timer.fire();
+    assert.deepEqual(registry.entries(project.project_id).filter(row => row.source === "overview").map(row => row.entry_key), ["event:" + keys[1]]);
+    await assembly.services.timer.fire();
+    await assembly.services.timer.fire();
+    const response = await f.request("/api/assistant/notices");
+    assert.equal(response.status, 200);
+    const { notices } = await response.json() as { notices: { open?: { project_id?: string; id?: string } }[] };
+    assert.deepEqual(notices.filter(notice => notice.open?.project_id === project.project_id).map(notice => notice.open?.id), [keys[1]]);
+  } finally { t.mock.timers.reset(); }
+});
+
 test("UPP-21 batch 107 the Host runs a plugin with a library in each partition as its own instance per partition; one crashing leaves the other and the Home's installation as they were; the Home store and the instances share no stale record", async t => {
   const f = await serveHomeRuntime(t);
   const a = await f.project("分区 A", ["dataset"]), b = await f.project("分区 B", ["dataset"]);

@@ -122,7 +122,7 @@ export async function runtimeOverview(ports: RuntimeOverviewPorts, signal?: Abor
   };
   // The partitions' runs from the overview, and the Home's own owners, at the same time.
   const window_ = (projectId: string, pluginId: string) => window(projectId, pluginId);
-  const [projects] = await Promise.all([
+  const [collected] = await Promise.all([
     ports.projectRuns({ now, until: new Date(now.getTime() + UPCOMING_HOURS * 3_600_000) }, owner => runsExpiryBounds(window_(owner.project_id, owner.plugin_id))),
     ports.within(null, async client => {
       const views = (await client.discover()).filter(view => isOverview(view) && view.action.scope === "home");
@@ -133,6 +133,7 @@ export async function runtimeOverview(ports: RuntimeOverviewPorts, signal?: Abor
       }));
     }).catch((error: unknown) => { signal?.throwIfAborted(); unavailable.push({ project_id: null, provider_id: null, code: codeOf(error) }); }),
   ]);
+  const projects = collected?.current?.() ?? collected;
   const candidates = [...new Set([...(projects?.refreshing ?? []), ...(projects?.unavailable ?? []), ...(projects?.owners ?? []).map(owner => owner.project_id), ...[...upcoming, ...missed].flatMap(run => run.project_id ? [run.project_id] : [])])];
   const allowed = new Set(ports.readableProjects?.(candidates) ?? candidates);
   if (projects) {

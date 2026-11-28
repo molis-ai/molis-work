@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ActionError, defineBackgroundTasksAction, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { runningPartitionPlatformServices } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, runningPartitionPlatformServices } from "@molis-ai/molis-work-app-local-host";
+import { codingManifest } from "@molis-ai/molis-work-plugin-coding";
+import { projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { writeMainOverviewRows } from "./fixtures/overview-rows.js";
 import type { HomeBackgroundTasksReadResult } from "@molis-ai/molis-work-contracts/services/mainline";
 import { openTestHome, type TestHome, type TestProject } from "./fixtures/test-home.js";
 
@@ -25,6 +28,36 @@ function hostTaskSource(home: TestHome, projects: readonly TestProject[]) {
     } }] });
   return state;
 }
+
+test("B2R-02 removing one installation while Home attention waits drops only its projected work", { timeout: 60_000 }, async t => {
+  const home = await openTestHome(t);
+  const a = await home.createProject("A", ["coding"]), b = await home.createProject("B", ["coding"]);
+  for (const project of [a, b]) {
+    const db = new LocalProjectDatabase(project.database_path);
+    try {
+      await writeMainOverviewRows(home.home, db, project.project_id, codingManifest, rows => rows.upsert("background_task", {
+        row_id: project.project_id, title: "Projected " + project.project_id, state: "waiting", waiting: true, updated_at: new Date().toISOString(),
+      }));
+    } finally { db.close(); }
+  }
+  const release = Promise.withResolvers<void>(), entered = Promise.withResolvers<void>(), projected = Promise.withResolvers<void>();
+  const index = runningPartitionPlatformServices(home.home)!.overview, readIndex = index.read.bind(index);
+  t.mock.method(index, "read", (...args: Parameters<typeof readIndex>) => {
+    const rows = readIndex(...args);
+    if ([a, b].every(p => rows.some(row => row.row_id === p.project_id && row.kind === "background_task"))) projected.resolve();
+    return rows;
+  });
+  const provider = hostTaskSource(home, [a, b]);
+  provider.answer = async id => { entered.resolve(); await release.promise; return answer(id); };
+  const pending = home.web.get<{ background_tasks: HomeBackgroundTasksReadResult }>("/api/attention");
+  try {
+    await Promise.all([entered.promise, projected.promise]);
+    await home.web.delete(`/api/settings/projects/${a.project_id}/plugins`, { plugin_id: "coding", expected_revision: await projectPluginRevision(home.web, a.project_id) });
+  } finally { release.resolve(); }
+  const tasks = (await pending).background_tasks.tasks;
+  assert.deepEqual(tasks.filter(task => task.subject.kind === codingManifest.plugin_id).map(task => task.title), ["Projected " + b.project_id]);
+  assert.deepEqual(tasks.filter(task => task.subject.kind === "homebg_task").map(task => task.project_id).sort(), [a.project_id, b.project_id].sort());
+});
 
 test("QEA-14/16 Home attention keeps partial failure, invalid-answer and timeout evidence until a real read recovers", { timeout: 90_000 }, async t => {
   let denied = "";

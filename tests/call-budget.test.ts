@@ -37,8 +37,8 @@ async function callMeter(t: TestContext) {
     if (url !== owner && url !== registration) return result;
     const source = typeof result.source === "string" ? result.source : new TextDecoder().decode(result.source!);
     if (url === owner) {
-      const entry = "export function reachEntry(homeDirectory, pluginId) {";
-      assert.ok(source.includes(entry), "the loaded Host contains the measured reach resolver");
+      const entry = /^export function reachEntry\([^)]*\) \{/mu.exec(source)?.[0];
+      assert.ok(entry, "the loaded Host contains the measured reach resolver");
       return { ...result, source: source.replace(entry, `${entry} ${probe}.owner();`) };
     }
     const declaration = "export const PLATFORM_PLUGIN_REGISTRATIONS = [";

@@ -5,7 +5,7 @@ import test from "node:test";
 import { existsSync, mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createLocalWebCoreFactory, decideRuntimeRun, expiredOwnerKey, expiredSeen, LocalProjectDatabase, markExpiredSeen, runtimeExpiredSeenRequest, runtimeOverview, runtimeRunDecisionRequest, scheduledRunsOf, type RuntimeOverviewPorts, type RunsClient } from "@molis-ai/molis-work-app-local-host";
+import { createLocalWebCoreFactory, decideRuntimeRun, expiredOwnerKey, expiredSeen, LocalProjectDatabase, markExpiredSeen, runningPartitionPlatformServices, runtimeExpiredSeenRequest, runtimeOverview, runtimeRunDecisionRequest, scheduledRunsOf, type RuntimeOverviewPorts, type RunsClient } from "@molis-ai/molis-work-app-local-host";
 import { desktopWorkbenchRendererPorts, isDesktopShellRequest, NATIVE_DESKTOP_BOOTSTRAP_SCRIPT, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { ActionError, defineRunDecisionAction, defineRunsOverviewAction, RUN_MISSED_KEPT_MS, type ActionDefinition, type ActionView, type RunsOverview,
   type RunsWindow } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -13,7 +13,7 @@ import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/p
 import type { OverviewIndexRow } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { scheduleManifest } from "@molis-ai/molis-work-plugin-schedule";
 import { writeMainOverviewRows } from "./fixtures/overview-rows.js";
-import { createProject, LocalHostHttpClient } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { createProject, LocalHostHttpClient, projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 
 /**
  * RES-05, V17: the partitions' runs come from the overview, where each plugin wrote them as `scheduled_run` rows (no project is asked or
@@ -307,4 +307,22 @@ test("UPP-30 the runtime panel applies project readability to cached scheduled r
   denied = a.project_id;
   const allowed = await titles();
   assert.ok(!allowed.includes(a.project_id) && allowed.includes(b.project_id));
+  denied = "";
+  const release = Promise.withResolvers<void>(), entered = Promise.withResolvers<void>(), projected = Promise.withResolvers<void>();
+  const index = runningPartitionPlatformServices(home.home)!.overview, readIndex = index.read.bind(index);
+  t.mock.method(index, "read", (...args: Parameters<typeof readIndex>) => {
+    const rows = readIndex(...args);
+    if ([a, b].every(project => rows.some(row => row.row_id === project.project_id && row.kind === "scheduled_run"))) projected.resolve();
+    return rows;
+  });
+  const query = defineRunsOverviewAction("fixture.pending.runs", 1, "Pending source", [], "home");
+  home.host.actionRegistry().registerProvider({ provider: { provider_id: "fixture.pending", title: "Pending", kind: "system" }, definitions: [query],
+    handlers: [{ ...query, async handle() { entered.resolve(); await release.promise; return { source: { title: "Pending", surface: "pending" }, upcoming: [], missed: [], expired: 0 }; } }] });
+  const inFlight = titles();
+  try {
+    await Promise.all([entered.promise, projected.promise]);
+    await home.web.delete(`/api/settings/projects/${a.project_id}/plugins`, { plugin_id: "schedule", expected_revision: await projectPluginRevision(home.web, a.project_id) });
+  } finally { release.resolve(); }
+  const afterRemoval = await inFlight;
+  assert.ok(!afterRemoval.includes(a.project_id) && afterRemoval.includes(b.project_id), "B2R-02: removal while the Home run source waits applies to this response");
 });

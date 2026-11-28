@@ -803,13 +803,13 @@ ${TAB_WORKSPACE_DRAG_PART}
     if (isCurrent(savedState)) {
       state = ops.normalizeLayout(savedState);
       apply();
-      sidePane?.restore();
+      sidePane?.restore(true);
       persist();
       if (openingSource && detail.source) openSource(detail.source, nextId, switchNumber);
       return;
     }
     state = ops.create();
-    sidePane?.restore();
+    sidePane?.restore(true);
     apply();
     if (nextId) {
       const contentsBtn = document.querySelector('[data-side-tab="item-contents"]');

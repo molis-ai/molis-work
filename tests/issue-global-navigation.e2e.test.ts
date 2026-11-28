@@ -155,6 +155,34 @@ test("ISSUE-35 UPP-30 the project chord requests personal membership before open
   await v.until(`!$('[data-issue-detail]').hidden && $('[data-issue-title]').textContent === ${JSON.stringify(title)}`, 15_000);
   assert.equal(await v.ask("$('[data-issue-text]').textContent"), description);
   assert.deepEqual(await b.evaluate('window.__issueDestinations'), [record.id]);
+
+  // Save B with the same right-hand view open. Start from a closed A in a new document so its destination must await the frame load.
+  const switchItem = (id: string) => `document.dispatchEvent(new CustomEvent('molis-work:work-item-changed',{detail:{item_id:${JSON.stringify(id)}}}))`;
+  const openIssues = "document.dispatchEvent(new CustomEvent('molis:side-open',{detail:{tab:'plugin',view:'issues/capture'},cancelable:true}))";
+  await b.evaluate(switchItem("right-pane-b") + ";" + openIssues);
+  await b.waitFor(open);
+  await b.evaluate(switchItem("right-pane-a"));
+  if (await b.evaluate(open)) {
+    await b.click("[data-layout-open]"); await b.click("[data-layout-action=side]");
+  }
+  await b.waitFor(closed);
+  await v.go(`/projects/${b.projectId}/?desktop=1`);
+  await b.waitFor(closed);
+  assert.equal(await b.evaluate(`document.querySelector(${JSON.stringify(ISSUE_FRAME)}).getAttribute('src')`), null);
+  await b.evaluate(`(() => {
+    const frame=document.querySelector(${JSON.stringify(ISSUE_FRAME)}); window.destinationsAfterSwitch=[];
+    frame.addEventListener('load',()=>frame.contentWindow.addEventListener('message',event=>{
+      if(event.data?.type==='molis:side-target')window.destinationsAfterSwitch.push(event.data.target.item);
+      if(event.data==='frame-checkpoint')window.frameCheckpoint=true;
+    }),{once:true});
+    document.dispatchEvent(new CustomEvent('molis:side-open',{detail:{tab:'plugin',view:'issues/capture',target:{item:${JSON.stringify(record.id)}}},cancelable:true}));
+    ${switchItem("right-pane-b")};
+  })()`);
+  await b.waitFor(open);
+  await v.until("!!$('[data-issue-composer]')");
+  await b.evaluate(`document.querySelector(${JSON.stringify(ISSUE_FRAME)}).contentWindow.postMessage('frame-checkpoint',location.origin)`);
+  await b.waitFor("window.frameCheckpoint === true");
+  assert.deepEqual(await b.evaluate("window.destinationsAfterSwitch"), []);
 });
 
 test("ISSUE-31 ISSUE-35 on Home the draft survives closing and a full navigation, and Escape closes from the composer", { timeout: 90_000 }, async t => {

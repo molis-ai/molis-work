@@ -66,13 +66,13 @@ export interface JellyStores {
 type ProjectionDatabase = OverviewRowsWriter & Pick<PluginDatabaseTransaction, "all">;
 
 /** Bring back eligible rows previously omitted by the cap. The plugin reads its own business facts inside the same transaction. */
-export function refillJellyOverview(db: ProjectionDatabase): void {
+export function refillJellyOverview(db: ProjectionDatabase, catchUp = false): void {
   const since = jellyAddDays(new Date().toISOString().slice(0, 10), -7);
   const absent = db.all(`SELECT i.* FROM jelly_items i WHERE i.completed_at IS NULL AND i.end_date >= ?
     AND NOT EXISTS (SELECT 1 FROM ${OVERVIEW_TABLE} p WHERE p.kind = 'event' AND p.row_id = i.id)
     ORDER BY i.start_date, i.id`, [since]);
   for (const row of absent) writeJellyOverview(db, decodeJellyRow("item", row));
-  for (const row of db.all("SELECT * FROM jelly_series ORDER BY start_date, id")) writeJellySeriesOverview(db, decodeJellyRow("series", row));
+  for (const row of db.all("SELECT * FROM jelly_series ORDER BY start_date, id")) writeJellySeriesOverview(db, decodeJellyRow("series", row), catchUp);
 }
 
 /** Local and replicated changes share the same bounded projection and fill a freed slot before the transaction commits. */

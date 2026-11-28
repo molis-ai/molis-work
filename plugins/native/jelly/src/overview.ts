@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { RUN_MISSED_KEPT_MS, runHasExpired } from "@molis-ai/molis-work-contracts/platform/actions";
 import { jellyAddDays, jellyOccurrences } from "./calendar.js";
 import { OVERVIEW_EVENT_WINDOW_DAYS, OVERVIEW_REFRESH_ENTRY_KEY, OVERVIEW_ROW_LIMIT, OVERVIEW_TABLE, type OverviewEventRow, type PluginDueClient, type PluginDueOutcome } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { instantIn, overviewRows, type OverviewRowsWriter } from "@molis-ai/molis-work-plugin-sdk";
@@ -78,14 +79,22 @@ export function removeJellySeriesOverview(db: OverviewRowsWriter, id: string): v
 }
 
 /** Expand in civil dates; the calendar owner already handles deleted, moved, completed and multi-day occurrences. */
-export function writeJellySeriesOverview(db: OverviewRowsWriter, series: JellySeries, now = new Date()): void {
+export function writeJellySeriesOverview(db: OverviewRowsWriter, series: JellySeries, catchUp = false): void {
+  const now = Date.now();
   const localDay = new Intl.DateTimeFormat(undefined, { calendar: "iso8601", numberingSystem: "latn", timeZone: series.time_zone, year: "numeric", month: "2-digit", day: "2-digit" });
-  const parts = Object.fromEntries(localDay.formatToParts(now).map(part => [part.type, part.value]));
-  const start = [parts.year, parts.month, parts.day].join("-");
+  const dayAt = (instant: number) => {
+    const parts = Object.fromEntries(localDay.formatToParts(instant).map(part => [part.type, part.value]));
+    return [parts.year, parts.month, parts.day].join("-");
+  };
+  const start = dayAt(now);
   const prefix = seriesPrefix(series.id);
-  // Keep already-projected occurrences within the platform's missed-reminder period during rollover and a retry after midnight.
-  const occurrences = jellyOccurrences([], [series], jellyAddDays(start, -7), jellyAddDays(start, OVERVIEW_EVENT_WINDOW_DAYS - 1))
-    .filter(item => item.end_date >= start || db.get(`SELECT 1 AS found FROM ${OVERVIEW_TABLE} WHERE kind = 'event' AND row_id = ?`, [prefix + item.original_date]));
+  // A long shutdown can cross the previous projection window. A newly discovered occurrence can still have a deliverable reminder.
+  const occurrences = jellyOccurrences([], [series], dayAt(now - RUN_MISSED_KEPT_MS), jellyAddDays(start, OVERVIEW_EVENT_WINDOW_DAYS - 1))
+    .filter(item => {
+      if (item.end_date >= start || db.get(`SELECT 1 AS found FROM ${OVERVIEW_TABLE} WHERE kind = 'event' AND row_id = ?`, [prefix + item.original_date])) return true;
+      const dueAt = catchUp && jellyOverviewRow(item)?.remind_at;
+      return Boolean(dueAt && !runHasExpired(dueAt, now));
+    });
   removeJellySeriesOverview(db, series.id);
   for (const item of occurrences) writeJellyOverview(db, item, prefix + item.original_date);
 }

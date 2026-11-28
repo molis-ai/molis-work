@@ -132,6 +132,8 @@ test("07-2a N54: on the chooser a project that answered 404 is not asked again, 
   })()` }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/` }, sessionId));
   await waitFor(`Boolean(document.querySelector('.chooser .mw-dir-row[data-id="${projectId}"]')) && Boolean(document.querySelector('.chooser .mw-dir-row[data-id="${other}"]'))`, 20_000);
+  // The first brief fills in the directory row metadata. Click the measured row after that layout and its entrance animation settle.
+  await waitFor("!!document.querySelector('#chooser-detail .mw-brief:not([aria-busy=true])') && !document.querySelector('#chooser-dir').getAnimations({subtree:true}).some(animation => animation.playState === 'running' || animation.pending)");
   const reads = (id: string) => evaluate<number>(`window.__reads[${JSON.stringify(id)}] || 0`);
   await click(`.chooser .mw-dir-row[data-id="${projectId}"]`);
   await waitFor(`document.querySelector('.chooser').dataset.selected === ${JSON.stringify(projectId)}`, 5_000);

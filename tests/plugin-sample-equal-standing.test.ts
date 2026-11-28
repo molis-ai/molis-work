@@ -32,7 +32,7 @@ import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { exerciseReview } from "./fixtures/signed-tool-review.js";
-import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { addProjectPlugin, LocalHostHttpClient, projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 import { openTestHome } from "./fixtures/test-home.js";
 
@@ -679,7 +679,16 @@ test("P1-1 & P0-5: signed third-party sandbox package gets settings_entries (Wor
     if (!pid) await new Promise(resolve => setTimeout(resolve, 25));
   }
   assert.ok(pid > 0, "signed sandbox work terminal spawned a real OS process");
-  assert.doesNotThrow(() => process.kill(pid, 0), "spawned process is alive before revoking publisher");
+  await addProjectPlugin(home.web, project.project_id, SIGNED_SANDBOX_ID);
+  const membership = await home.web.delete<{ plugins: string[] }>(`/api/settings/projects/${project.project_id}/plugins`, {
+    plugin_id: SIGNED_SANDBOX_ID, expected_revision: await projectPluginRevision(home.web, project.project_id),
+  });
+  assert.ok(!membership.plugins.includes(SIGNED_SANDBOX_ID));
+  const remaining = await projectClient.invoke(person, workTerminalActions.list, {
+    plugin_id: SIGNED_SANDBOX_ID, subject: { kind: "sandbox_card", id: "card-1" },
+  }) as { panels: Array<{ panel_id: string; running: boolean }> };
+  assert.ok(remaining.panels.some(panel => panel.panel_id === opened.panel_id && panel.running), "B2R-08: removing the Home member keeps the project installation's terminal running");
+  assert.doesNotThrow(() => process.kill(pid, 0), "the project terminal keeps its original process");
 
   // P0-5: Revoking the pinned publisher immediately kills the live OS process.
   await home.web.post("/api/settings/plugin-publishers/revoke", { key_id: publisher.identity });
@@ -751,6 +760,8 @@ function scopedSettingsPackage(scope: "home" | "project", version = "1.0.0") {
   const pluginId = "com.example.settings", publisher = fixturePublisher(scope);
   const layer = scope === "home" ? "personal" : "project", key = "greeting-" + scope, title = "Owner " + scope;
   const example = { values: [{ key, value: title, state: "ok", source: layer, revision: "1" }] };
+  const prompt = defineWorkTerminalPromptAction("settings.work", 1, "settings_note", "Work on note", ["storage:private"]);
+  const promptAnswer = { subject: { kind: "settings_note", id: "one" }, title, read_only: false, instruction: "Continue " + title };
   return signedPackage(publisher, (files, manifest) => {
     const contract: SandboxPluginContract = JSON.parse(files[SANDBOX_PACKAGE_FILES.contract]!);
     contract.operations.find(item => item.id === "notes.add")!.effects.storage = ["read", "write"];
@@ -759,7 +770,9 @@ function scopedSettingsPackage(scope: "home" | "project", version = "1.0.0") {
       settings_entries: { entries: [{ key, title: { key: "settings.title" }, layers: [layer], schema: { type: "string", maxLength: 80 } }], read_operation: "settings.read", write_operation: "settings.write" },
       read_groups: [{ group_id: "values", title, description: title + " reads", operations: ["notes.list"] }],
     } satisfies SandboxPluginContract;
-    complete.operations.push({ id: "settings.read", kind: "query", action_protocol: { kind: "settings", role: "read" }, input: SETTINGS_READ_INPUT_SCHEMA, output: SETTINGS_READ_OUTPUT_SCHEMA,
+    complete.operations.push({ id: "work.prompt", kind: "query", read_protocol: { kind: "work_terminal_prompt", subject_kind: "settings_note" },
+      input: prompt.action.input_schema, output: prompt.action.output_schema!, errors: [], effects: { storage: ["read"] }, examples: [{ input: { subject_id: "one" }, output: promptAnswer }] },
+    { id: "settings.read", kind: "query", action_protocol: { kind: "settings", role: "read" }, input: SETTINGS_READ_INPUT_SCHEMA, output: SETTINGS_READ_OUTPUT_SCHEMA,
       effects: { storage: ["read"] }, errors: [], examples: [{ input: { keys: [key] }, output: example }] },
     { id: "settings.write", kind: "command", action_protocol: { kind: "settings", role: "write" }, input: SETTINGS_WRITE_INPUT_SCHEMA, output: SETTINGS_READ_OUTPUT_SCHEMA,
       effects: { storage: ["read", "write"] }, errors: [], examples: [{ input: { key, layer, change: { set: title }, expected_revision: "1", request_id: "set" }, output: example }] });
@@ -769,6 +782,7 @@ function scopedSettingsPackage(scope: "home" | "project", version = "1.0.0") {
       const initial = ${JSON.stringify(example)};
       async function get(sdk) { return JSON.parse(await sdk.storage.get("setting") || JSON.stringify(initial)); }
       export const operations`).replace(/\};\s*$/u, `
+      'work.prompt': async () => (${JSON.stringify(promptAnswer)}),
       'settings.read': async (_, sdk) => get(sdk),
       'settings.write': async (input, sdk) => {
         const state = await get(sdk), row = state.values[0];
@@ -814,6 +828,14 @@ test("44C-01/02 PSD-04 same-id publishers expose separate settings and task cate
   assert.match(await page("project"), /project-updated/);
   assert.match(await page("home"), /home-updated/);
   const owner = await f.host.localPersonContext(project.reference);
+  const terminalPrompt = async () => (await client.invoke(owner, workTerminalActions.prompt,
+    { plugin_id: pluginId, subject: { kind: "settings_note", id: "one" } }) as { prompt: string }).prompt;
+  assert.match(await terminalPrompt(), /Continue Owner project/);
+  const web = new LocalHostHttpClient({ origin: f.origin, controlToken: f.token });
+  await addProjectPlugin(web, project.project_id, pluginId);
+  assert.match(await terminalPrompt(), /Continue Owner project/, "both publishers offer this object kind in A");
+  await web.delete(`/api/settings/projects/${project.project_id}/plugins`, { plugin_id: pluginId, expected_revision: await projectPluginRevision(web, project.project_id) });
+  assert.match(await terminalPrompt(), /Continue Owner project/);
   const dataViews = (await client.discover(owner)).filter(view => view.provider.plugin_id === pluginId);
   const invokeNote = (installId: string, operation: string, input: unknown) => { const view = dataViews.find(row => row.provider.plugin_install_id === installId && row.action.local_id === operation); assert.ok(view);
     return client.invoke(owner, { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, input); };

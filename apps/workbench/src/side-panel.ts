@@ -541,7 +541,7 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   // The workspace read another state (a reload's, a reset): the side shows what that one says, without saving it again. A
   // narrow window (760 and under, where only the focused pane shows: the side is a sheet over half the work) loads with the
   // side collapsed, its tabs, current tab and width as kept; the saved open stays, so a wide window opens it again.
-  const restore=()=>{settle();paint();const show=side().open&&!matchMedia('(max-width:760px)').matches;if(show!==open)setOpen(show,{restore:true});else draw();};
+  const restore=(changedItem=false)=>{if(changedItem)selectionRevision++;settle();paint();const show=side().open&&!matchMedia('(max-width:760px)').matches;if(show!==open)setOpen(show,{restore:true});else draw();};
   return {open:(key,target)=>request({tab:key,target}),restore,toggle,isOpen:()=>open};
 }`.replace(/^[ \t]*\/\/.*\n/gm, "");
 

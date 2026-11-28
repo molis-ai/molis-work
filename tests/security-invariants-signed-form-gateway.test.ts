@@ -89,7 +89,7 @@ operations["notes.add"] = async (input, sdk) => {
     return (await answer.json()).value;
   };
   return { ...f, project, other, prefix, endpoint, componentReadPath, open, post, submission, read, records, record, client, caller,
-    storedValues: () => storage.snapshotInstallationData(record.install_id),
+    storedValues: () => storage.snapshotInstallationData(installId),
     unapprovedCalls: () => unapprovedCalls,
     withdrawApproval() {
       // Change only the original package approval in this fixture, keeping the installation and both providers live.

@@ -10,7 +10,9 @@ const prefixes = [
   'molis-work-goal-move-receipt:', 'molis-work-guidance-receipt:', 'molis-work-studio-build:',
   'molis-work:brief:', 'molis-work:home-shortcuts:',
 ];
-const keys = new Set(['molis-work:return-trips', 'molis-work:return-window', 'molis-work:return-window-handoff', 'molis-work-decision-receipt', 'molis-work:search-scope', 'molis-work:onboarding-intro', 'molis-work:arrived', 'molis-work:kit-package', 'molis-work:appearance-handoff']);
+const keys = new Set(['molis-work:return-trips', 'molis-work:return-window', 'molis-work:return-window-handoff', 'molis-work-decision-receipt', 'molis-work:search-scope', 'molis-work:onboarding-intro', 'molis-work:arrived', 'molis-work:kit-package']);
+// `molis-work:appearance-handoff` is not listed: it carries its own page-session scope and is dropped by any other scope
+// (appearance-sync.ts), and it must outlive the account guard replacing a stale cached page so the held write is recovered.
 const owned = (key: string) => keys.has(key) || prefixes.some(prefix => key.startsWith(prefix));
 
 /** Install before account content runs. Revocation also fences pagehide handlers and late cache writes. */

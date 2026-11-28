@@ -9,7 +9,7 @@ type PluginDirectory = Parameters<typeof mergePluginDirectories>[0];
  * that draws a page without a Host passes its view through here, so the page reads the same facts it would read from the Host.
  */
 export function withHostPluginFacts<V extends {
-  readonly enabled_plugins?: readonly string[]; readonly hidden_plugins?: readonly string[]; readonly plugin_directory?: PluginDirectory;
+  readonly enabled_plugins?: readonly string[]; readonly plugin_directory?: PluginDirectory;
 }>(view: V): V & { shown_plugins: string[]; plugin_directory: PluginDirectory } {
   return { ...view, shown_plugins: [...(view.enabled_plugins ?? defaultPagePlugins())],
     plugin_directory: mergePluginDirectories(view.plugin_directory ?? [], builtinMarketDirectory()) };

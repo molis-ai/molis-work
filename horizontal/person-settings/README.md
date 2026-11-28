@@ -15,3 +15,5 @@
   - 可同步的值写入前按同步的规则检查（`assertPortableConfig`），所以路径与密钥样的值在本机就被拒。
 - 改动后必跑：`node scripts/run-tests.mjs --jobs 1 tests/security-invariants-person-settings.test.ts`。
 - 相关手册：[统一工作分区 §4.2 第 4 条、§5.1](../../specs/unified-partition-plugins/spec.md)、[安全不变量](../../docs/system/SECURITY-INVARIANTS.md)。
+
+插件可在启动时调用 `services.personSettings.onChange(() => refresh())`。本机或同步写入提交后，同一安装正在运行的实例各自重读设置。回调没有数据参数，宿主在实例停用时解除订阅。调用动作的 Agent 或工作流无权登记。

@@ -1,3 +1,4 @@
+import { refreshedOverview } from "./fixtures/overview-read.js";
 import type { OverviewReadResult } from "@molis-ai/molis-work-contracts/platform/plugin";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync } from "node:fs";
@@ -9,7 +10,7 @@ import { DatabaseSync } from "node:sqlite";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import {
   ATTENTION_OVERVIEW_SOURCE, attentionOverviewLibrary, createPluginPlatform, ensureProjectPlugins, existingPartitionPluginHost, HomeConsentLedger, homeStores, LocalProjectDatabase,
-  mainOverviewLibrary, MolisWorkLocalHost, openHomePluginStore, openPartitionPluginLibrary, openProjectVersionStores, overviewRowsFor, partitionChanged, PartitionPlatformServices,
+  mainOverviewLibrary, MolisWorkLocalHost, openHomePluginStore, onPartitionReminder, openPartitionPluginLibrary, openProjectVersionStores, overviewRowsFor, partitionChanged, PartitionPlatformServices,
   PartitionPluginAssembly, partitionOverviewLibraries, partitionPluginScope, pluginInstallRecords, projectPluginPlatform, refreshRunningProjectPlugins, releaseProjectPlugins,
   runningProjectPluginState, startPartitionPluginInstance, type PartitionPluginScope,
 } from "@molis-ai/molis-work-app-local-host";
@@ -24,9 +25,10 @@ import { ownerFilesProbe, ownerFilesProject } from "./fixtures/plugin-owner-file
 import { person as runtimePerson, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { partitionLibraryFile } from "./fixtures/plugin-home-stores.js";
 import { DATASET_ACTION_PERMISSIONS, datasetActions } from "@molis-ai/molis-work-plugin-dataset";
+import { jellyActions, jellyManifest } from "@molis-ai/molis-work-plugin-jelly";
 import { imagesManifest } from "@molis-ai/molis-work-plugin-images";
 import { TODO_ACTION_PERMISSIONS, todoActions, todoManifest } from "@molis-ai/molis-work-plugin-todo";
-import { ActionError, LOCAL_PERSON_ACTOR_ID, PERSONAL_SPACE_PROJECT_ID, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, ActionError, LOCAL_PERSON_ACTOR_ID, PERSONAL_SPACE_PROJECT_ID, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { OVERVIEW_ROW_LIMIT, OVERVIEW_TABLE, OVERVIEW_TABLE_SQL, pluginErrors, type PartitionPluginDatabaseDeclaration, type PluginDatabaseDeclaration, type PluginDefinition, type PluginInstanceRecord, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PartitionDeclarationFields } from "@molis-ai/molis-work-plugin-sdk";
 import { bindActionHandler, defineSettingsActions, overviewRows, partitionDeclarationProblems } from "@molis-ai/molis-work-plugin-sdk";
@@ -299,7 +301,7 @@ test("UPP-34 a row written past the SDK is left out of the overview; the plugin'
   const libraries = partitionOverviewLibraries(home, [{ partition_id: a, plugins: [{ install_id: "todo-install", manifest: overviewManifest }] }]);
   const services = new PartitionPlatformServices({ home, assembly: { acquire: async () => { throw new Error("nothing is woken to read the overview"); } } });
   try {
-    const rows = services.readOverview(person, libraries, () => ({ readable: [a], grants: [] }));
+    const { rows } = services.readOverview(person, libraries, () => ({ readable: [a], grants: [] }));
     assert.deepEqual(rows.map(row => row.row_id), ["a1"], "the two malformed rows are left out, and reading does not fail");
     assert.deepEqual(services.due.entries().map(entry => [entry.entry_key, entry.due_at]), [["task:a1", "2026-12-01T08:00:00.000Z"]], "and a1 still rings");
   } finally { services.close(); }
@@ -321,16 +323,16 @@ test("UPP-06 S-partition-isolation the overview gives the person what they can r
   try {
     let grants = [{ partition_id: a, fields: ["due_at" as const] }];
     const now = () => ({ readable: [a, b], grants });
-    const byPerson = services.readOverview(person, libraries, now);
+    const { rows: byPerson } = await refreshedOverview(() => services.readOverview(person, libraries, now));
     assert.deepEqual(byPerson.map(row => [row.partition_id, row.fields.title]).sort(), [[a, "A 的待办"], [b, "B 的待办"]].sort(), "the person reads A and B");
     assert.deepEqual(byPerson[0]!.install_id, "todo-install", "the installation is the platform's stamp");
-    const byAssistant = services.readOverview(assistant, libraries, now);
+    const { rows: byAssistant } = services.readOverview(assistant, libraries, now);
     assert.deepEqual(byAssistant.map(row => [row.partition_id, row.fields]), [[a, { due_at: "2026-12-01T09:00:00.000Z" }]], "the assistant gets A's due date, not its title, and nothing of B");
     let calls = 0;
     const revokedInFlight = () => ({ readable: [a, b], grants: calls++ === 0 ? grants : [] });
-    assert.deepEqual(services.readOverview(assistant, libraries, revokedInFlight), [], "a grant revoked while the read was under way is not delivered");
+    assert.deepEqual(services.readOverview(assistant, libraries, revokedInFlight).rows, [], "a grant revoked while the read was under way is not delivered");
     grants = [];
-    assert.deepEqual(services.readOverview(assistant, libraries, now), [], "and the next read has nothing either");
+    assert.deepEqual(services.readOverview(assistant, libraries, now).rows, [], "and the next read has nothing either");
     for (const [label, caller] of [
       ["a project Agent", { ...assistant, actor_id: "agent:runtime-1", project_id: a }],
       ["an MCP client", { ...person, audience: "mcp", actor_kind: "runtime" }],
@@ -338,7 +340,7 @@ test("UPP-06 S-partition-isolation the overview gives the person what they can r
       ["a plugin", { ...person, audience: "plugin", actor_kind: "runtime", plugin_install_id: "todo-install" }],
       ["a call handed on by a plugin", { ...person, delegated_by: "todo-install" }],
     ] as const) assert.throws(() => services.readOverview(caller as ActionCallContext, libraries, now), forbidden, label);
-    assert.deepEqual(services.readOverview(person, libraries, () => ({ readable: [b], grants: [] })).map(row => row.partition_id), [b], "the person only what they can read now");
+    assert.deepEqual(services.readOverview(person, libraries, () => ({ readable: [b], grants: [] })).rows.map(row => row.partition_id), [b], "the person only what they can read now");
   } finally { services.close(); }
 }));
 
@@ -349,19 +351,19 @@ test("UPP-34 S-partition-wake-scope a synchronized write into a dormant partitio
   const started: string[] = [];
   const services = new PartitionPlatformServices({ home, assembly: { acquire: async (plugin, partition) => { started.push(`${plugin}@${partition}`); throw new Error("not in this test"); } } });
   try {
-    assert.equal(services.readOverview(person, libraries, () => ({ readable: [a, b], grants: [] })).length, 2);
+    assert.equal((await refreshedOverview(() => services.readOverview(person, libraries, () => ({ readable: [a, b], grants: [] })))).rows.length, 2);
     assert.deepEqual(services.due.entries().map(entry => [entry.partition_id, entry.source, entry.entry_key]), [[b, "overview", "task:b1"]],
       "the reminder time read from B's table is a due entry of B: one synced in rings too");
     // Sync writes into A while it is dormant: the platform only marks it, and reads it on the next open.
     writeTasks(home, a, [{ id: "a2", title: "同步来的" }]);
     services.partitionChanged(a);
     assert.equal(services.overview.refreshDirty(libraries), 1, "only the dirty library is read");
-    assert.deepEqual(services.readOverview(person, libraries, () => ({ readable: [a], grants: [] })).map(row => row.fields.title).sort(), ["同步来的", "第一条"]);
+    assert.deepEqual(services.readOverview(person, libraries, () => ({ readable: [a], grants: [] })).rows.map(row => row.fields.title).sort(), ["同步来的", "第一条"]);
     // A rebuild (the index lost, as after a restore) reads every library again, read-only.
     services.close();
     rmSync(join(home, "search"), { recursive: true, force: true });
     const rebuilt = new PartitionPlatformServices({ home, assembly: { acquire: async () => { throw new Error("unused"); } } });
-    try { assert.equal(rebuilt.readOverview(person, libraries, () => ({ readable: [a, b], grants: [] })).length, 3); } finally { rebuilt.close(); }
+    try { assert.equal((await refreshedOverview(() => rebuilt.readOverview(person, libraries, () => ({ readable: [a, b], grants: [] })))).rows.length, 3); } finally { rebuilt.close(); }
     assert.deepEqual(started, [], "no instance and no supervisor was started for any of it");
   } finally { try { services.close(); } catch { /* closed above */ } }
 }));
@@ -415,7 +417,7 @@ async function until(what: string, ready: () => boolean, ms = 20_000): Promise<v
 
 // Batch 108 item 2 ④: the same rule on the real Host with the real plugins. Todo's reminder (read from its overview table into the due
 // registry) and Images' generation deadline (its own due entry) fall due while every partition sleeps; each wakes only its own (plugin,
-// partition), opening that partition and no other. Jelly's events join this case when Jelly moves to partitions.
+// partition), opening that partition and no other.
 test("UPP-32 S-partition-wake-scope batch 108 on the Host: a Todo reminder and an Images deadline that fall due wake only their own (plugin, partition); the rest stay asleep", { timeout: 120_000 }, async t => {
   const f = await serveHomeRuntime(t);
   const a = await f.project("提醒 A", ["todo", "images"]), b = await f.project("提醒 B", ["todo", "images"]), c = await f.project("提醒 C", ["todo", "images"]);
@@ -453,10 +455,126 @@ test("UPP-32 S-partition-wake-scope batch 108 on the Host: a Todo reminder and a
   assert.deepEqual(services.due.entries(a.project_id).filter(entry => entry.plugin_id === imagesManifest.plugin_id).map(entry => entry.entry_key), ["job:later"]);
 });
 
+// B2R-03/04. Use a wall-clock minute so the public calendar form, registry, timer and final notification agree.
+test("UPP-32 a single Jelly event and a weekly occurrence due in a sleeping partition wake only Jelly and notify once each", { timeout: 175_000 }, async t => {
+  const f = await serveHomeRuntime(t);
+  const a = await f.project("Calendar", ["jelly"]), b = await f.project("Unrelated", ["jelly"]);
+  const assembly = existingPartitionPluginHost(f.home);
+  assert.ok(assembly?.services);
+  const when = new Date(Math.ceil((Date.now() + 10_000) / 60_000) * 60_000), day = when.toISOString().slice(0, 10);
+  const minute = when.getUTCHours() * 60 + when.getUTCMinutes();
+  const end = new Date(when.getTime() + 60_000);
+  const schedule = { start_date: day, end_date: end.toISOString().slice(0, 10), start_time: minute, end_time: end.getUTCHours() * 60 + end.getUTCMinutes(), time_zone: "UTC", reminder_minutes: 0 };
+  const call = bindActionClient(f.host.actionClient(a.reference), () => runtimePerson(jellyActions.createItem.action.permissions, a.project_id));
+  const item = (await call.invoke(jellyActions.createItem,
+    { item: { ...schedule, title: "Single calendar reminder" } })).item;
+  const series = (await call.invoke(jellyActions.createSeries,
+    { series: { ...schedule, title: "Recurring calendar reminder", weekdays: [when.getUTCDay() || 7] } })).series;
+  const keys = ["event:" + item.id, "event:" + series.id + "@" + day].sort();
+  const clock = assembly.services;
+  const due = () => clock.due.entries(a.project_id).filter(row => keys.includes(row.entry_key));
+  assert.deepEqual(due().map(row => row.due_at), [when.toISOString(), when.toISOString()]);
+  const attempts = new Map<string, number>();
+  t.after(onPartitionReminder(f.home, entry => {
+    if (entry.partition_id !== a.project_id) return;
+    const count = (attempts.get(entry.entry_key) ?? 0) + 1;
+    attempts.set(entry.entry_key, count);
+    if (count === 1) throw new Error("interrupt the first delivery receipt for this calendar event");
+  }));
+  for (const project of [a, b]) await f.host.closeProject(project.reference);
+  await assembly.assembly.stopPlugin(jellyManifest.plugin_id);
+  assert.deepEqual(f.host.projects(), []);
+  // The owner's first failed receipt backs off one minute. Budget from the chosen wall-clock minute.
+  await until("both calendar reminders were acknowledged", () => !due().length, when.getTime() - Date.now() + 80_000);
+  assert.deepEqual([...attempts.keys()].sort(), keys);
+  assert.ok(keys.every(key => attempts.get(key) === 2));
+  assert.deepEqual(assembly.assembly.instances().map(row => [row.partition_id, row.plugin_id]), [[a.project_id, jellyManifest.plugin_id]]);
+  assert.deepEqual(f.host.projects().map(row => row.project_id), [a.project_id]);
+  await clock.timer.fire();
+  assert.deepEqual([...attempts.keys()].sort(), keys);
+  assert.ok(keys.every(key => attempts.get(key) === 2));
+  const response = await f.request("/api/assistant/notices");
+  assert.equal(response.status, 200);
+  const delivered = (await response.json() as { notices: { open?: { project_id?: string; id?: string } }[] }).notices.filter(notice => notice.open?.project_id === a.project_id);
+  for (const key of keys) assert.equal(delivered.filter(notice => JSON.stringify(notice).includes(key.slice(6))).length, 1, "one persistent notice for " + key);
+  assert.ok(clock.due.entries(a.project_id).some(row => row.entry_key === "overview:refresh"));
+});
+
 // Batch 107-1: the Host's per-partition assembly (`partition-plugin-host.ts`). A plugin with a library in each partition no longer runs on the
 // project platform: each partition it is enabled in has its own instance, with the installation in the Home's install table and its lifecycle
 // kept by that instance alone (in memory, per (install, partition)).
 const DATASET = "io.molis.work.dataset";
+
+test("B2R-04 a dormant future series enters its reminder window after a ten-day shutdown", async t => {
+  const f = await serveHomeRuntime(t), a = await f.project("Remote calendar", ["jelly"]), b = await f.project("Other calendar", ["jelly"]);
+  const assembly = existingPartitionPluginHost(f.home);
+  assert.ok(assembly?.services);
+  const current = Date.now(), date = new Date(current + 95 * 86_400_000), day = date.toISOString().slice(0, 10);
+  const client = bindActionClient(f.host.actionClient(a.reference), () => runtimePerson(jellyActions.createSeries.action.permissions, a.project_id));
+  const { series } = await client.invoke(jellyActions.createSeries, { series: { title: "Beyond the original window", start_date: day, end_date: day,
+    time_zone: "UTC", start_time: 600, end_time: 660, reminder_minutes: 5, weekdays: [date.getUTCDay() || 7] } });
+  const registry = assembly.services.due, key = "event:" + series.id + "@" + day;
+  assert.ok(!registry.entries(a.project_id).some(row => row.entry_key === key));
+  for (const project of [a, b]) await f.host.closeProject(project.reference);
+  await assembly.assembly.stopPlugin(jellyManifest.plugin_id);
+  // Stop the automatic arm in this clock-controlled case. Drive the same durable timer after the long shutdown.
+  t.mock.method(assembly.services.timer, "arm", () => {});
+  const { LocalHostHttpClient, projectPluginRevision } = await import("@molis-ai/molis-work-test-kit/local-host-http");
+  const web = new LocalHostHttpClient({ origin: f.origin, controlToken: f.token });
+  for (const method of ["DELETE", "POST"]) {
+    const expected_revision = await projectPluginRevision(web, a.project_id);
+    const result = await f.request(`/api/settings/projects/${encodeURIComponent(a.project_id)}/plugins`, { method, body: { plugin_id: "jelly", expected_revision } });
+    assert.equal(result.status, 200);
+    assert.equal(registry.entries(a.project_id).some(row => row.entry_key === "overview:refresh"), method === "POST");
+    assert.deepEqual(assembly.assembly.instances(), []);
+  }
+  t.mock.timers.enable({ apis: ["Date"], now: current + 10 * 86_400_000 });
+  try {
+    await assembly.services.timer.fire();
+    assert.equal(registry.entries(a.project_id).find(row => row.entry_key === key)?.due_at, day + "T09:55:00.000Z");
+    assert.ok(registry.entries(a.project_id).some(row => row.entry_key === "overview:refresh" && Date.parse(row.due_at) > Date.now()));
+    assert.deepEqual(assembly.assembly.instances().map(row => [row.partition_id, row.plugin_id]), [[a.project_id, jellyManifest.plugin_id]]);
+    t.mock.timers.setTime(Date.parse(day + "T09:55:00.000Z"));
+    await assembly.services.timer.fire();
+    await assembly.services.timer.fire();
+    const response = await f.request("/api/assistant/notices");
+    assert.equal(response.status, 200);
+    const { notices } = await response.json() as { notices: { open?: { project_id?: string } }[] };
+    assert.equal(notices.filter(notice => notice.open?.project_id === a.project_id && JSON.stringify(notice).includes(series.id)).length, 1);
+  } finally { t.mock.timers.reset(); }
+});
+
+test("B2R-03 B2R-04 Jelly resumes beyond its original window and delivers only reminders younger than seven days, once", async t => {
+  const f = await serveHomeRuntime(t), project = await f.project("Sleeping calendar", ["jelly"]);
+  const assembly = existingPartitionPluginHost(f.home);
+  assert.ok(assembly?.services);
+  t.mock.method(assembly.services.timer, "arm", () => {});
+  const client = bindActionClient(f.host.actionClient(project.reference), () => runtimePerson(jellyActions.createSeries.action.permissions, project.project_id));
+  const dayAt = (offset: number) => new Date(start + offset * 86_400_000).toISOString().slice(0, 10);
+  const start = Date.now(), keys: string[] = [];
+  for (const offset of [92, 95]) {
+    const day = dayAt(offset);
+    const { series } = await client.invoke(jellyActions.createSeries, { series: { title: "Day " + offset, start_date: day, end_date: day, until: day,
+      time_zone: "UTC", start_time: 600, end_time: 660, reminder_minutes: 5, weekdays: [new Date(day).getUTCDay() || 7] } });
+    keys.push(series.id + "@" + day);
+  }
+  const registry = assembly.services.due;
+  assert.ok(registry.entries(project.project_id).every(entry => !keys.some(key => entry.entry_key === "event:" + key)));
+  assert.ok(registry.entries(project.project_id).some(entry => entry.entry_key === "overview:refresh"));
+  await f.host.closeProject(project.reference);
+  await assembly.assembly.stopPlugin(jellyManifest.plugin_id);
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse(dayAt(99) + "T09:55:00.000Z") });
+  try {
+    await assembly.services.timer.fire();
+    assert.deepEqual(registry.entries(project.project_id).filter(row => row.source === "overview").map(row => row.entry_key), ["event:" + keys[1]]);
+    await assembly.services.timer.fire();
+    await assembly.services.timer.fire();
+    const response = await f.request("/api/assistant/notices");
+    assert.equal(response.status, 200);
+    const { notices } = await response.json() as { notices: { open?: { project_id?: string; id?: string } }[] };
+    assert.deepEqual(notices.filter(notice => notice.open?.project_id === project.project_id).map(notice => notice.open?.id), [keys[1]]);
+  } finally { t.mock.timers.reset(); }
+});
 
 test("UPP-21 BFP-06 each partition sees its current plugin state while one crashing leaves the other instance and the Home installation as they were", async t => {
   const f = await serveHomeRuntime(t);
@@ -1007,8 +1125,11 @@ test("UPP-06 S-partition-isolation overview.read@1: the person reads every parti
   const { openTestHome } = await import("./fixtures/test-home.js");
   const { ATTENTION_OVERVIEW_SOURCE, assistantSettingActions, assistantSettingOwner } = await import("@molis-ai/molis-work-app-local-host");
   const { OVERVIEW_PROVIDER_ID, overviewReadAction } = await import("@molis-ai/molis-work-contracts/platform/plugin");
-  const home = await openTestHome(t);
-  const a = await home.createProject("总览 A"), b = await home.createProject("总览 B");
+  let inaccessible: string | undefined;
+  const home = await openTestHome(t, { host: { overviewProjectAccess: (_caller, id) => id !== inaccessible } });
+  const a = await home.createProject("总览 A", ["todo"]), b = await home.createProject("总览 B", ["todo"]);
+  for (const project of [a, b]) await home.host.actionClient(project.reference).invoke(
+    runtimePerson(TODO_ACTION_PERMISSIONS, project.project_id), todoActions.create, { title: project.project_id });
   // Two "waiting on you" entries written where the platform keeps them, one per project, and one already done that is not shown.
   for (const [project, entry, status] of [[a, "wait-a", "open"], [b, "wait-b", "in_progress"], [a, "done-a", "done"]] as const) {
     const db = new DatabaseSync(project.database_path);
@@ -1020,7 +1141,7 @@ test("UPP-06 S-partition-isolation overview.read@1: the person reads every parti
   const client = home.host.homeActionClient(), read = { ...overviewReadAction, provider_id: OVERVIEW_PROVIDER_ID };
   const person = { actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", permissions: [], project_id: null } as ActionCallContext;
   const assistant = { ...person, audience: "agent", actor_kind: "runtime", audit_actor_id: "assistant:work-1" } as ActionCallContext;
-  const rows = async (caller: ActionCallContext) => ((await client.invoke(caller, read, { kinds: ["notification"] })) as OverviewReadResult).rows
+  const rows = async (caller: ActionCallContext) => (await refreshedOverview(() => client.invoke(caller, read, { kinds: ["notification"] }) as Promise<OverviewReadResult>)).rows
     .filter(row => row.install_id === ATTENTION_OVERVIEW_SOURCE).map(row => [row.partition_id, row.row_id, row.fields] as const).sort();
 
   const byPerson = await rows(person);
@@ -1035,6 +1156,16 @@ test("UPP-06 S-partition-isolation overview.read@1: the person reads every parti
   assert.deepEqual(await rows(assistant), [[a.project_id, "wait-a", { title: "needs_decision" }]], "granted A's titles: A's entry, only its title, nothing of B");
   await write("1", []);
   assert.deepEqual(await rows(assistant), [], "a withdrawn grant takes effect on the next read");
+
+  await write("2", [a, b].map(project => ({ partition_id: project.project_id, fields: ["title"] })));
+  assert.equal((await rows(assistant)).length, 2);
+  const tasks = async () => (await refreshedOverview(() => client.invoke(assistant, read, { kinds: ["task"] }) as Promise<OverviewReadResult>)).rows.map(task => task.fields.title).sort();
+  assert.deepEqual(await tasks(), [a.project_id, b.project_id].sort());
+  inaccessible = a.project_id;
+  assert.deepEqual(await tasks(), [b.project_id], "the same live deny removes A from plugin summaries as from platform notifications");
+  assert.deepEqual((await rows(assistant)).map(([id]) => id), [b.project_id], "live project access narrows an unchanged two-project grant on a warm cache");
+  assert.deepEqual((await rows(person)).map(([id]) => id), [b.project_id]);
+  assert.deepEqual(await rows({ ...person, readable_project_ids: [a.project_id] }), [], "the trusted caller scope intersects live access");
 
   for (const [label, caller] of [
     ["an Agent of its own (not the person)", { ...assistant, actor_id: "agent:runtime-1" }],
@@ -1074,7 +1205,7 @@ test("UPP-06 S-partition-isolation AP-01 mainOverviewLibrary, attentionOverviewL
   try {
     const forgedAttention = { partition_id: a, install_id: ATTENTION_OVERVIEW_SOURCE, plugin_id: ATTENTION_OVERVIEW_SOURCE, path: dbAPath, kinds: ["notification"] as const, table: "attention" as const };
     assert.equal(services.overview.refresh(forgedAttention), null, "readAttentionLibrary refuses symlinked molis-work.db");
-    assert.deepEqual(services.readOverview(runtimePerson([], null), [forgedAttention], () => ({ readable: [a], grants: [] })), []);
+    assert.deepEqual(services.readOverview(runtimePerson([], null), [forgedAttention], () => ({ readable: [a], grants: [] })).rows, []);
   } finally { services.close(); }
 }));
 
@@ -1104,6 +1235,20 @@ test("UPP-34 V11 AP-03 AP-17 AP-06 AP-10 AP-11 Host partitionChanged arms synced
   assert.deepEqual(host.assembly.instances(), [], "partitionChanged wakes zero plugins");
   assert.deepEqual(services.due.entries(a.project_id).map(entry => [entry.entry_key, entry.due_at]), [["task:synced-dormant-1", remindAt]],
     "V11: synced reminder in dormant partition immediately populates due-registry without opening Overview");
+
+  // B2R-03: disabling clears the timer. A later explicit enable restores the same future reminder before any overview read.
+  const { LocalHostHttpClient, projectPluginRevision } = await import("@molis-ai/molis-work-test-kit/local-host-http");
+  const web = new LocalHostHttpClient({ origin: f.origin, controlToken: f.token });
+  for (const method of ["DELETE", "POST"]) {
+    const expected_revision = await projectPluginRevision(web, a.project_id);
+    const result = await f.request(`/api/settings/projects/${encodeURIComponent(a.project_id)}/plugins`, {
+      method, body: { plugin_id: "todo", expected_revision },
+    });
+    assert.equal(result.status, 200);
+    assert.deepEqual(services.due.entries(a.project_id).map(entry => [entry.entry_key, entry.due_at]),
+      method === "POST" ? [["task:synced-dormant-1", remindAt]] : []);
+  }
+  assert.deepEqual(host.assembly.instances(), [], "reading the retained projection never starts a plugin");
 
   // AP-17: dormant third-party partition plugin installed in Home plugin-runtime.db is discovered read-only by overviewRowsFor.
   const thirdPartyId = "com.example.dormant-tasks";
@@ -1147,6 +1292,16 @@ test("UPP-34 V11 AP-03 AP-17 AP-06 AP-10 AP-11 Host partitionChanged arms synced
   assert.ok(thirdRead?.rows.some(row => row.plugin_id === thirdPartyId && row.row_id === "ext-1"), "dormant third-party plugin row appears in overview without waking plugin");
   assert.deepEqual(host.assembly.instances(), [], "still zero wakes");
 
+  // A corrupt third-party release cannot suppress a healthy installation in the same partition.
+  const damaged = openHomePluginStore(f.home);
+  try { damaged.db.prepare("UPDATE plugin_runtime_release_artifacts SET artifact_json = ? WHERE plugin_id = ?").run("{}", thirdPartyId); }
+  finally { damaged.db.close(); }
+  partitionChanged(f.home, a.project_id, todoInstall);
+  const remaining = await overviewRowsFor(overviewSource, localPerson, [{ project_id: a.project_id, display_name: "A" }], () => [], { kinds: ["task"], limit: 50 });
+  assert.ok(remaining);
+  assert.ok(remaining.rows.some(row => row.install_id === todoInstall));
+  assert.ok(!remaining.rows.some(row => row.install_id === thirdInstallId));
+
   // AP-10: recheckPartitions / live readable drops rows from a partition removed mid-read.
   const liveRecheck = await overviewRowsFor(overviewSource, localPerson, [{ project_id: a.project_id, display_name: "A" }], () => [], { kinds: ["task"], limit: 50 }, {
     recheckPartitions: async () => [],
@@ -1164,11 +1319,16 @@ test("UPP-34 V11 AP-03 AP-17 AP-06 AP-10 AP-11 Host partitionChanged arms synced
   partitionChanged(f.home, a.project_id, codingInstallId);
   const beforeDisable = await overviewRowsFor(overviewSource, localPerson, [{ project_id: a.project_id, display_name: "A" }], () => [], { kinds: ["background_task"], limit: 50 });
   assert.ok(beforeDisable?.rows.some(row => row.install_id === codingInstallId && row.row_id === "stale-coding-1"));
-  const { LocalHostHttpClient, projectPluginRevision } = await import("@molis-ai/molis-work-test-kit/local-host-http");
-  const web = new LocalHostHttpClient({ origin: f.origin, controlToken: f.token });
   const revision = await projectPluginRevision(web, a.project_id);
-  const disableRes = await f.request(`/api/settings/projects/${encodeURIComponent(a.project_id)}/plugins`, { method: "DELETE", body: { plugin_id: "coding", expected_revision: revision } });
-  assert.equal(disableRes.status, 200);
+  const activeProjects = [{ project_id: a.project_id, display_name: "A" }];
+  const afterDisable = await overviewRowsFor(overviewSource, localPerson, activeProjects, () => [], { kinds: ["background_task"], limit: 50 }, {
+    recheckPartitions: async () => {
+      const result = await f.request(`/api/settings/projects/${encodeURIComponent(a.project_id)}/plugins`, { method: "DELETE", body: { plugin_id: "coding", expected_revision: revision } });
+      assert.equal(result.status, 200);
+      return activeProjects;
+    },
+  });
+  assert.ok(afterDisable && !afterDisable.rows.some(row => row.install_id === codingInstallId), "removing just the installation during the read drops its rows");
   const verifyMain = new DatabaseSync(a.reference.storage_key, { readOnly: true });
   try {
     assert.deepEqual(verifyMain.prepare("SELECT row_id FROM plugin_overview_rows WHERE install_id = ?").all(codingInstallId), [],

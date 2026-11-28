@@ -1,9 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { readFileSync } from "node:fs";
-import { runWithLocale, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
-import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
+import { mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { personalConfigRegistrations, runWithLocale, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { ensureStorageSpace, personalStorageSpace, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
+import { openPersonSettings } from "@molis-ai/molis-work-service-person-settings";
 import { imagesManifest, imagesActions as actions } from "@molis-ai/molis-work-plugin-images";
 import { imageRuntimeFixture, imageTerminal } from "./fixtures/images-runtime.js";
 
@@ -177,17 +180,82 @@ test("RAC-2002 the port keeps blank refused, counts padding (nothing is trimmed 
   await assert.rejects(service.generate(request({ model: `${WIDE.repeat(200)}a` })), refused);
 });
 
+test("B2R-05/06 a new Agent image job sees another active partition's settings and concurrent account changes keep their owner", async t => {
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  let hold = false;
+  const f = await imageRuntimeFixture(t, { context(context) {
+    const generation = context.services!.imageGeneration!;
+    return { ...context, services: { ...context.services!, imageGeneration: { ...generation, async bind(target, account) {
+      if (hold && context.project_id === "project-a") { entered.resolve(); await release.promise; }
+      await generation.bind(target, account);
+    } } } };
+  } });
+  const account = (name: string) => withConnectorConnections(f.home, store => store.createToken({ serviceId: "image-api", displayName: name, token: name + "-test-token" }).connection_id);
+  const one = account("first"), two = account("second");
+  const a = f.client("project-a"), b = f.client("project-b"), agent = f.client("project-b", { audience: "agent" });
+  const { connection } = await a.invoke(actions.saveConnection, { ...f.input, auth_connection_id: one });
+  await assert.rejects(agent.invoke(actions.connections, {}), { code: "actions.forbidden" });
+  const { job } = await agent.invoke(actions.start, { request_id: "other-partition", connection_id: connection.id, prompt: "new service" });
+  assert.equal((await imageTerminal(agent, job.id)).status, "succeeded");
+  hold = true;
+  const update = { ...f.input, id: connection.id, auth_connection_id: two };
+  const first = a.invoke(actions.saveConnection, update);
+  try {
+    await entered.promise;
+    await assert.rejects(b.invoke(actions.saveConnection, { ...update, auth_connection_id: one }), { code: "images.connection_changed" });
+  } finally { release.resolve(); }
+  assert.equal((await first).connection.auth_connection_id, two);
+  assert.equal((await b.invoke(actions.connections, {})).connections[0]?.auth_connection_id, two);
+});
+
+test("B2R-06 remote settings notify an active installation after commit and isolate a failing listener", async t => {
+  const home = mkdtempSync(join(tmpdir(), "images-setting-notify-"));
+  const space = ensureStorageSpace(home, personalStorageSpace("https://auth.example.test", "molis-work", "image-owner"));
+  const heard: string[][] = [];
+  const f = await imageRuntimeFixture(t, { home, context(context) {
+    if (context.project_id === "project-b") {
+      const settings = context.services!.personSettings!;
+      settings.onChange(async () => { throw new Error("listener failed"); });
+      settings.onChange(() => { heard.push(settings.list().map(row => row.key)); });
+    }
+    return context;
+  } });
+  const selections: ReturnType<typeof personalConfigRegistrations>[number]["selection"][] = [];
+  const [install] = f.contexts;
+  assert.ok(install);
+  const registration = personalConfigRegistrations({ home, spaceId: space.spaceId, actor: space.ownerUserId!, authorize() {},
+    catalog: async () => { throw new Error("person settings do not read the project catalog"); },
+    selected: () => ({ revision: 1, selections }), personSettings: () => ({ install_id: install.install_id, declarations: imagesManifest.person_settings }),
+  }).find(row => row.selection.collection_id === "person_settings")!;
+  selections.push(registration.selection);
+  const event = { key: imagesManifest.plugin_id + "/connections", base: 0, revision: 1, operationId: "remote-images-1",
+    value: { space_id: space.spaceId, data: { value: { services: [] } } } };
+  const store = openPersonSettings(home);
+  try {
+    store.db.exec("CREATE TRIGGER fail_settings_cursor BEFORE UPDATE OF cursor ON person_settings_replica_state BEGIN SELECT RAISE(ABORT,'rollback test'); END");
+    assert.throws(() => registration.withReplica(replica => replica.receive(event)), /rollback test/u);
+    await new Promise<void>(resolve => setImmediate(resolve));
+    assert.deepEqual(heard, []);
+    assert.equal(registration.withReplica(replica => replica.cursor()), 0);
+    store.db.exec("DROP TRIGGER fail_settings_cursor");
+    registration.withReplica(replica => replica.receive(event));
+    await new Promise<void>(resolve => setImmediate(resolve));
+    assert.deepEqual(heard, [["connections"]]);
+    assert.equal(registration.withReplica(replica => replica.cursor()), event.revision);
+  } finally { store.close(); }
+});
+
 test("ARF-4 an unfinished account switch or deletion survives restart and refuses dispatch until retried", async t => {
   const previous = process.env.MOLIS_WORK_SECRET_BACKEND;
   process.env.MOLIS_WORK_SECRET_BACKEND = "file"; resetSecretStoreCache();
   t.after(() => { if (previous === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = previous; resetSecretStoreCache(); });
   let failWrite = 0;
-  // The services follow the person (batch 108): each change to them is one write of Images' person setting, which fails here on cue.
+  // Fail one production transaction, including both the portable service and its device-local binding intent.
   const f = await imageRuntimeFixture(t, { context(context) {
     const settings = context.services!.personSettings!;
-    return { ...context, services: { ...context.services!, personSettings: { ...settings, set(key, value, options) {
+    return { ...context, services: { ...context.services!, personSettings: { ...settings, setMany(updates) {
       if (failWrite > 0 && --failWrite === 0) throw new Error("injected settings failure");
-      return settings.set(key, value, options);
+      return settings.setMany(updates);
     } } } };
   } });
   const account = (name: string) => withConnectorConnections(f.home, store => store.createToken({ serviceId: "image-api", displayName: name, token: name + "-test-token" }).connection_id);

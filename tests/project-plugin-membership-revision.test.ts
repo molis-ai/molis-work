@@ -27,7 +27,6 @@ const actorId = "user-1";
 const registry: ProjectPluginRegistry = {
   has: id => ["goals", "feed", "inbox", "pages", "personal"].includes(id),
   companions: id => id === "feed" ? ["inbox"] : [],
-  isPersonal: id => id === "personal",
 };
 
 function fixture(t: TestContext) {
@@ -111,7 +110,7 @@ test("SPC-C08 the declared actions validate caller and input, then read and writ
 
   const saved = await service.invoke(person, set, change) as VersionedProjectPluginMembership;
   assert.deepEqual(saved.plugins, ["pages"]);
-  assert.deepEqual(saved.hidden, []);
+  assert.ok(!("hidden" in saved));
   assert.notEqual(saved.revision, before.revision);
   assert.deepEqual(await service.invoke(person, get, {}), saved);
   assert.deepEqual(f.get(otherProjectId), other);
@@ -126,11 +125,11 @@ test("SPC-C08 the declared actions validate caller and input, then read and writ
   assert.deepEqual(f.events(), events);
 });
 
-test("SPC-C08 set follows companion and personal hiding rules", t => {
+test("SPC-C08 companion changes and every ordinary member share one revision", t => {
   const f = fixture(t);
   const before = f.get();
   assert.deepEqual(before.plugins, [], "a new project has no member nobody chose (44B: nothing is 常开)");
-  assert.deepEqual(f.projects.query.storedProjectPluginMembership(projectId), { plugins: [], hidden: [] });
+  assert.deepEqual(f.projects.query.storedProjectPluginMembership(projectId), { plugins: [] });
   assert.deepEqual(f.portable.read(projectId)?.plugins, []);
   assert.deepEqual(f.events(), []);
 
@@ -142,19 +141,19 @@ test("SPC-C08 set follows companion and personal hiding rules", t => {
   assert.throws(() => f.set("goals", true, before.revision), { code: "actions.conflict" });
 
   const hidden = f.set("personal", false, withoutFeed.revision);
-  assert.deepEqual(hidden.hidden, ["personal"]);
+  assert.deepEqual(hidden, withoutFeed);
   assert.deepEqual(hidden.plugins, withoutFeed.plugins);
   assert.deepEqual(f.set("personal", false, hidden.revision), hidden);
   const shown = f.set("personal", true, hidden.revision);
-  assert.deepEqual(shown.hidden, []);
-  assert.deepEqual(shown.plugins, withoutFeed.plugins);
+  assert.ok(!("hidden" in shown));
+  assert.deepEqual(shown.plugins, ["personal"]);
   assert.notEqual(shown.revision, withoutFeed.revision);
   assert.throws(() => f.set("personal", false, withoutFeed.revision), { code: "actions.conflict" });
   assert.deepEqual(f.get(), shown);
   assert.deepEqual(f.events().map(event => [event.type, event.plugin_id]), [
     ["project.plugin_added", "feed"], ["project.plugin_added", "inbox"],
     ["project.plugin_removed", "inbox"], ["project.plugin_removed", "feed"],
-    ["project.plugin_removed", "personal"], ["project.plugin_added", "personal"],
+    ["project.plugin_added", "personal"],
   ]);
 });
 
@@ -173,7 +172,7 @@ test("SPC-C08 earlier clocks and decreasing event ids cannot hide a membership A
   const reopened = f.open();
   const after = reopened.get();
   assert.deepEqual(after.plugins, before.plugins);
-  assert.deepEqual(after.hidden, before.hidden);
+  assert.deepEqual(after.plugins, before.plugins);
   assert.notEqual(after.revision, before.revision);
   assert.throws(() => reopened.set("pages", true, before.revision), { code: "actions.conflict" });
   assert.deepEqual(reopened.get(), after);
@@ -259,23 +258,21 @@ test("BL-project-membership-revision-read lists and hidden rules match the unver
   `).get(project))?.event_id ?? null;
   const check = (project: string, label: string) => {
     const versioned = get(project);
-    const { plugins, hidden } = versioned;
-    assert.deepEqual({ plugins, hidden }, projects.query.projectPluginMembership(project), label);
-    const facts = [project, [...plugins].sort(), [...hidden].sort(), latestEvent(project)];
+    const { plugins } = versioned;
+    assert.deepEqual({ plugins }, projects.query.projectPluginMembership(project), label);
+    const facts = [project, [...plugins].sort(), latestEvent(project)];
     assert.equal(versioned.revision, createHash("sha256").update(JSON.stringify(facts)).digest("hex"), label);
   };
   check(projectId, "fresh project");
   check(otherProjectId, "untouched second project");
   const withFeed = set("feed", true, get().revision);
-  set("personal", false, withFeed.revision);
-  check(projectId, "stored members with a companion and a hidden personal plugin");
+  set("personal", true, withFeed.revision);
+  check(projectId, "stored members with a companion and an ordinary personal-named plugin");
   // Rows a sync can leave: a stored member that is also marked hidden, and ids whose byte order differs from a case-insensitive one.
   const at = "2026-11-08T02:00:00.000Z";
   f.db.prepare("INSERT INTO partition_plugins (partition_id, plugin_id, enabled_at, enabled_by) VALUES (?, 'goals', ?, ?), (?, 'Zeta', ?, ?)").run(projectId, at, actorId, projectId, at, actorId);
-  f.db.prepare("INSERT INTO project_plugin_exclusions (project_id, plugin_id, removed_at) VALUES (?, 'goals', ?), (?, 'Alpha', ?)").run(projectId, at, projectId, at);
-  check(projectId, "a stored member that is also marked hidden");
-  assert.deepEqual(get().plugins, ["Zeta", "feed", "goals", "inbox"]);
-  assert.deepEqual(get().hidden, ["Alpha", "goals", "personal"]);
+  check(projectId, "stored members sorted independently of insertion order");
+  assert.deepEqual(get().plugins, ["Zeta", "feed", "goals", "inbox", "personal"]);
 
   const recycle = f.projects.recycle;
   recycle.change({
@@ -292,7 +289,7 @@ test("BL-project-membership-revision-read adding a plugin and removing it again 
   const before = f.get();
   const added = f.set("pages", true, before.revision);
   const back = f.set("pages", false, added.revision);
-  assert.deepEqual({ plugins: back.plugins, hidden: back.hidden }, { plugins: before.plugins, hidden: before.hidden });
+  assert.deepEqual(back.plugins, before.plugins);
   assert.notEqual(back.revision, before.revision);
   const events = f.events();
   for (const enabled of [true, false]) {

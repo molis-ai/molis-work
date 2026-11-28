@@ -1,4 +1,5 @@
 import { escapeHtml, icon, redrawInPlace, renderAlert, renderBadge, renderButton, renderPopover, renderStatusMark, t, takeWordsInPlace } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { bindPersonalTasks } from "./personal-tasks.js";
 import type { SurfaceHomeDisplay, SurfaceHomeRowDisplay } from "@molis-ai/molis-work-design-system";
 import { homeButton, homeReadAt, homeWord, isPlacementControl, renderHome, renderHomePeek, subjectKey, type HomeControl } from "./project-home-render.js";
 import { createPositionCorrections } from "./project-position-corrections.js";
@@ -232,6 +233,7 @@ export function mountHome(host: HomeHost) {
   const surface = host.root ?? document.querySelector<HTMLElement>('[data-work-surface="home"]');
   if (!surface) return null;
   const root = surface;
+  const releasePersonalTasks = bindPersonalTasks(root);
   const groups = root.querySelector<HTMLElement>("[data-home-groups]")!, status = root.querySelector<HTMLElement>("[data-home-status]")!;
   const margin = root.querySelector<HTMLElement>("[data-home-margin]")!;
   /** Where the label of the writing the page's sentences are from goes, in the line over the title. */
@@ -484,6 +486,7 @@ export function mountHome(host: HomeHost) {
     sync: syncAll,
     dispose() {
       document.removeEventListener("molis-work:language-changed", onLanguageChanged);
+      releasePersonalTasks();
       unwatch();
       primary.stop();
       homePages?.dispose();

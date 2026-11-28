@@ -92,7 +92,7 @@ import { workTerminalActionProvider } from "./work-terminal-service.js";
 import { pluginDataActionProvider } from "./plugin-data-export.js";
 import { stateMachineRegistryProvider } from "./state-machine-registry.js";
 import { registerProjectCapabilities, type PrepareProjectDirectory } from "./project-capabilities.js";
-import { projectPluginsActiveWorkCount, projectPluginsHaveWork, refreshRunningProjectPlugins, releaseProjectPlugins, startPartitionPluginInstance } from "./project-plugins.js";
+import { declarePartitionPlugins, projectPluginsActiveWorkCount, projectPluginsHaveWork, refreshRunningProjectPlugins, releaseProjectPlugins, startPartitionPluginInstance } from "./project-plugins.js";
 import { projectMaterialsProvider } from "./system-materials-actions.js";
 import type { LocalHostProjectClient, LocalHostProjectReference, LocalHostStatus } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { ProjectDirectories, ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -126,6 +126,8 @@ export interface MolisWorkProjectRuntime extends ProjectVersionStores {
 
 export interface MolisWorkLocalHostOptions {
   clock?: () => Date;
+  /** Authenticated space policy. An embedding with narrower project or AI access supplies its live judgment here. */
+  overviewProjectAccess?(caller: ActionCallContext, partitionId: string): boolean;
   instanceId?: string;
   homeDirectory?: string;
   functions?: FunctionsHostOptions;
@@ -324,6 +326,7 @@ export class MolisWorkLocalHost {
       actionUsagesProvider(callerClient, options.homeDirectory), contextOnboardingProvider(), ...(options.homeDirectory && this.recommendations ? [adoptionProvider(this, options.homeDirectory, callerClient)] : []), agentReviewProvider(), assistantPanelProvider(), authorizationManagementProvider(), projectApprovalsProvider(), // the pages' writes, behind their doors (B9)
       mainlineProvider(callerClient, options.homeDirectory ? mainlineHost(options.homeDirectory, this.plugins) : undefined, taskReviews), ...kitProviders({ clientFor: callerClient, library: async () => this.agents?.service.mcpLibrary(), plugins: this.plugins, home: options.homeDirectory }),
       overviewReadProvider({ source: () => hostOverviewSource(this), partitions: () => this.partitions(),
+        delivered: (caller, rows) => this.assistantStore?.().preferences.noteOverview(caller.actor_id, caller.audit_actor_id!.slice("assistant:".length), rows),
         grants: () => this.assistantStore ? assistantOverviewGrants(this.assistantStore()) : [] }),
       ...(this.assistantStore ? [assistantSettingsProvider(this.assistantStore), assistantDelegationProvider({ host: this, works: this.assistantStore,
         permissions: async () => (await readyAgentHost(this.plugins))?.workDelegations("prologue") })] : []),
@@ -375,6 +378,7 @@ export class MolisWorkLocalHost {
         ownerContext });
       // The per-partition assembly runs while the Host does (batch 107): its due timer and idle sweep start now; a partition a due entry wakes
       // is opened from the catalog, without starting the project's platform.
+      declarePartitionPlugins(home);
       partitionPluginHostFor(home, startPartitionPluginInstance).startServices(async (partitionId, work) => {
         const record = this.catalogRunner ? await this.catalogRunner({ homeDirectory: home }, catalog => catalog.listPartitions().find(project => project.project_id === partitionId)) : undefined;
         if (!record) throw new ActionError("actions.plugin_unavailable", "这个分区已经不在了");
@@ -617,6 +621,27 @@ export class MolisWorkLocalHost {
       this.search?.projectClosed(projectId);
     }
     return this.host.closeProject(referenceOrStorageKey);
+  }
+
+  /** Read one membership snapshot through the held catalog immediately before delivering an overview. */
+  currentProjectPluginReach(partitionId: string): ((pluginId: string) => boolean | undefined) | undefined {
+    if (!this.webCatalog) return undefined;
+    return this.webCatalog.access.ready
+      ? this.webCatalog.access.read(catalog => projectPluginJudge(catalog, partitionId, this.overviewHome())) : () => false;
+  }
+
+  /** A retained passive binding must pass the catalog's current membership even after discovery. */
+  partitionSyncMember(partitionId: string, pluginId: string): boolean {
+    return this.currentProjectPluginReach(partitionId)?.(pluginId) === true;
+  }
+
+  /** Recheck the current catalog and this caller's project access immediately before data or model history is delivered. */
+  overviewReadable(caller: ActionCallContext, candidates: readonly string[]): readonly string[] {
+    const scope = caller.readable_project_ids;
+    if (this.webCatalog && !this.webCatalog.access.ready) return [];
+    const live = this.webCatalog?.access.ready
+      ? this.webCatalog.access.read(catalog => new Set(catalog.listPartitions().map(row => row.project_id))) : undefined;
+    return candidates.filter(id => (!live || live.has(id)) && (!scope || scope.includes(id)) && (this.options.overviewProjectAccess?.(caller, id) ?? true));
   }
 
   /** The Home this Host serves the partitions of, once its catalog is bound; the Home's lists read its overview index. */

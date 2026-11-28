@@ -89,7 +89,7 @@ export async function invokePluginQuery<Output>(context: PluginStartContext, man
     Reflect.deleteProperty(inherited, "plugin_install_id");
     Reflect.deleteProperty(inherited, "host_plugin");
   }
-  const caller: ActionCallContext = { ...inherited, query_only: true, locale: activeLocale() ?? undefined,
+  const caller: ActionCallContext = { ...inherited, delegated_by: manifest.plugin_id, delegated_audience: original.audience, query_only: true, locale: activeLocale() ?? undefined,
     permissions: original.permissions.filter(permission => declared.has(permission) && context.grants.includes(permission)),
     validate_authority: async target => { await check(); await original.validate_authority?.(target); source(); },
     validate_permissions: async permissions => { source(permissions); await original.validate_permissions?.(permissions); source(); },

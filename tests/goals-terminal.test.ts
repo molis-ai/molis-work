@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { projectPluginRevisionAt } from "./fixtures/project-plugin-settings.js";
 import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { mkdtemp, readFile, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -495,6 +496,9 @@ test("PEQ-17 work terminals refuse mid-flight regrant revocation, kill live Home
   };
 
   const { f, project, reference } = await served(t, { pluginFixtures: { project: [projectProbe], home: [homeProbe] } });
+  const added = await f.request(`/api/settings/projects/${project.project_id}/plugins`, { method: "POST",
+    body: { plugin_id: HOME_PROBE_ID, expected_revision: await projectPluginRevisionAt(f.origin, project.project_id) } });
+  assert.equal(added.status, 200, await added.clone().text());
   const client = f.host.actionClient(reference);
   const catalogPath = await f.host.ensureWebCatalog(f.home, openMolisWorkProjectCatalog).withCatalog({ homeDirectory: f.home }, catalog => catalog.databasePath);
   const panelCount = () => {

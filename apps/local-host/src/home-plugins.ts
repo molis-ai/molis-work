@@ -113,8 +113,7 @@ export class HomePluginHost {
       ...this.installed?.pages() ?? []];
   }
   /**
-   * The registered Home plugins outside the start list that have no project half, by plugin id: personal plugins of every project
-   * unless it hides them (#679, B3). A dual-instance one is reached through its project half, as before.
+   * Home registrations outside the build that a project can enable by plugin id. A dual-instance plugin uses its project half.
    */
   outsideBuild(): readonly string[] {
     return [...pluginFixtureEntries(this.options.fixtures ?? []).map(entry => entry.definition.manifest.plugin_id).filter(id => !this.dualInstance(id)),
@@ -238,11 +237,14 @@ export class HomePluginHost {
       // A package switched off is not known to the supervisor after a restart, and is still the person's to switch on.
       ?? this.installed?.releaseFor(pluginId)?.packaged?.manifest;
   }
-  /** Whether the Host's start list (or an installed pinned dual-instance sandbox package, PEQ-06) runs a Home half and project halves. */
-  dualInstance(pluginId: string): boolean {
+  /** Whether the Host itself supplies both halves through its start list or project fixtures. */
+  providesDualInstance(pluginId: string): boolean {
     return this.options.entries.some(entry => entry.dual_instance === true && entry.manifest.plugin_id === pluginId)
-      || (this.options.fixtures ?? []).some(fixture => !("manifest" in fixture) && fixture.dual_instance === true && fixture.definition.manifest.plugin_id === pluginId)
-      || this.installed?.isDualInstance(pluginId) === true;
+      || (this.options.fixtures ?? []).some(fixture => !("manifest" in fixture) && fixture.dual_instance === true && fixture.definition.manifest.plugin_id === pluginId);
+  }
+  /** Includes pinned sandbox packages whose signed Manifest declares both halves (PEQ-06). */
+  dualInstance(pluginId: string): boolean {
+    return this.providesDualInstance(pluginId) || this.installed?.isDualInstance(pluginId) === true;
   }
   /** Direct lookup by `install_id` without enumerating or decoding the entire Home install table. */
   installationById(installId: string): PluginInstanceRecord | null {

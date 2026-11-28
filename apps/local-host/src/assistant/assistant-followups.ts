@@ -87,7 +87,7 @@ export interface AssistantFollowUpPorts<W extends FollowUpWork> {
   /** The work by id; throws when it no longer exists. */
   work(workId: string): W;
   holdWork?(work: W): Promise<{ assertCurrent(): void; release(): void } | undefined>;
-  notify(notice: Pick<AssistantNotice, "kind" | "work_id" | "work_title" | "text" | "open">, dedupe: string): boolean;
+  notify(notice: Pick<AssistantNotice, "kind" | "work_id" | "work_title" | "text" | "open" | "reminder_source">, dedupe: string): boolean;
   setting(key: string): string | null;
   setSetting(key: string, value: string): void;
   rules(): AssistantRule[];
@@ -362,9 +362,12 @@ export class AssistantFollowUps<W extends FollowUpWork> {
   tellReminder(reminder: PartitionReminder): boolean {
     const time_zone = this.ports.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
     const title = cutHead(reminder.title, 120);
+    const key = reminder.interrupted
+      ? (reminder.late ? "workbench.assistant-notice.reminder-interrupted-missed" : "workbench.assistant-notice.reminder-interrupted")
+      : (reminder.late ? "workbench.assistant-notice.reminder-missed" : "workbench.assistant-notice.reminder");
     return this.ports.notify({ kind: "reminder", work_id: "", work_title: reminder.source_title,
-      text: assistantWords(reminder.late ? "workbench.assistant-notice.reminder-missed" : "workbench.assistant-notice.reminder",
-        { source: reminder.source_title, at: dateArg(reminder.due_at, "time", { time_zone }), title }),
+      reminder_source: { plugin_id: reminder.plugin_id, install_id: reminder.install_id },
+      text: assistantWords(key, { source: reminder.source_title, at: dateArg(reminder.due_at, "time", { time_zone }), title }),
       ...(reminder.open ? { open: { surface: reminder.open.surface, id: reminder.open.id, title, project_id: reminder.partition_id } } : {}) },
       `reminder:${reminder.install_id}:${reminder.partition_id}:${reminder.entry_key}@${reminder.due_at}`);
   }

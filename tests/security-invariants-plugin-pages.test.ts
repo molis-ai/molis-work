@@ -276,7 +276,7 @@ test("RAC-2516 S-47 own object presentation checks exactly the selected declarat
     const value = await start(context); if (value.kind !== "app") throw new Error("Expected app");
     return { ...value, actions: [...value.actions ?? [], { ...reader, handle: () => { reads++; return {}; } }], views: [{ descriptor: { contribution_id, kind: "embedded", label: "Object presentation", surfaces: [{ surface_id: "workbench", target_slot_id: "workbench.main", format: "declarative-html" }, { surface_id: "detail", target_slot_id: "workbench.main", format: "declarative-html" }], slots: [] }, render: () => "<section>Object presentation</section>" }] };
   };
-  const f = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } }), project = await f.project("Object presentation", ["pages"]);
+  const f = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } }), project = await f.project("Object presentation", ["pages", probe.id]);
   const prefix = `/projects/${project.project_id}`, mount = { contribution_id, surface: "workbench", target_slot_id: "workbench.main" };
   const open = async () => {
     const response = await f.request(prefix + "/api/host/plugin-pages", { method: "POST", body: { plugin_id: probe.id, mount } });
@@ -876,21 +876,13 @@ test("P1-D2 S-47 declared project page route surfaces stageErrorsOf HTTP status 
   assert.equal(body.code, "actions.forbidden");
 });
 
-test("F-hc2-11 hiding a third-party Home plugin in a project refuses page open even when mount is omitted", { timeout: 30_000 }, async t => {
+test("F-hc2-11 a third-party Home page in a project requires membership even without a mount", { timeout: 30_000 }, async t => {
   const probe = homeProbe("hiddenmountless");
   const f = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
   await grantHomeProbe(f.host, probe);
   const project = await f.project("Hidden Home plugin", ["pages"]);
   const prefix = `/projects/${project.project_id}`;
-  // Third-party Home plugins are visible in every project by default (#679, B3) until hidden in that project;
-  // once hidden, omitting `mount` must still refuse page open with 403 (`actions.plugin_disabled`).
-  const initiallyAllowed = await f.request(prefix + "/api/host/plugin-pages", { method: "POST", body: { plugin_id: probe.id } });
-  assert.equal(initiallyAllowed.status, 200, await initiallyAllowed.clone().text());
-  const hidden = await f.request(`/api/settings/projects/${project.project_id}/plugins`, {
-    method: "DELETE",
-    body: { plugin_id: probe.id, expected_revision: await projectPluginRevisionAt(f.origin, project.project_id) },
-  });
-  assert.equal(hidden.status, 200, await hidden.clone().text());
+  // Without a membership even the mountless entry is closed.
   const refusedHidden = await f.request(prefix + "/api/host/plugin-pages", { method: "POST", body: { plugin_id: probe.id } });
   assert.equal(refusedHidden.status, 403, await refusedHidden.clone().text());
   const shown = await f.request(`/api/settings/projects/${project.project_id}/plugins`, {

@@ -37,8 +37,19 @@ export const ASSISTANT_NOTICES_PART = String.raw`  /* ─── What deserves th
     if (!noticePop) return;
     // Polling repaints only what changed, and keeps focus on the same button: a list rebuilt under the person's
     // finger or keyboard focus loses the tap or drops focus to the page.
-    const signature = JSON.stringify([pluginWaiting, attentionObjectsCount, notices.map((notice) => [notice.notice_id, notice.text, notice.directory_origin, notice.additional_count, notice.held && notice.held.reason])]);
-    if (!force && noticePop.dataset.signature === signature) return;
+    const signature = JSON.stringify([pluginWaiting, attentionObjectsCount, notices.map((notice) => [notice.notice_id, notice.reminder_source ? null : notice.text, notice.directory_origin, notice.additional_count, notice.held && notice.held.reason])]);
+    if (!force && noticePop.dataset.signature === signature) {
+      for (const item of noticeList.querySelectorAll("[data-reminder-source]")) {
+        const go = item.querySelector('[data-notice-action="open"]'), done = item.querySelector('[data-notice-action="dismiss"]');
+        const notice = notices.find(n => n.notice_id === go.dataset.noticeId);
+        if (!notice || item.dataset.reminderSource === notice.work_title) continue;
+        item.dataset.reminderSource = notice.work_title;
+        item.querySelector(".assistant-notice-text").firstChild.data = noticeText(notice);
+        go.setAttribute("aria-label", globalThis.t.text("workbench.assistant-notice.open-named", { title: notice.work_title }));
+        done.setAttribute("aria-label", globalThis.t.text("workbench.assistant-notice.dismiss-named", { title: notice.work_title }));
+      }
+      return;
+    }
     noticePop.dataset.signature = signature;
     const focused = noticeList.contains(document.activeElement) ? document.activeElement : null;
     const focusKey = focused ? [focused.dataset.noticeId, focused.dataset.noticeAction] : null;
@@ -46,6 +57,7 @@ export const ASSISTANT_NOTICES_PART = String.raw`  /* ─── What deserves th
     const open = notices.filter((notice) => !notice.held && URGENT.has(notice.kind)), news = notices.filter((notice) => !notice.held && !URGENT.has(notice.kind)), held = notices.filter((notice) => notice.held);
     const row = (notice) => {
       const item = el("div", "assistant-notice"), text = noticeText(notice);
+      if (notice.reminder_source) item.dataset.reminderSource = notice.work_title;
       if (typeof notice.text.original === "string") {
         if (notice.text.label) item.append(el("p", "assistant-notice-text", globalThis.say.text(notice.text.label)));
         const original = el("p", "assistant-notice-text", notice.text.original);

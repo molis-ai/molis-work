@@ -1,5 +1,6 @@
 import { lstatSync } from "node:fs";
 import path from "node:path";
+import { hostLog } from "./host-log.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL, PLUGIN_RELEASE_ARTIFACTS_SCHEMA_SQL, PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL, PLUGIN_TRUST_SCHEMA_SQL,
@@ -136,14 +137,23 @@ export interface HomePluginInstallationManifest {
 export function readHomePluginInstallations(
   home: string,
   shippedManifest?: (pluginId: string) => PluginManifest | undefined,
+  selection: { availableOnly?: boolean; installId?: string; pluginId?: string } = {},
 ): HomePluginInstallationManifest[] {
   return withReadOnlyHomePluginStore(home, db =>
     readPluginRuntimeRecords(db).flatMap(record => {
-      if (record.state === "uninstalled") return [];
-      const shipped = shippedManifest?.(record.plugin_id);
-      const manifest = readPluginReleaseManifest(db, record)
-        ?? (shipped && shipped.publisher.signature === record.publisher_signature ? shipped : null);
-      return manifest ? [{ install_id: record.install_id, state: record.state, manifest }] : [];
+      if (record.state === "uninstalled" || (selection.installId && record.install_id !== selection.installId)
+        || (selection.pluginId && record.plugin_id !== selection.pluginId)) return [];
+      if (selection.availableOnly && (record.state === "disabled" || record.state === "quarantined")) return [];
+      try {
+        const shipped = shippedManifest?.(record.plugin_id);
+        const manifest = readPluginReleaseManifest(db, record)
+          ?? (shipped && shipped.publisher.signature === record.publisher_signature ? shipped : null);
+        return manifest ? [{ install_id: record.install_id, state: record.state, manifest }] : [];
+      } catch (error) {
+        if (!selection.availableOnly) throw error;
+        hostLog.warn("plugins", "installation_manifest_unavailable", error, { install_id: record.install_id });
+        return [];
+      }
     })) ?? [];
 }
 

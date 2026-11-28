@@ -431,7 +431,7 @@ test("CHO-04 an executor that cannot be found says why: a version short of the p
     // The project's plugin membership, read only when the directory says nothing about the plugin.
     const invoke = exec.actions.invoke;
     exec.actions.invoke = (async (definition: ActionDefinition<unknown, unknown>, input: unknown) => definition.capability_id === "projects.plugins.get"
-      ? { plugins, hidden: [], revision: 1 } : await invoke(definition, input)) as BoundActionClient["invoke"];
+      ? { plugins, revision: 1 } : await invoke(definition, input)) as BoundActionClient["invoke"];
     await assert.rejects(inAssistantPage("zh", () => service.send({ work_id: sent.work.work_id, text: "再加 multiply", request_id: randomUUID() }, caller)),
       (error: unknown) => { reasons.push((error as Error).message); return (error as { code?: string }).code === "assistant.executor_unavailable"; });
   }

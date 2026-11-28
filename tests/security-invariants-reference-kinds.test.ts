@@ -69,13 +69,13 @@ test("S-32 a project's list leaves out a hidden plugin, a built-in it does not s
     ...offering({ provider_id: "io.molis.work.goals", plugin_id: "io.molis.work.goals" }, "goal", "目标"),
     ...offering({ provider_id: "io.molis.work.todo", plugin_id: "io.molis.work.todo" }, "todo_item", "待办"),
     ...offering({ provider_id: "inst-notes", plugin_id: "io.example.notes", plugin_install_id: "inst-notes" }, "x_note", "笔记"),
-    ...offering({ provider_id: "inst-hidden", plugin_id: "io.example.hidden", plugin_install_id: "inst-hidden" }, "x_hidden", "藏起来的"),
+    ...offering({ provider_id: "inst-hidden", plugin_id: "io.example.hidden", plugin_install_id: "inst-hidden" }, "x_hidden", "未启用").map(view => ({ ...view, action: { ...view.action, scope: "home" as const } })),
     ...offering({ provider_id: "inst-off", plugin_id: "io.example.off", plugin_install_id: "inst-off" }, "x_off", "停用的", true, false),
     ...offering({ provider_id: "inst-blind", plugin_id: "io.example.blind", plugin_install_id: "inst-blind" }, "x_blind", "读不回的", false),
     // An installation that names a built-in plugin's id is not the built-in one: it is another installation, with its own share.
     ...offering({ provider_id: "inst-pose", plugin_id: "io.molis.work.goals", plugin_install_id: "inst-pose" }, "x_pose", "冒充的"),
   ];
-  const candidates = projectReferenceKinds(views, new Set(["goals"]), new Set(["io.example.hidden"]));
+  const candidates = projectReferenceKinds(views, new Set(["goals"]));
   assert.deepEqual(candidates.map(entry => [entry.plugin_id, entry.installation, entry.kind]).sort(), [
     ["io.example.notes", "installed:inst-notes", "x_note"], ["io.molis.work.goals", "builtin:io.molis.work.goals", "goal"], ["io.molis.work.goals", "installed:inst-pose", "x_pose"],
   ], "todo is not shown here; the hidden, unavailable and unreadable plugins offer nothing");
@@ -84,10 +84,9 @@ test("S-32 a project's list leaves out a hidden plugin, a built-in it does not s
 
 test("PRR-13 a Runtime built-in plugin is recognized by its provider id, not by an install hash", () => {
   const todo = offering({ provider_id: "io.molis.work.todo", plugin_id: "io.molis.work.todo", plugin_install_id: "plugin-install-6ed43d717d2e579c2d6345b4e217c614" }, "todo_item", "待办");
-  assert.deepEqual(projectReferenceKinds(todo, new Set(["goals"]), new Set()), [], "a built-in the project does not show offers nothing");
-  const shown = projectReferenceKinds(todo, new Set(["goals", "todo"]), new Set());
+  assert.deepEqual(projectReferenceKinds(todo, new Set(["goals"])), [], "a built-in the project does not show offers nothing");
+  const shown = projectReferenceKinds(todo, new Set(["goals", "todo"]));
   assert.deepEqual(shown.map(entry => [entry.plugin_id, entry.installation, entry.kind]), [["io.molis.work.todo", "builtin:io.molis.work.todo", "todo_item"]]);
-  assert.deepEqual(projectReferenceKinds(todo, new Set(["goals", "todo"]), new Set(["todo"])), [], "a hidden built-in offers nothing");
 });
 
 // AAP-04: the project lookup is lightweight while actor/project isolation remains enforced.

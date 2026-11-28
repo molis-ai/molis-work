@@ -132,6 +132,8 @@ test("07-2a N54: on the chooser a project that answered 404 is not asked again, 
   })()` }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/` }, sessionId));
   await waitFor(`Boolean(document.querySelector('.chooser .mw-dir-row[data-id="${projectId}"]')) && Boolean(document.querySelector('.chooser .mw-dir-row[data-id="${other}"]'))`, 20_000);
+  // The first brief fills in the directory row metadata. Click the measured row after that layout and its entrance animation settle.
+  await waitFor("!!document.querySelector('#chooser-detail .mw-brief:not([aria-busy=true])') && !document.querySelector('#chooser-dir').getAnimations({subtree:true}).some(animation => animation.playState === 'running' || animation.pending)");
   const reads = (id: string) => evaluate<number>(`window.__reads[${JSON.stringify(id)}] || 0`);
   await click(`.chooser .mw-dir-row[data-id="${projectId}"]`);
   await waitFor(`document.querySelector('.chooser').dataset.selected === ${JSON.stringify(projectId)}`, 5_000);
@@ -177,10 +179,12 @@ test("07-2a N54 WLN-27: a stream of what waits on the person that never answers 
 test("07-2a N53 request counts: loading the chooser and a project page, switching a tab and opening the side", { timeout: 180_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
   const { command, sessionId, navigate, waitFor, click, origin, projectId } = browser;
-  // Every Home has the personal space (batch 106). b51cb696d1 measured a Home whose places had all been read; reading the personal
-  // space once first keeps it so, instead of the chooser's first load also waiting for the personal space's background read.
-  await browser.web.get(`/projects/${PERSONAL_SPACE_PROJECT_ID}/api/attention`);
-  await new Promise(resolve => setTimeout(resolve, 1_000));
+  await browser.setViewport(1440, 900);
+  // N53 measures an already-read Home. Wait for the chooser's cross-project index to finish its first refresh (G4).
+  await t.waitFor(async () => {
+    const { background_tasks } = await browser.web.get<{ background_tasks: { updating?: boolean } }>(`/projects/${PERSONAL_SPACE_PROJECT_ID}/api/attention?view=home`);
+    assert.notEqual(background_tasks.updating, true);
+  }, { timeout: 20_000, interval: 100 });
   await command("Network.enable", {}, sessionId);
   const seen: Array<{ phase: string; method: string; path: string; status?: number; id: string; frame: string; type: string }> = [];
   let phase = "chooser";
@@ -211,7 +215,8 @@ test("07-2a N53 request counts: loading the chooser and a project page, switchin
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=goals` }, sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true' && document.querySelectorAll('[data-titlebar-tabs] .tab-item').length >= 2", 30_000); await settle();
   phase = "tab";
-  await click("[data-titlebar-tabs] .tab-item:not([aria-current]) .tab-item-trigger");
+  await click('[data-titlebar-tabs] .tab-item[data-tab-kind="plugin"][data-plugin="todo"] .tab-item-trigger');
+  await waitFor("document.body.dataset.desktopSurface === 'todo'");
   await settle();
   phase = "side";
   await click("[data-side-tabs] [data-side-tab][aria-selected=true]");

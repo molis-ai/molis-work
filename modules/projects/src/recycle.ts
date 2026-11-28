@@ -47,7 +47,6 @@ export class ProjectRecycle {
     const facts = [project, lifecycle ?? null,
       this.db.prepare('SELECT * FROM partition_plugins WHERE partition_id=? ORDER BY plugin_id').all(projectId),
       this.db.prepare('SELECT * FROM project_portable_plugins WHERE project_id=? ORDER BY plugin_id').all(projectId),
-      this.db.prepare('SELECT * FROM project_plugin_exclusions WHERE project_id=? ORDER BY plugin_id').all(projectId),
       this.db.prepare('SELECT * FROM workspace_project_memberships WHERE project_id=? ORDER BY membership_id').all(projectId)];
     return { project_id: projectId, display_name: String(project.display_name), database_path: projectDatabasePath(this.projectsDirectory, projectId),
       recycled: lifecycle?.recycled === 1, generation: lifecycle?.generation ?? 0,

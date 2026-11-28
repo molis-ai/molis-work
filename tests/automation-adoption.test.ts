@@ -3,6 +3,7 @@ import { mkdir, readFile, rmdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
+import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { homeAgentDefinitions, homeConnectorDirectory, homeIntegrationRegistry, offerProjectAutomation, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { observationActions, type ObservationQueryOutput } from "@molis-ai/molis-work-contracts/services/observation";
@@ -400,6 +401,7 @@ test("B61 P1-E5: Home-scoped skill packs can be adopted and undone per project, 
   const homeBundle = signedContentPackage(newPublisher(), { scope: "home", skills: [{ id: "home-review-tests" }] });
   const preview = await fixture.web.post<{ preview_id: string }>(base(project) + "/api/plugin-trust/install/preview", { bundle: homeBundle });
   await fixture.web.post(base(project) + "/api/plugin-trust/install/confirm", { preview_id: preview.preview_id, consent: true, pin_label: "Home Skill Publisher" });
+  await addProjectPlugin(fixture.web, project.project_id, homeBundle.payload.manifest.plugin_id);
 
   const offered = await offer(fixture, project);
   assert.equal(offered.offered, true);

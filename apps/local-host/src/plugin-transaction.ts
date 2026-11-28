@@ -23,7 +23,7 @@ export function bindPluginTransaction(handle: PluginDatabaseTransaction, owner: 
 
 /** Platform services join the exact live transaction, without handing out its connection. */
 export function joinPluginTransaction<T>(owner: PluginDatabase, handle: PluginDatabaseTransaction | PluginProjectRowTransaction,
-  write: (afterCommit: (effect: () => void) => void, check: () => void) => T): T {
+  write: (afterCommit: (effect: () => void, once?: boolean) => void, check: () => void) => T): T {
   const transaction = active.get(handle);
   const check = () => {
     if (!transaction || transaction.owner !== owner || active.get(handle) !== transaction) {
@@ -32,7 +32,10 @@ export function joinPluginTransaction<T>(owner: PluginDatabase, handle: PluginDa
     transaction.check();
   };
   check();
-  const result = write(effect => { check(); transaction!.committed.push(effect); }, check);
+  const result = write((effect, once) => {
+    check();
+    if (!once || !transaction!.committed.includes(effect)) transaction!.committed.push(effect);
+  }, check);
   requireSynchronous(result, "调度写入必须在当前事务内同步完成");
   check();
   return result;

@@ -190,7 +190,7 @@ async function discoverDynamicSettingsPlugins(
         if (!platform) return;
         const installedHost = currentInstalledPluginHost(runtime.store, runtime.project_id);
         for (const record of platform.runtime.list()) {
-          // A plugin hidden in this project has no settings here, as it has no place in the project's pages.
+          // This record belongs to the project's runtime. A separate Home installation may use the same plugin id.
           if (record.state !== "running" || !shownInProject(record.plugin_id)) continue;
           const manifest = installedPluginManifest(runtime.store.db, record.install_id)?.manifest ?? platform.supervisor.manifest(record.plugin_id);
           const localePacks = record.publisher_trust === "host"
@@ -253,18 +253,18 @@ async function projectShownJudge(composition: LocalWebComposition, homeDirectory
   if (!project || !homeDirectory) return () => true;
   return composition.withCatalog({ homeDirectory }, catalog => {
     const judge = projectPluginJudge(catalog, project.project_id, homeDirectory);
-    return (pluginId: string) => judge(pluginId) !== false;
+    return (pluginId: string) => judge(pluginId, project) !== false;
   });
 }
 
 /** A project's plugins as the settings show them; what they show is the Host's to say (W5-02 B1): without a project, none. */
 async function pluginMembership(composition: LocalWebComposition, homeDirectory: string | undefined, projectId: string | null): Promise<{
-  plugins: readonly string[] | undefined; hidden: readonly string[] | undefined; shown: readonly string[];
+  plugins: readonly string[] | undefined; shown: readonly string[];
 }> {
-  if (!projectId || !homeDirectory) return { plugins: undefined, hidden: undefined, shown: [] };
+  if (!projectId || !homeDirectory) return { plugins: undefined, shown: [] };
   return composition.withCatalog({ homeDirectory }, (catalog) => {
-    const { plugins, hidden } = catalog.projectPluginMembership(projectId);
-    return { plugins, hidden, shown: plugins };
+    const { plugins } = catalog.projectPluginMembership(projectId);
+    return { plugins, shown: plugins };
   });
 }
 
@@ -310,7 +310,6 @@ export async function handleSettingsPage(ctx: CatalogRequestContext): Promise<bo
     ...(dynamicPlugins.length ? { dynamic_plugin_settings: dynamicPlugins.map(({ section_id, plugin_id, label }) => ({ section_id, plugin_id, label })) } : {}),
     context_project: contextProject,
     enabled_plugins: membership.plugins,
-    hidden_plugins: membership.hidden,
     shown_plugins: membership.shown,
     runtimes: [],
     projects,
@@ -408,7 +407,6 @@ export async function handlePluginSettingsPage(ctx: CatalogRequestContext): Prom
     ...(dynamicPlugins.length ? { dynamic_plugin_settings: dynamicPlugins.map(({ section_id, plugin_id, label }) => ({ section_id, plugin_id, label })) } : {}),
     context_project: contextProject,
     enabled_plugins: membership.plugins,
-    hidden_plugins: membership.hidden,
     shown_plugins: membership.shown,
     runtimes: [],
     projects,

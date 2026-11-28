@@ -1,7 +1,7 @@
 import { shippedParts, homeDefinitionEntries, runsInHome, shippedPartByManifestId } from "./plugin-registry.js";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginTrust } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
-import { homeFixtureEntries, pluginFixtureDeclarations, storesWithFixtures, type PluginFixture } from "./home-side.js";
+import { fixtureDeclarationsFor, pluginFixtureDeclarations, storesWithFixtures, type PluginFixture } from "./home-side.js";
 import { assertOwnerFilesEntries } from "./plugin-owner-files-entries.js";
 
 const definitionOf = (fixture: PluginFixture) => "manifest" in fixture ? fixture : fixture.definition;
@@ -40,7 +40,7 @@ export function projectScopeEntries<Entry extends { definition: PluginDefinition
   // A shipped plugin's Home half is in the catalog whether or not this host has a Home, so its project half is marked either way.
   const homeSides = new Map<string, { dual: boolean; hostBuilt: boolean }>(shippedParts().filter(runsInHome)
     .map(entry => [entry.manifest.plugin_id, { dual: entry.runtime!.dual_instance === true, hostBuilt: true }]));
-  if (home) for (const entry of homeFixtureEntries(home)) homeSides.set(entry.definition.manifest.plugin_id, { dual: entry.dual_instance === true, hostBuilt: false });
+  for (const entry of fixtureDeclarationsFor(home, "home")) homeSides.set(entry.definition.manifest.plugin_id, { dual: entry.dual_instance === true, hostBuilt: false });
   const marked = entries.map(entry => {
     const id = entry.definition.manifest.plugin_id, side = homeSides.get(id);
     if (!side) return entry;

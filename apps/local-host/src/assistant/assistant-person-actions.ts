@@ -61,5 +61,10 @@ export function assistantPersonActions(localHost: MolisWorkLocalHost,
       return bindActionClient(client, () => caller).invoke(definition, input, control, transport);
     } };
   };
-  return { personContext, personClient, personBound };
+  // Background task reports read one exact provider with the grants effective when that report arrives.
+  const freshPersonClient = (reference: LocalHostProjectReference): Pick<PersonActions, "invoke"> => {
+    const client = localHost.actionClient(reference);
+    return { invoke: async (action, input) => client.invoke(await makeContext(reference), action, input) };
+  };
+  return { personContext, personClient, personBound, freshPersonClient };
 }

@@ -112,7 +112,7 @@ test("SYS-15 S-47 terminal page controls only its server-created panel and canno
   assert.match(String((await own.wait(message => message.type === "error")).message), /只能连接/);
   assert.equal(pty.alive("invented"), false);
   assert.equal((await f.request(`/api/plugins/${b.id}/ask`, { method: "POST", body: {} })).status, 403, "another Runtime invocation cannot take the existing panel");
-  const project = await f.project("Terminal boundary"), projectPage = await socketClient(t, url, await page(a.id, `/projects/${project.project_id}`));
+  const project = await f.project("Terminal boundary", [a.id, b.id]), projectPage = await socketClient(t, url, await page(a.id, `/projects/${project.project_id}`));
   projectPage.send({ type: "spawn", panelId: "owned-terminal", attachOnly: true });
   assert.match(String((await projectPage.wait(message => message.type === "error")).message), /不属于/);
   await f.request(`/api/host/plugin-pages/${aPage}`, { method: "DELETE" });

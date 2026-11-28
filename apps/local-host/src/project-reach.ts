@@ -49,13 +49,11 @@ export async function projectReachDetails(projectId: string, homeDirectory: stri
 }
 
 /**
- * The projects the person may reach through a Home-level plugin (PG-014, S-74): the projects in the catalog right now, excluding those
- * the Host is closing, in which the plugin is shown, with the one judgement actions and routes read (`projectReachablePlugins`, so a
- * project that hides the plugin is not in it). Read on every call, never kept. Only the local person gets one; the plugin runtime has
- * already checked the rest (the action declares `project_reach`, the installation holds `projects:reach`, the audience is `user`).
- * A personal Home plugin outside the build is judged the same way by its plugin id (#679); any other plugin with no catalog entry is
- * given every project: nothing can be hidden from it by name.
- * A catalog project need not have an open runtime: only the Host's explicit closing entries exclude it.
+ * Projects reachable through a Home plugin (PG-014, S-74, retained for 109-3). Read the current catalog on each call.
+ * For a recognized catalog or outside-build installation, only member partitions qualify. An installation without
+ * a catalog entry receives all remaining partitions under its runtime grant. Closing projects are excluded; a project may otherwise be asleep.
+ * The runtime checks the action declaration and the installation's projects:reach grant before this callback;
+ * the Host accepts the local person's identity here.
  */
 export function homeProjectReach(home: string, currentProjects: () => LocalHostStatus["projects"]): PluginProjectReach {
   return async (manifest, context) => {

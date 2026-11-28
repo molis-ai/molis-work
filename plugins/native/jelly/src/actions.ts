@@ -111,7 +111,7 @@ export function createJellyActionHandlers(stores: JellyStores): ActionHandlerBin
 
     bindActionHandler(jellyActions.createItem, ({ item: input }, caller) => write(caller, (store, now) => ({ item: store.insert("item", {
       id: input.id ?? randomUUID(), title: input.title.trim(), kind: input.kind ?? "task", category_id: input.category_id ?? JELLY_UNCATEGORIZED_ID, notes: input.notes ?? "",
-      start_date: input.start_date, end_date: input.end_date ?? input.start_date, start_time: input.start_time ?? null, end_time: input.end_time ?? null, time_zone: input.time_zone ?? homeZone(),
+      start_date: input.start_date, end_date: input.end_date ?? input.start_date, start_time: input.start_time ?? null, end_time: input.end_time ?? null, reminder_minutes: input.reminder_minutes ?? null, time_zone: input.time_zone ?? homeZone(),
       completed_at: input.completed ? now : null, revision: 1, created_at: now, updated_at: now,
     }) }))),
     bindActionHandler(jellyActions.updateItem, (input, caller) => write(caller, (store, now) => {
@@ -128,7 +128,7 @@ export function createJellyActionHandlers(stores: JellyStores): ActionHandlerBin
     })),
     bindActionHandler(jellyActions.createSeries, ({ series: input }, caller) => write(caller, (store, now) => ({ series: store.insert("series", {
       id: input.id ?? randomUUID(), title: input.title.trim(), kind: input.kind ?? "task", category_id: input.category_id ?? JELLY_UNCATEGORIZED_ID, notes: input.notes ?? "",
-      start_date: input.start_date, end_date: input.end_date ?? input.start_date, start_time: input.start_time ?? null, end_time: input.end_time ?? null, time_zone: input.time_zone ?? homeZone(),
+      start_date: input.start_date, end_date: input.end_date ?? input.start_date, start_time: input.start_time ?? null, end_time: input.end_time ?? null, reminder_minutes: input.reminder_minutes ?? null, time_zone: input.time_zone ?? homeZone(),
       weekdays: [...input.weekdays], until: input.until ?? null, exceptions: {}, completions: {}, revision: 1, created_at: now, updated_at: now,
     }) }))),
     bindActionHandler(jellyActions.updateSeries, (input, caller) => write(caller, (store, now) => {

@@ -68,28 +68,17 @@ export function sanitizePluginDirectory(directory: PluginDirectory): PluginDirec
 }
 
 /** The two marks a package installed in the Home carries as a built-in Home plugin does: each only when exactly `true`. */
-function homeMarks(entry: PluginDirectoryEntry): Pick<PluginDirectoryEntry, "personal" | "home"> {
-  return { ...(entry.personal === true ? { personal: true as const } : {}), ...(entry.home === true ? { home: true as const } : {}) };
+function homeMarks(entry: PluginDirectoryEntry): Pick<PluginDirectoryEntry, "home"> {
+  return { ...(entry.home === true ? { home: true as const } : {}) };
 }
 
 /** The Host's marks on a chosen entry: a flag only when exactly `true`, companions as distinct keys (at most {@link MAX_COMPANIONS}). */
-function trustedMarks(entry: PluginDirectoryEntry): Pick<PluginDirectoryEntry, "personal" | "home" | "companions"> {
+function trustedMarks(entry: PluginDirectoryEntry): Pick<PluginDirectoryEntry, "home" | "companions"> {
   const companions = [...new Set((Array.isArray(entry.companions) ? entry.companions : []).flatMap(value => { const clean = key(value); return clean ? [clean] : []; }))].slice(0, MAX_COMPANIONS);
   return {
     ...homeMarks(entry),
     ...(companions.length ? { companions } : {}),
   };
-}
-
-/**
- * Whether a plugin is the person's own, as the switcher's 个人 group, the bar's right tray and ＋'s 「个人 · 所有项目共用」 all list it
- * (docs/design/workbench-navigation ②; 07-1 S4b): one the Host marks as holding the person's data across projects *and* running in
- * the Home's Runtime — since batch 108 only a package installed in the Home (no built-in plugin is personal: each is enabled per
- * partition). A Home plugin not registered as the person's (Feed) is not. Running an instance on each side decides nothing. The one
- * rule; nothing else decides it.
- */
-export function isPersonalPlugin(entry: Pick<PluginDirectoryEntry, "personal" | "home">): boolean {
-  return entry.personal === true && entry.home === true;
 }
 
 /**
@@ -103,16 +92,13 @@ export function scriptJson(value: unknown): string {
 /**
  * What the page's scripts read of the directory: each plugin's key, whether its views accept objects, and the colour of its group
  * on the tab strip (the first `hue` its views declare; null when none does, and the strip picks one by the key). A plugin this
- * project offers a place for carries its position on the rail (`order`, 0 first; the rail's keys in the rail's order), and `personal`
- * when it is the person's own ({@link isPersonalPlugin}): the tab workspace's ＋ lists those, in two sections (07-S2, 口径 8), instead
- * of reading the page's buttons.
+ * project offers a place for carries its position on the rail (`order`, 0 first; the rail's keys in the rail's order), which the tab workspace reads from the directory.
  */
 export interface ClientDirectoryEntry {
   readonly id: string;
   readonly accepts_objects: boolean;
   readonly hue: string | null;
   readonly order?: number;
-  readonly personal?: true;
   /** The side tab (`plugin:<id>/<view>`) opening this plugin lands in, when its only place is a side view. */
   readonly side?: string;
   /** The side tab an open naming one of its items lands in first, when it also has a work-area place (`opens_items`). */
@@ -138,7 +124,6 @@ export function clientPluginDirectory(directory: PluginDirectory, offered: reado
     accepts_objects: entry.ui.views.some(view => view.accepts_objects === true),
     hue: entry.ui.views.find(view => view.hue !== undefined)?.hue ?? null,
     ...place(entry.id),
-    ...(isPersonalPlugin(entry) ? { personal: true as const } : {}),
     ...side(entry.id),
   }))];
 }

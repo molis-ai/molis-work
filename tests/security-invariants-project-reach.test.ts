@@ -80,7 +80,7 @@ test("RAC-590-CLOSE-01 S-74 a closing project with its catalog row still present
   t.after(async () => { barrier.release(); await deleting; });
   const probe = reachProbe(), s = await setup(t, probe, [], { onRuntimeClose: barrier.onRuntimeClose });
   await s.grant(true);
-  const closing = await s.home.createProject("Closing"), other = await s.home.createProject("Other"), unopened = await s.home.createProject("Not opened");
+  const closing = await s.home.createProject("Closing", [probe.id]), other = await s.home.createProject("Other", [probe.id]), unopened = await s.home.createProject("Not opened", [probe.id]);
   const database = await s.home.host.withProject(closing.reference, runtime => runtime.store.db);
   await s.home.host.withProject(other.reference, () => undefined);
   assert.equal(s.home.host.projects().some(project => project.project_id === unopened.project_id), false);
@@ -100,7 +100,7 @@ test("RAC-590-CLOSE-01 S-74 a closing project with its catalog row still present
   const during = await readable();
   assert.equal(during.includes(closing.project_id), false, "closing is excluded before the catalog removes the row");
   for (const project of [other, unopened]) assert.ok(during.includes(project.project_id));
-  const created = await s.home.createProject("Created while another project closes");
+  const created = await s.home.createProject("Created while another project closes", [probe.id]);
   const afterCreate = await readable();
   assert.ok(afterCreate.includes(created.project_id));
   assert.equal(afterCreate.includes(closing.project_id), false);
@@ -117,12 +117,12 @@ test("RAC-590-CLOSE-01 S-74 a closing project with its catalog row still present
 test("RAC-590 S-74 the person's call to an action that declares project_reach gets the projects in the catalog now, worked out again at every call", async t => {
   const probe = reachProbe(), s = await setup(t, probe);
   await s.grant(true);
-  const a = await s.home.createProject("A"), b = await s.home.createProject("B");
+  const a = await s.home.createProject("A", [probe.id]), b = await s.home.createProject("B", [probe.id]);
   const caller = s.as("user");
   const all = (await s.call(probe.actions.list, caller)).readable;
   assert.ok(all?.includes(a.project_id) && all.includes(b.project_id), JSON.stringify(all));
   // A project created after the first call is in the next one: nothing is kept between calls.
-  const c = await s.home.createProject("C");
+  const c = await s.home.createProject("C", [probe.id]);
   assert.deepEqual(sorted((await s.call(probe.actions.list, caller)).readable), sorted([...all!, c.project_id]));
   // A project that no longer exists is not in it.
   const withCatalog = s.home.host.configurePersonalPlanning(s.home.home, withMolisWorkProjectCatalog);
@@ -137,7 +137,7 @@ test("RAC-590 S-74 the Agent, MCP, workflow and plugin audiences get no list fro
   const caller = callerPlugin("reachcaller", "home", { [PROJECT_REACH_PERMISSION]: false }), probe = reachProbe();
   const s = await setup(t, probe, [caller.definition]);
   await s.grant(true);
-  await s.home.createProject("A");
+  await s.home.createProject("A", [probe.id]);
   assert.ok((await s.call(probe.actions.list, s.as("user"))).readable!.length > 0, "the person's own call has it");
   // The workflow engine and the Assistant act under the person's own identity, so the audience alone is what refuses them.
   for (const audience of ["agent", "mcp", "workflow"] as const) {
@@ -151,7 +151,7 @@ test("RAC-590 S-74 the Agent, MCP, workflow and plugin audiences get no list fro
 
 test("RAC-590 S-74 an installation that holds no projects:reach gets no list, and loses it as soon as the grant is withdrawn", async t => {
   const probe = reachProbe(), s = await setup(t, probe);
-  await s.home.createProject("A");
+  await s.home.createProject("A", [probe.id]);
   assert.equal((await s.call(probe.actions.list, s.as("user"))).readable, null, "declared in the Manifest, never granted");
   await s.grant(true);
   assert.ok((await s.call(probe.actions.list, s.as("user"))).readable!.length > 0);
@@ -162,7 +162,7 @@ test("RAC-590 S-74 an installation that holds no projects:reach gets no list, an
 test("RAC-593 S-74 nothing a plugin is handed widens the list: a forged field in the call, or in the input, is not the Host's", async t => {
   const probe = reachProbe(), s = await setup(t, probe);
   await s.grant(true);
-  const a = await s.home.createProject("A");
+  const a = await s.home.createProject("A", [probe.id]);
   const forged = ["forged-project"];
   // A caller that carries the field in is not believed: the Host strips it and works out its own.
   assert.equal((await s.call(probe.actions.list, s.as("agent", { actor_id: LOCAL_PERSON_ACTOR_ID, readable_project_ids: forged }))).readable, null);
@@ -176,7 +176,7 @@ test("RAC-593 S-74 nothing a plugin is handed widens the list: a forged field in
 test("RAC-593 S-74 the plugin's call to its own action carries the outer call's list: the person's has it, an Agent's does not", async t => {
   const probe = reachProbe(), s = await setup(t, probe);
   await s.grant(true);
-  const a = await s.home.createProject("A");
+  const a = await s.home.createProject("A", [probe.id]);
   probe.behavior.outer = (context, caller) => context.services!.actions!.invoke(probe.actions.list, {}, caller) as Promise<unknown>;
   const byPerson = (await s.call(probe.actions.outer, s.as("user"))).readable;
   assert.ok(byPerson?.includes(a.project_id), JSON.stringify(byPerson));

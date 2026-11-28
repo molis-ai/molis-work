@@ -32,9 +32,19 @@ for (const width of [1440, 390]) test(`Jelly ${width}px: quick add, a new event,
   // A new event from the panel.
   await click('[data-jelly-act="new"]');
   await waitFor("!!document.querySelector('[data-jelly-panel] input[name=title]')");
-  await evaluate(`(() => { const input = document.querySelector('[data-jelly-panel] input[name=title]'); input.value = '团队复盘'; document.querySelector('[data-jelly-form]').requestSubmit(); })()`);
+  await evaluate(`(() => {
+    const form = document.querySelector('[data-jelly-form]');
+    form.elements.title.value = '团队复盘';
+    form.elements.reminder_minutes.value = '5';
+    form.elements.reminder_minutes.dispatchEvent(new Event('input', { bubbles: true }));
+    document.dispatchEvent(new Event('molis-work:language-changed'));
+  })()`);
+  assert.equal(await evaluate("document.querySelector('[data-jelly-form] [name=reminder_minutes]').value"), "5");
+  await evaluate("document.querySelector('[data-jelly-form]').requestSubmit()");
   await waitFor("!document.querySelector('[data-jelly-panel]')");
   assert.deepEqual(rows().items.map(item => item.title).sort(), ["买菜", "团队复盘"]);
+
+  assert.equal(rows().items.find(item => item.title === "团队复盘")?.reminder_minutes, 5);
 
   // The chosen day's note saves itself and is pinned to that day.
   await evaluate(`(() => { const box = document.querySelector('[data-jelly-day-note] [data-jelly-note-body]'); box.value = '今天先把周报写完'; box.dispatchEvent(new InputEvent('input', { bubbles: true })); })()`);

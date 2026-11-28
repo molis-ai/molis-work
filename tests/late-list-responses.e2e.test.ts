@@ -403,7 +403,7 @@ test("VUX-31: Jelly keeps what a command returned when the re-read after the Ass
   const store = openJellyStore(browser.homeDirectory, browser.projectId!);
   try {
     store.write((rows) => { for (const [id, title] of [["late-a", "写周报"], ["late-b", "订会议室"]] as const) rows.insert("item", { id, title, kind: "task", category_id: "uncategorized", notes: "",
-      start_date: today, end_date: today, start_time: null, end_time: null, time_zone: "Asia/Shanghai", completed_at: null, revision: 1, created_at: at, updated_at: at }); });
+      start_date: today, end_date: today, start_time: null, end_time: null, time_zone: "Asia/Shanghai", reminder_minutes: null, completed_at: null, revision: 1, created_at: at, updated_at: at }); });
   } finally { store.close(); }
   await wide(browser); await openPlugin(browser, "jelly");
   await waitFor("!!document.querySelector('[data-jelly-page] [data-jelly-day]')", 20_000);

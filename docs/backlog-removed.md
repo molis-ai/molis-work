@@ -6,6 +6,11 @@
 
 | 编号 | 处置 | 依据 / 替代 |
 | --- | --- | --- |
+| BL-delegated-overview-read、BL-overview-revoke-model-context | 已修复 | [B2R-01／02](../specs/b108-review-remediation/spec.md)覆盖插件转托、逐字段撤权及后续模型输入。 |
+| BL-due-delivery-after-listener | 已修复 | [B2R-03](../specs/b108-review-remediation/spec.md)覆盖助理写入失败、中断和重投。 |
+| BL-side-enable-browser-test | 已补浏览器回归 | [Issues 侧窗用例](../tests/issue-global-navigation.e2e.test.ts)覆盖确认前、失败重试和启用后的录入。 |
+| BL-task-report-plugin-added-later | 已修复 | [项目主对话实操](../tests/assistant-task-reports.e2e.test.ts)覆盖先建对话再启用 Images 和相反次序。任务结束时按当前授权读表，两项结果合并一次汇报，项目间独立。 |
+| BL-g4-dormant-data-sample | 工程已验证，体验合并验收 | [20 项目实测](../tests/call-budget.test.ts)覆盖真实待办与全脏刷新，更新中界面进入[本人验收第八项](../specs/backlog/BL-b108-acceptance.md)。 |
 | BL-b44c-psd01-remainder | 已按批准口径验证 | 从完整插件集合逐一拔除、冷启、投递新提醒并还原备份，分别验证移除 Git 图标及执行器不可用。两份旧 Attention 声明分别拒绝、随后实际同步。109-2 验证后续 Git 迁移。[44C 收尾](../specs/post-anticorruption-roadmap/reference/batches/44c.md#batch-44c-remediation) |
 | BL-b44c-g1-exception-kinds | 具名决定已落实 | 一骏于 2026-11-26 批准五处上游工具名和一处历史记忆键。后者已随决定 69 删除并退出名单。跨设备演示按能力发现操作，移除五行共八处命中。[具名决定](../specs/plugin-specials-demotion/spec.md#2026-11-26-整改决定) · [演示实现](../server/tooling/continuity-demo.mts) |
 | BL-b44-psd03-sample-plugin | 单包九项完成 | 一个固定签名的应用包安装一次，项目实例提供工作能力，Home 实例提供个人来源。真实收件、检索、场景采用与审查批准均有读回。[签包回归](../tests/plugin-sample-equal-standing.test.ts) · [助理交互](../tests/fixtures/signed-tool-review.ts) · [整改合同](../specs/post-anticorruption-roadmap/reference/batches/44c.md#batch-44c-remediation) |

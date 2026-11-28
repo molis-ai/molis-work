@@ -73,6 +73,11 @@ operations["notes.add"] = async (input, sdk) => {
   const record = installation();
   assert.ok(record?.grants.includes("capabilities:call"));
   assert.equal(record.state, "running");
+  if (scope === "home") {
+    const expected_revision = await projectPluginRevisionAt(f.origin, project.project_id);
+    const enabled = await f.request("/api/settings/projects/" + project.project_id + "/plugins", { method: "POST", body: { plugin_id: PACKAGE_PLUGIN_ID, expected_revision } });
+    assert.equal(enabled.status, 200, await enabled.clone().text());
+  }
   const open = async (at = prefix) => {
     const response = await f.request(at + "/plugins/" + PACKAGE_PLUGIN_ID + "?frame=workbench");
     const html = await response.text();
@@ -230,7 +235,7 @@ test("S-47 S-107 SCS-11 QEA-138 a Home signed form retains its original project'
     const expected_revision = await projectPluginRevisionAt(f.origin, f.project.project_id);
     const hidden = await f.request("/api/settings/projects/" + f.project.project_id + "/plugins", { method: "DELETE", body: { plugin_id: PACKAGE_PLUGIN_ID, expected_revision } });
     assert.equal(hidden.status, 200, await hidden.clone().text());
-    assert.ok((await hidden.json()).hidden.includes(PACKAGE_PLUGIN_ID));
+    assert.ok(!(await hidden.json()).plugins.includes(PACKAGE_PLUGIN_ID));
   });
   assert.equal(stopped.ok, false, await stopped.text());
   await refusal(await call("withdrawn before submit"), 403, "actions.forbidden");

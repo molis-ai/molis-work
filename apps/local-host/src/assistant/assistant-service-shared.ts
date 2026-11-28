@@ -36,6 +36,8 @@ export const RUNTIME = "prologue";
 export const MAX_TEXT = 20_000;
 
 export interface AssistantServicePorts extends AssistantLandingPorts, AssistantRoundFactPorts, Pick<AssistantFollowUpPorts<StoredWork>, "pages"> {
+  reminderSourceName?(pluginId: string, installId: string): string | undefined;
+  overviewReadable?(actorId: string, workId: string, candidates: readonly string[]): readonly string[];
   /** Withdraw only unfinished setup requests owned by this work's session. */
   cancelSetups?(sessionId: string): void;
   retainSetups?(sessionId: string, control: AgentActionReviewControl): Promise<void>;

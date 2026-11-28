@@ -63,9 +63,8 @@ export interface MolisWorkSettingsView {
   model_settings?: Omit<ModelSettingsModel, "primitives">;
   context_project?: WebProjectNavigation | null;
   show_project_approval_rules?: boolean;
-  /** Project plugins enabled for the settings context. Personal plugins are listed unless hidden. */
+  /** Project plugins enabled for the settings context. */
   enabled_plugins?: readonly string[];
-  hidden_plugins?: readonly string[];
   /** The plugins this Home and the context project run, then the market's; a page that points at a plugin finds it here. */
   plugin_directory?: import("./plugin-directory.js").PluginDirectory;
   /** The plugins the settings context shows, as the Host works it out (W5-02 B1); their settings pages are listed. */

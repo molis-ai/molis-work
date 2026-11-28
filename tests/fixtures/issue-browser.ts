@@ -30,8 +30,8 @@ export async function personalIssues(b: Pick<IssueBrowser, "web">): Promise<void
 }
 
 /** Real input in the opaque Issue view; a side panel retains its own trusted outer document. */
-export async function issueView(t: TestContext, b: IssueBrowser, evidence = "issue-capture") {
-  await personalIssues(b);
+export async function issueView(t: TestContext, b: IssueBrowser, evidence = "issue-capture", { enablePersonal = true } = {}) {
+  if (enablePersonal) await personalIssues(b);
   const child = await pluginFrameBrowser(t, b, "issues", SHOWN_ISSUE_FRAME);
   const within = (body: string) => `(() => { const d = document, $ = q => d.querySelector(q); return (${body}); })()`;
   const ask = <T = unknown>(body: string) => child.evaluate<T>(within(body));

@@ -63,7 +63,7 @@ function installedPackageOn(platform: NonNullable<ProjectPluginState["platform"]
 }
 
 async function projectPluginStages(ports: ProjectPluginSurfacePorts, view: MolisWorkWebView,
-  configuration: { readonly plugins: readonly string[]; readonly hidden: readonly string[] },
+  configuration: { readonly plugins: readonly string[] },
   model: (projectPluginId: string, view: MolisWorkWebView) => unknown) {
   const record = await ensureProjectPlugins(ports);
   // The installed packages run on this platform too (47-1 B), but their entries are the installed host's, keyed by their installation
@@ -80,7 +80,7 @@ async function projectPluginStages(ports: ProjectPluginSurfacePorts, view: Molis
 
 async function withProjectPluginSurfaces(view: MolisWorkWebView, input: {
   store: LocalProjectDatabase; projectId: string; homeDirectory: string | undefined;
-  configuration: { readonly plugins: readonly string[]; readonly hidden: readonly string[] };
+  configuration: { readonly plugins: readonly string[] };
   pluginServices: Pick<ProjectPluginSurfacePorts, "dependencyCheck" | "actions" | "homeDirectory" | "artifacts" | "processItems" | "homePlugins">;
   stageModel: (projectPluginId: string, view: MolisWorkWebView) => unknown;
 }): Promise<MolisWorkWebView> {
@@ -253,7 +253,7 @@ export function createLocalProjectPagesHttp(ports: {
       ? await withMolisWorkProjectCatalog({ homeDirectory }, catalog => catalog.projectPluginMembership(options.project!.project_id))
       : null;
     if (projectConfiguration) {
-      view = { ...view, enabled_plugins: projectConfiguration.plugins, hidden_plugins: projectConfiguration.hidden,
+      view = { ...view, enabled_plugins: projectConfiguration.plugins,
         project: view.project && store ? { ...view.project, plugin_requirements: await projectSettingsRequirements(homeDirectory, store, view.project.project_id, withMolisWorkProjectCatalog) } : view.project };
     }
     if (store) view = await withStageArtifactContexts(view, artifactActions, readArtifactDisplay);

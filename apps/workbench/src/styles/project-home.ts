@@ -30,6 +30,7 @@ export const PROJECT_HOME_STYLES = PRESENTATION_FORM_STYLES + FIRST_PAGE_STYLES 
   .home-rows:empty { display: none; }
   .home-row .mw-presentation__row-title:is([aria-haspopup], [role="button"]) { cursor: pointer; }
   @media (max-width: 760px), (pointer: coarse) {
+    [data-personal-tasks] > summary { min-block-size: 44px; align-content: center; }
     .home-row .mw-presentation__row-title:is([aria-haspopup], [role="button"]) { display: inline-flex; align-items: center; min-block-size: 28px; }
   }
   .home-row .mw-presentation__more { z-index: 1; }

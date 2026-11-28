@@ -1,6 +1,8 @@
 import { rollbackPreservingError, type openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import type { SettingSnapshot, SettingsOwnerScope, SettingsRequestIdentity, SettingsTransaction, SettingsWriteReceipt } from "@molis-ai/molis-work-plugin-sdk";
 import type { SandboxJson } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
+import type { OverviewIndexRow } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { OverviewGrant } from "@molis-ai/molis-work-service-search";
 import { assistantErrors } from "./assistant-errors.js";
 import { DAILY_CAP_KEY, LOOKBACK_DEFAULT, LOOKBACK_KEY, OVERVIEW_GRANTS_DEFAULT, OVERVIEW_GRANTS_KEY, dailyTokenLimit, lookbackHours, overviewGrants } from "./assistant-setting-values.js";
 import { defaultReportSchedule, REPORT_SCHEDULE_KEY, validateReportSchedule } from "./assistant-report-preference.js";
@@ -25,6 +27,36 @@ export class AssistantSettingRecords {
   set(actorId: string, key: string, value: string) {
     this.db.prepare(`INSERT INTO assistant_settings(actor_id,key,revision,value) VALUES (?, ?, 1, ?)
       ON CONFLICT(actor_id,key) DO UPDATE SET revision=assistant_settings.revision+1, value=excluded.value`).run(actorId, key, value);
+  }
+
+  overviewDisclosureRevision(actor: string, workId: string): number {
+    return Number(this.row(actor, "overview/disclosed/" + workId)?.revision ?? 0);
+  }
+
+  /** Only the field names and the last delivery revision are stored. Values remain with their source. */
+  noteOverview(actor: string, workId: string, rows: readonly OverviewIndexRow[]): void {
+    if (!rows.length) return;
+    this.atomic(true, () => {
+      const key = "overview/disclosed/" + workId, record = this.row(actor, key);
+      const revision = Number(record?.revision ?? 0) + 1;
+      const fields = new Map(JSON.parse(String(record?.value ?? "[]")) as [string, Record<string, number>][]);
+      for (const row of rows) {
+        const known = fields.get(row.partition_id) ?? {};
+        for (const name of Object.keys(row.fields)) known[name] = revision;
+        fields.set(row.partition_id, known);
+      }
+      this.set(actor, key, JSON.stringify([...fields]));
+    });
+  }
+
+  /** A full session can replay every delivery. A fresh digest can only replay deliveries since this round started. */
+  permitsOverviewHistory(actor: string, workId: string, grants: readonly OverviewGrant[], since = 0): boolean {
+    const raw = this.get(actor, "overview/disclosed/" + workId);
+    if (raw === null) return true;
+    const current = new Map(grants.map(row => [row.partition_id, new Set<string>(row.fields)]));
+    const delivered = JSON.parse(raw) as [string, Record<string, number>][];
+    return delivered.every(([partition, fields]) => Object.entries(fields).every(([field, revision]) =>
+      revision <= since || current.get(partition)?.has(field)));
   }
 
   private atomic<T>(write: boolean, run: () => T): T {

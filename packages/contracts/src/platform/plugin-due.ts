@@ -1,11 +1,14 @@
 import type { PersonSettingRecord } from "../services/person-settings.js";
 
+/** A plugin can reserve this due entry to rebuild its projection from current business rows after waking, even after a long shutdown. */
+export const OVERVIEW_REFRESH_ENTRY_KEY = "overview:refresh";
+
 /**
  * Work a per-partition instance has to do at some time (specs/unified-partition-plugins §4.1 到期的工作, batch 108): kept in the Home's due
  * registry, so the instance need not run until then; at the time the platform wakes only this plugin in this partition
  * (S-partition-wake-scope) and hands it the entry (`onDue`). Two kinds of entries reach a plugin: the ones it registers itself
  * (`services.due`), and the reminder times the platform read from its overview table (`source: "overview"`, keyed `<kind>:<row_id>`), which
- * it never registers itself. An entry seven days past its time is not handed over (batch 95-3's rule for missed runs).
+ * it never registers itself. User reminders expire after seven days. The plugin's reserved projection refresh instead reconciles current rows without issuing a notice.
  */
 export interface PluginDueEntry {
   readonly entry_key: string;
@@ -41,7 +44,10 @@ export interface PluginDueContext {
  * for an overview entry says the reminder no longer stands (done, acknowledged, moved): nothing is shown.
  */
 export interface PluginDueReminder {
+  /** Original subject text to keep and open, e.g. the prompt of a generation. */
   readonly title: string;
+  /** The work stopped before completing. The Assistant describes this in the person's current language. */
+  readonly interrupted?: true;
   /** The object to open, in this plugin's page in this partition. */
   readonly open?: { readonly surface: string; readonly id: string };
 }
@@ -62,6 +68,12 @@ export interface PluginDueOutcome {
 export interface PluginPersonSettingsClient {
   get(key: string): PersonSettingRecord | null;
   list(): PersonSettingRecord[];
+  /** Register during the plugin's own start. A committed change signals active instances of this installation to reread their settings. */
+  onChange(listener: () => void | Promise<void>): () => void;
+  /** Captures this installation's settings under the current reader's authority. The later check discloses only whether that snapshot still holds. */
+  snapshot(): { readonly records: readonly PersonSettingRecord[]; current(): boolean };
+  /** Compare revisions and commit all declared keys in a single transaction, including portable and device-only parts of one edit. */
+  setMany(changes: readonly { readonly key: string; readonly value: unknown; readonly expected_revision?: number | null }[]): PersonSettingRecord[];
   /** With `expected_revision`, refused (`actions.conflict`) when the stored one differs; `null` expects none. */
   set(key: string, value: unknown, options?: { readonly expected_revision?: number | null }): PersonSettingRecord;
   remove(key: string): boolean;

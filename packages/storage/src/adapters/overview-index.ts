@@ -191,8 +191,11 @@ export function openOverviewIndex(options: { readonly homeDirectory: string }): 
     rows(query) {
       if (!query.partitions.length || !query.kinds.length) return [];
       const marks = (values: readonly unknown[]) => values.map(() => "?").join(", ");
-      return (db.prepare(`SELECT * FROM overview_rows WHERE partition_id IN (${marks(query.partitions)}) AND kind IN (${marks(query.kinds)})
-        ORDER BY sort_at IS NULL, sort_at, partition_id, row_id LIMIT ?`).all(...query.partitions, ...query.kinds, query.limit) as Row[])
+      const owner = query.ownerRow;
+      return (db.prepare(`SELECT overview_rows.* FROM overview_rows JOIN overview_libraries USING (partition_id, install_id)
+        WHERE dirty = 0 AND partition_id IN (${marks(query.partitions)}) AND kind IN (${marks(query.kinds)})
+        ${owner ? "AND overview_rows.install_id = ? AND row_id = ?" : ""}
+        ORDER BY sort_at IS NULL, sort_at, partition_id, row_id LIMIT ?`).all(...query.partitions, ...query.kinds, ...(owner ? [owner.install_id, owner.row_id] : []), query.limit) as Row[])
         .map((row): OverviewIndexStoredRow => ({ partition_id: String(row.partition_id), install_id: String(row.install_id), plugin_id: String(row.plugin_id),
           kind: row.kind as OverviewKind, row_id: String(row.row_id), fields: JSON.parse(String(row.fields_json)) as Record<string, unknown> }));
     },

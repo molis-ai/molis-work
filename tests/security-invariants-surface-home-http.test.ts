@@ -30,7 +30,7 @@ async function members(f: Fixture): Promise<VersionedProjectPluginMembership> {
   const { projects } = await json<{ projects: Array<VersionedProjectPluginMembership & { project_id: string }> }>(await f.request("/api/settings/project-plugins"));
   const row = projects.find(item => item.project_id === f.project.project_id);
   assert.ok(row);
-  return { plugins: row.plugins, hidden: row.hidden, revision: row.revision };
+  return { plugins: row.plugins, revision: row.revision };
 }
 
 async function setMember(f: Fixture, plugin_id: string, enabled: boolean) {
@@ -167,6 +167,7 @@ test("S-surface-composition SCS-08 SCS-09 a real overview suspended at the owner
 
 test("SCS-07 SCS-08 Catalog hiding, actual member removal and an actual failed startup remain different", { timeout: 60_000 }, async t => {
   const f = await fixture(t);
+  await setMember(f, f.crashing.id, true);
   await setMember(f, "inbox", true);
   await f.warm();
   const read = await f.read();

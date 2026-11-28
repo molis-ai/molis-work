@@ -3608,6 +3608,8 @@ export declare const OVERVIEW_PROVIDER_ID = "system.overview";
 
 export declare const OVERVIEW_READ_LIMIT = 2000;
 
+export declare const OVERVIEW_REFRESH_ENTRY_KEY = "overview:refresh";
+
 export declare const OVERVIEW_ROW_LIMIT = 500;
 
 export declare const OVERVIEW_RUN_NEEDS: readonly ["network", "model"];
@@ -3690,6 +3692,8 @@ export interface OverviewOpen {
 }
 
 export interface OverviewReadResult {
+    readonly incomplete?: boolean;
+    readonly updating?: boolean;
     readonly rows: readonly OverviewIndexRow[];
 }
 
@@ -4156,6 +4160,12 @@ export interface PartitionPluginDatabaseDeclaration extends PluginDatabaseDeclar
     readonly deletion?: Pick<PluginProjectRowsDeclaration, "label" | "order">;
 }
 
+export type PartitionSyncContext = Pick<PluginStartContext, "project_id" | "sync" | "copy"> & {
+    readonly services?: Pick<PluginHostServices, "sync" | "ownerFiles" | "due"> & {
+        readonly database?: Pick<NonNullable<PluginHostServices["database"]>, "get">;
+    };
+};
+
 export interface PersonIntake extends DestinationDeclaration {
     readonly intake_id: string;
     readonly title_text?: TextRef;
@@ -4554,6 +4564,7 @@ export interface PluginDeclarationProblem {
 }
 
 export interface PluginDefinition {
+    partitionSync?(context: PartitionSyncContext): readonly import("@molis-ai/molis-work-contracts/platform/plugin-sync").PluginSyncBinding[];
     manifest: PluginManifest;
     execution?: "host" | "sandbox";
     event_types?: readonly PluginEventType[];
@@ -4616,6 +4627,7 @@ export interface PluginDueOutcome {
 
 export interface PluginDueReminder {
     readonly title: string;
+    readonly interrupted?: true;
     readonly open?: {
         readonly surface: string;
         readonly id: string;
@@ -5510,6 +5522,7 @@ export interface PluginOverviewClient {
 
 export interface PluginOverviewProjectionDeclaration {
     readonly kinds: readonly OverviewKind[];
+    readonly rolling_window?: true;
     readonly title_text?: TextRef;
 }
 
@@ -5600,6 +5613,16 @@ export interface PluginPermissionDeclaration {
 export interface PluginPersonSettingsClient {
     get(key: string): PersonSettingRecord | null;
     list(): PersonSettingRecord[];
+    onChange(listener: () => void | Promise<void>): () => void;
+    snapshot(): {
+        readonly records: readonly PersonSettingRecord[];
+        current(): boolean;
+    };
+    setMany(changes: readonly {
+        readonly key: string;
+        readonly value: unknown;
+        readonly expected_revision?: number | null;
+    }[]): PersonSettingRecord[];
     set(key: string, value: unknown, options?: {
         readonly expected_revision?: number | null;
     }): PersonSettingRecord;

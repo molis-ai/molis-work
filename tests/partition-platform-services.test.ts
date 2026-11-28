@@ -1,7 +1,9 @@
+import { refreshedOverview } from "./fixtures/overview-read.js";
 // The platform services batch 106 adds for the unified partitions (specs/unified-partition-plugins §4.1, §5, §6.1): the due registry with
 // 95-3's seven-day expiry, the evidence ledger, and how both follow a partition's and an installation's lifecycle.
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { assertContributionMatchesManifest } from "@molis-ai/molis-work-plugin-runtime";
+import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -9,11 +11,12 @@ import test from "node:test";
 import { LOCAL_PERSON_ACTOR_ID, RUN_MISSED_KEPT_MS, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { OVERVIEW_EVENT_WINDOW_DAYS, OVERVIEW_TABLE, OVERVIEW_TABLE_SQL, type PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
-  forgetInstallationPlatformRecords, forgetPartitionPlatformRecords, openPartitionPluginLibrary, PartitionPlatformServices, partitionOverviewLibraries, partitionPluginScope,
+  createHostObservation, forgetInstallationPlatformRecords, forgetPartitionPlatformRecords, openPartitionPluginLibrary, PartitionPlatformServices, partitionOverviewLibraries, partitionPluginScope,
 } from "@molis-ai/molis-work-app-local-host";
 import { DUE_ENTRY_LIMIT, DueTimer, openDueRegistry } from "@molis-ai/molis-work-service-scheduler";
 import { EVIDENCE_COLLECT_PERMISSION, openEvidenceLedger } from "@molis-ai/molis-work-service-evidence";
 import { openPersonSettings } from "@molis-ai/molis-work-service-person-settings";
+import { readRecords } from "@molis-ai/molis-work-service-observation";
 import { overviewReaderKind } from "@molis-ai/molis-work-service-search";
 import { createEvidenceContentStore, homeSqlitePath, openOverviewIndex, type SecretStore } from "@molis-ai/molis-work-storage";
 import {
@@ -265,7 +268,7 @@ test("UPP-34 V11 partitionChanged immediately refreshes synced reminders read-on
   } finally { services.close(); }
 }));
 
-test("UPP-31 Home-level uninstall (partitionId = null) clears due entries, overview rows and evidence holds across every partition", async () => withHome(home => {
+test("UPP-31 Home-level uninstall (partitionId = null) clears due entries, overview rows and evidence holds across every partition", async () => withHome(async home => {
   writeOverviewTasks(home, "personal", [{ id: "p1", title: "个人待办", remind_at: "2026-12-01T08:00:00.000Z" }]);
   writeOverviewTasks(home, "project-a", [{ id: "a1", title: "项目 A 待办", remind_at: "2026-12-01T09:00:00.000Z" }]);
   writeOverviewTasks(home, "project-b", [{ id: "b1", title: "项目 B 待办", remind_at: "2026-12-01T10:00:00.000Z" }]);
@@ -274,7 +277,9 @@ test("UPP-31 Home-level uninstall (partitionId = null) clears due entries, overv
   })));
   const services = new PartitionPlatformServices({ home, assembly: { acquire: async () => { throw new Error("unused"); } } });
   try {
-    assert.equal(services.readOverview(localPerson, libraries, () => ({ readable: ["personal", "project-a", "project-b"], grants: [] })).length, 3);
+    const read = () => services.readOverview(localPerson, libraries, () => ({ readable: ["personal", "project-a", "project-b"], grants: [] }));
+    assert.deepEqual(read(), { rows: [], updating: true, refreshing: ["personal", "project-a", "project-b"] });
+    assert.equal((await refreshedOverview(read)).rows.length, 3);
     assert.equal(services.due.entries().length, 3);
   } finally { services.close(); }
   const ledger = openEvidenceLedger(home), settings = openPersonSettings(home);
@@ -324,14 +329,45 @@ test("UPP-06 overview-readers enforces assistant audit_actor_id, calling_plugin_
   const services = new PartitionPlatformServices({ home, assembly: { acquire: async () => { throw new Error("never woken"); } } });
   try {
     // Assistant only granted project-a's due_at: project-b must NOT be refreshed or opened, and row `no-due` (empty allowed fields) must be dropped without leaking row_id!
-    const rows = services.readOverview(personalAssistant, libraries, () => ({ readable: ["project-a", "project-b"], grants: [{ partition_id: "project-a", fields: ["due_at"] }] }));
+    const { rows } = services.readOverview(personalAssistant, libraries, () => ({ readable: ["project-a", "project-b"], grants: [{ partition_id: "project-a", fields: ["due_at"] }] }));
     assert.deepEqual(rows.map(row => row.row_id), ["earlier-plus8", "later-z"], "UTC chronological order across timezones, and empty-fields row `no-due` suppressed");
     assert.deepEqual(services.due.entries(), [], "unauthorized partition project-b was never refreshed by assistant read");
     // Now person reads both partitions: project-b is finally refreshed.
     const all = services.readOverview(localPerson, libraries, () => ({ readable: ["project-a", "project-b"], grants: [] }));
-    assert.equal(all.length, 4);
+    assert.equal(all.rows.length, 4);
     assert.deepEqual(services.due.entries().map(entry => entry.partition_id), ["project-b"]);
   } finally { services.close(); }
+}));
+
+test("B2R-07 rebuilding A and C leaves B visible under its current fields; disabled sources stay removed", async () => withHome(async home => {
+  const observation = createHostObservation(realpathSync(home));
+  const ids = ["a", "b", "c"];
+  for (const id of ids) writeOverviewTasks(home, id, [{ id, title: id, due_at: "2027-01-01T09:00:00Z" }]);
+  const libraries = partitionOverviewLibraries(home, ids.map(partition_id => ({ partition_id, plugins: [{ install_id: A.install_id, manifest: todoManifest }] })));
+  const services = new PartitionPlatformServices({ home, assembly: { acquire: async () => { throw new Error("unexpected wake"); } } });
+  try {
+    let granted = ids;
+    const read = () => services.readOverview(personalAssistant, libraries, () => ({
+      readable: ids, grants: granted.map(id => ({ partition_id: id, fields: id === "b" ? ["due_at"] : ["title"] })),
+    }));
+    assert.equal((await refreshedOverview(read)).rows.length, 3);
+    for (const id of ["a", "c"]) services.overview.markDirty(id);
+    const partial = read();
+    assert.equal(partial.updating, true);
+    assert.deepEqual(partial.rows.map(row => [row.partition_id, row.fields]), [["b", { due_at: "2027-01-01T09:00:00Z" }]]);
+    granted = ["b"];
+    services.pluginDisabled(A.install_id, "c");
+    assert.deepEqual(read(), { rows: partial.rows }, "the caller learns nothing about a revoked project's pending rebuild");
+    await new Promise<void>(resolve => setImmediate(() => setImmediate(resolve)));
+    const cached = openOverviewIndex({ homeDirectory: home });
+    try { assert.equal(cached.state("c", A.install_id), null, "a queued refresh cannot revive a disabled installation"); }
+    finally { cached.close(); }
+    assert.deepEqual(read(), { rows: partial.rows });
+    observation.layer.flush();
+    const records = readRecords(observation.layer.writer.database()!.db, { fact: "home.overview_rebuild" });
+    assert.deepEqual(records.map(record => record.detail.refreshed).sort(), [1, 3]);
+    assert.ok(records.every(record => record.detail.failed === 0 && record.outcome === "succeeded"));
+  } finally { services.close(); observation.close(); }
 }));
 
 test("UPP-34 overview index preserves rows on non-ENOENT read errors, clears only on ENOENT, and self-heals a corrupt search.db", async () => withHome(home => {
@@ -339,14 +375,19 @@ test("UPP-34 overview index preserves rows on non-ENOENT read errors, clears onl
   const libraries = partitionOverviewLibraries(home, [{ partition_id: "project-a", plugins: [{ install_id: A.install_id, manifest: todoManifest }] }]);
   const services = new PartitionPlatformServices({ home, assembly: { acquire: async () => { throw new Error("unused"); } } });
   try {
-    assert.equal(services.readOverview(localPerson, libraries, () => ({ readable: ["project-a"], grants: [] })).length, 1);
+    assert.equal(services.readOverview(localPerson, libraries, () => ({ readable: ["project-a"], grants: [] })).rows.length, 1);
     assert.equal(services.due.entries().length, 1);
     // Corrupt the partition library file (non-ENOENT failure): refresh must return null, keep existing rows & reminders, and stay dirty.
+    const original = readFileSync(libraries[0]!.path);
     writeFileSync(libraries[0]!.path, "not-a-valid-sqlite-file");
     services.partitionChanged("project-a");
     assert.equal(services.overview.refresh(libraries[0]!), null, "corrupt library returns null instead of wiping rows");
-    assert.equal(services.readOverview(localPerson, [], () => ({ readable: ["project-a"], grants: [] })).length, 1, "existing indexed row preserved");
+    assert.deepEqual(services.readOverview(localPerson, libraries, () => ({ readable: ["project-a"], grants: [] })),
+      { rows: [], unavailable: ["project-a"] }, "a failed source stays out of the answer and stops the progress poll");
+    assert.throws(() => services.overview.row(libraries[0]!, "task", "keep-me"), { code: "actions.plugin_unavailable" });
     assert.equal(services.due.entries().length, 1, "existing reminder preserved");
+    writeFileSync(libraries[0]!.path, original);
+    assert.equal(services.overview.row(libraries[0]!, "task", "keep-me")?.fields.title, "保留", "due delivery recovers without a UI read");
     // Remove the library file (genuine ENOENT): refresh clears rows and reminders.
     rmSync(libraries[0]!.path, { force: true });
     assert.equal(services.overview.refresh(libraries[0]!), 0, "missing library (ENOENT) treated as empty");
@@ -435,11 +476,16 @@ test("UPP-34 parsePluginManifest validates databases.partition SQL safety, overv
 
   // Valid unified partition manifest with literal/own-key title_text, market, and dependencies (enable_with).
   const parsed = parsePluginManifest(base({
-    overview_projection: { kinds: ["task", "event"], title_text: { key: "sample-todo.overview.title" } },
+    overview_projection: { kinds: ["task", "event"], rolling_window: true, title_text: { key: "sample-todo.overview.title" } },
     market: { category: "plan" },
     dependencies: [{ plugin_id: "io.molis.work.helper", enable_with: true, reason: "提供日程同步" }],
   }));
   assert.equal(parsed.market?.category, "plan");
+  assert.equal(parsed.overview_projection?.rolling_window, true);
+  assert.throws(() => assertContributionMatchesManifest(parsed, { kind: "app" }), { code: "plugin.contribution_unredeemed" });
+  assert.doesNotThrow(() => assertContributionMatchesManifest(parsed, { kind: "app", onDue: async () => ({}) }));
+  assert.doesNotThrow(() => assertContributionMatchesManifest(parsed, { kind: "app" }, { partial: true, outside_project: true }));
+  assert.throws(() => parsePluginManifest(base({ overview_projection: { kinds: ["event"], rolling_window: "yes" } })), /rolling_window/u);
   assert.deepEqual(parsed.overview_projection?.title_text, { key: "sample-todo.overview.title" });
   assert.doesNotThrow(() => parsePluginManifest(base({ overview_projection: { kinds: ["task"], title_text: { literal: "待办" } } })), "literal TextRef accepted consistently");
   assert.doesNotThrow(() => parsePluginManifest(base({ overview_projection: { kinds: ["task"], title_text: { key: "common.control.confirm" } } })), "common key accepted");

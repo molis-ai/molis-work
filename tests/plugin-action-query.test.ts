@@ -47,6 +47,12 @@ test("T405-FULL17-D query delegation removes stage metadata before target availa
   assert.ok(downstream.length > 0, "the nested query target availability was checked");
   assert.ok(targetsSeen.length > 0); assert.ok(s.probe.seen.length > 0);
   for (const caller of [...downstream, ...targetsSeen, ...s.probe.seen]) assert.equal(Object.hasOwn(caller, "stage_scene_metadata"), false);
+  // B2R-01: a permitted query keeps its plugin origin through both provider checks and execution.
+  for (const caller of [...downstream, ...targetsSeen]) {
+    assert.equal(caller.delegated_by, s.probe.id);
+    assert.equal(caller.delegated_audience, "user");
+    assert.equal(caller.acting_for, undefined);
+  }
 });
 
 for (const missing of ["caller-permission", "direct-ref", "nested-ref", "source-grant", "source-declaration", "consumes"] as const) {

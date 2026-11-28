@@ -1,4 +1,5 @@
 import { ActionError, RUN_MISSED_KEPT_MS, runHasExpired } from "@molis-ai/molis-work-contracts/platform/actions";
+import { OVERVIEW_REFRESH_ENTRY_KEY } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { DueEntryOwner, DueEntryRecord, DueEntrySource, DueExpiredRecord } from "@molis-ai/molis-work-contracts/services/scheduler";
 import { openBaselineHomeSqlite, rollbackPreservingError, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 
@@ -158,7 +159,7 @@ export class DueRegistry {
   /**
    * Everything due by now, in time order, without taking it off: an entry goes only once its wake succeeded (`settle`), so a wake that fails
    * or a Host that stops halfway leaves it to be tried again and no reminder is lost. An entry seven days past its time is taken off here and
-   * kept as expired, never given back (batch 95-3's rule).
+   * kept as expired (batch 95-3). A projection refresh rebuilds current data whenever the Host returns.
    */
   dueNow(): { due: DueEntryRecord[]; expired: DueExpiredRecord[] } {
     const now = this.now(), at = now.toISOString();
@@ -166,7 +167,7 @@ export class DueRegistry {
       const rows = this.db.prepare("SELECT * FROM due_entries WHERE due_at <= ? ORDER BY due_at, install_id, partition_id, entry_key").all(at).map(rowOf);
       const due: DueEntryRecord[] = [], expired: DueExpiredRecord[] = [];
       for (const row of rows) {
-        if (!runHasExpired(row.due_at, now.getTime())) {
+        if ((row.source === "plugin" && row.entry_key === OVERVIEW_REFRESH_ENTRY_KEY) || !runHasExpired(row.due_at, now.getTime())) {
           due.push(row);
           continue;
         }

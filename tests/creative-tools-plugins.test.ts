@@ -113,7 +113,7 @@ test("Forms / Dataset / PPT 由项目按分区启用，不再是常开的个人�
     ["form", "dataset", "ppt"],
   );
   const market = pluginMarketCards(builtinMarketDirectory());
-  assert.deepEqual(market.filter((card) => card.personal).map((card) => card.id), [], "no built-in is a personal plugin since batch 108");
+  for (const id of ["form", "dataset", "ppt"]) assert.ok(market.some(card => card.id === id), `${id} 可从市场添加到本分区`);
   assert.equal(market.find((card) => card.id === "form")?.copy, "建问卷，收答卷，看逐题汇总。");
 });
 
@@ -175,9 +175,6 @@ test("工作台 HTML 挂上三个创作入口，确认与工具条不在 label �
 test("工作台客户端脚本在挂上三个创作插件后仍能解析", () => {
   const script = renderMolisWorkWorkbenchClientScript();
   assert.doesNotThrow(() => new Function(script));
-  // Which market card is personal is the Host's mark on the card (W5-02 B1); the client keeps no list of its own.
-  assert.doesNotMatch(script, /PERSONAL_PLUGIN_IDS/);
-  assert.ok(script.includes("data-market-personal"));
   assert.doesNotMatch(formSource("save.ts"), /fillEditor/);
   assert.doesNotMatch(between(datasetSource("editor.ts"), "const drain", "page.queueSave"), /fillEditor/);
   assert.doesNotMatch(between(pptSource("editor.ts"), "const drain", "page.queueSave"), /fillEditor/);

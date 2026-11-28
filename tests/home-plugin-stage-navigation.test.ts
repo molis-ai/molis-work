@@ -5,6 +5,7 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
+import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { HomeConsentLedger, LOCAL_OWNER_PERMISSIONS, MolisWorkLocalHost, pluginInstallActions } from "@molis-ai/molis-work-app-local-host";
 import { PACKAGE_PLUGIN_ID, newPublisher, signedPackage } from "./fixtures/sandbox-package.js";
@@ -13,9 +14,7 @@ import { openTestHome, serveTestHost } from "./fixtures/test-home.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 
 // BL-713 (PG-011; specs/archive/repository-anti-corruption/slices/pg011-pg017-remaining.md §5, T-401): a signed package installed in the Home draws
-// its stage in the Home: a page of its own, a stage in every project's workbench, and a place that follows its state. Since 07-1 S4b
-// (口径 9) that place is the switcher's 个人 group and ＋'s 「个人 · 所有项目共用」 in a project, as every personal plugin's; the titlebar
-// and the arrival page no longer have a personal-tool slot.
+// its own page and a stage in each project that enables it. The switcher reflects its installation and membership.
 // Every case here installs a signed package and runs it in the sandbox, which only macOS has (`mac`); what needs no package (the stage markup,
 // the tool bar's entries, the pages nothing registers) is in `home-plugin-stage-pages.test.ts`, which Linux CI runs.
 
@@ -24,13 +23,14 @@ async function navHome(t: TestContext) {
   const home = await openTestHome(t);
   const project = await home.createProject("Navigation");
   const client = home.host.actionClient(project.reference);
-  const install = async (pluginId = PACKAGE_PLUGIN_ID, glyph?: string) => {
+  const install = async (pluginId = PACKAGE_PLUGIN_ID, glyph?: string, enableInProject = true) => {
     const bundle = signedPackage(newPublisher(), (_files, manifest) => {
       manifest.runtime = { scope: "home" };
       if (glyph) (manifest.ui.views![0] as { icon?: string }).icon = glyph;
     }, { pluginId });
     const preview = await client.invoke(person(project.project_id), ref(pluginInstallActions.preview), { bundle }) as { preview_id: string };
     await client.invoke(person(project.project_id), ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: "Test publisher" });
+    if (enableInProject) await addProjectPlugin(home.web, project.project_id, pluginId);
   };
   const page = async (path: string, origin = home.origin) => { const response = await fetch(origin + path); return { status: response.status, text: await response.text() }; };
   return { home, project, client, install, page, projectPath: `/projects/${encodeURIComponent(project.project_id)}/` };
@@ -41,9 +41,8 @@ const escaped = (pluginId: string) => pluginId.replaceAll(".", "\\.");
 const entryOf = (html: string, pluginId: string) => new RegExp(`<button [^>]*class="immersive-plugin-link[^"]*"[^>]*data-plugin-id="${escaped(pluginId)}"[^>]*>.*?</button>`, "s").exec(html)?.[0];
 /** The switcher group its tile is in. */
 const groupOf = (html: string, pluginId: string) => new RegExp(`data-plugin-tile="${escaped(pluginId)}"(?: data-rail-group="([^"]+)")?`, "u").exec(html)?.[1];
-/** ＋ lists from the page's directory: whether it lists the package with the person's own (07-S2 口径 8, 07-1 S4b 口径 9). */
-const plusPersonal = (html: string, pluginId: string) => (JSON.parse(/<script type="application\/json" data-plugin-directory>(.*?)<\/script>/su.exec(html)?.[1] ?? "[]") as { id: string; personal?: true }[])
-  .find(entry => entry.id === pluginId)?.personal === true;
+const directoryEntry = (html: string, pluginId: string) => (JSON.parse(/<script type="application\/json" data-plugin-directory>(.*?)<\/script>/su.exec(html)?.[1] ?? "[]") as { id: string }[])
+  .find(entry => entry.id === pluginId);
 const surfaceOf = (entry: string) => /data-work-surface-open="([^"]+)"/u.exec(entry)?.[1];
 const stagesOf = (html: string) => [...html.matchAll(/<section class="desktop-work-surface plugin-stage-shell" data-work-surface="([^"]+)"[^>]* data-installed-plugin="([^"]+)" data-plugin-page-source="([^"]+)"[^>]* data-deferred-surface hidden><script type="application\/json" data-plugin-document>/gu)]
   .map(match => ({ surface: match[1]!, plugin_id: match[2]!, source: match[3]!.replaceAll("&amp;", "&") }));
@@ -54,10 +53,15 @@ const assertStageSource = (source: string, page: string) => {
   assert.equal((JSON.parse(url.searchParams.get("installation") ?? "null") as { scope?: string } | null)?.scope, "home");
 };
 
-test("RAC-2620 a project's switcher (its 个人 group) and ＋ offer a Home package with the personal plugins, with the icon it picked and `package` when it picked none; the arrival page has no tool slot", mac, async t => {
+test("RAC-2620 B2R-08 the switcher offers installed Home packages to add, and gives each enabled package its own stage and icon", mac, async t => {
   const h = await navHome(t);
-  await h.install(PACKAGE_PLUGIN_ID, "book");
+  await h.install(PACKAGE_PLUGIN_ID, "book", false);
   await h.install(SECOND_PLUGIN_ID);
+  const pending = await h.page(h.projectPath);
+  assert.ok(pending.text.includes(`data-plugin-toggle="${PACKAGE_PLUGIN_ID}" data-state="available"`));
+  assert.equal(entryOf(pending.text, PACKAGE_PLUGIN_ID), undefined);
+  assert.deepEqual(stagesOf(pending.text).map(stage => stage.plugin_id), [SECOND_PLUGIN_ID]);
+  await addProjectPlugin(h.home.web, h.project.project_id, PACKAGE_PLUGIN_ID);
   // 07-1 S4b removed the arrival page's personal-tool slot (and the titlebar's): a package is reached in a project, as every plugin is.
   const arrival = await h.page("/");
   assert.equal(arrival.status, 200);
@@ -70,8 +74,10 @@ test("RAC-2620 a project's switcher (its 个人 group) and ＋ offer a Home pack
   assert.ok(first.includes(icon("book")) && !first.includes(icon("package")), "the icon the package picked");
   assert.ok(second.includes(icon("package")), "no icon picked, the default");
   for (const id of [PACKAGE_PLUGIN_ID, SECOND_PLUGIN_ID]) {
-    assert.equal(groupOf(project.text, id), "personal", `${id} is in the switcher's 个人 group`);
-    assert.equal(plusPersonal(project.text, id), true, `${id} is in ＋'s 个人 section`);
+    assert.notEqual(groupOf(project.text, id), "personal");
+    const entry = directoryEntry(project.text, id);
+    assert.ok(entry && !Object.hasOwn(entry, "personal"));
+    assert.ok(project.text.includes(`data-plugin-toggle="${id}" data-state="added"`));
   }
   const stageTag = (pluginId: string) => new RegExp(`<section [^>]*data-installed-plugin="${pluginId.replaceAll(".", "\\.")}"[^>]*>`, "u").exec(project.text)?.[0];
   assert.ok(stageTag(PACKAGE_PLUGIN_ID)?.includes('data-installed-plugin-icon="book"'), "BL-912: the stage tells the tab strip the icon the package picked");
@@ -236,6 +242,7 @@ test("RAC-2621.3 the framed page carries the Home page's policy and a project op
     const browser = await ChromeHarness.start(h.home.home, { executable: chrome });
     try {
       const page = await browser.page();
+      await page.viewport(1440, 900);
       const child = await pluginFrameBrowser(check, { sessionId: page.sessionId, command: browser.command.bind(browser),
         on: browser.on.bind(browser), evaluate: page.evaluate.bind(page) }, stage.surface);
       await page.command("Page.navigate", { url: `${h.home.origin}${h.projectPath}?openSurface=${encodeURIComponent(stage.surface)}` });
@@ -244,6 +251,27 @@ test("RAC-2621.3 the framed page carries the Home page's policy and a project op
       const frame = `iframe[data-plugin-frame=${JSON.stringify(stage.surface)}]`;
       assert.deepEqual(await page.evaluate(`(() => {const frame = document.querySelector(${JSON.stringify(frame)});
         return [frame.sandbox.contains('allow-scripts'), frame.sandbox.contains('allow-same-origin'), frame.contentDocument];})()`), [true, false, null]);
+      const toggle = `[data-plugin-toggle="${PACKAGE_PLUGIN_ID}"]`;
+      const button = `document.querySelector(${JSON.stringify(toggle)})`;
+      const openMembership = async () => {
+        if (await page.evaluate("document.querySelector('[data-plugin-picker-toggle]')?.getAttribute('aria-expanded') !== 'true'")) await page.click("[data-plugin-picker-toggle]");
+        if (!await page.evaluate(`${button}?.getClientRects().length`)) await page.click("[data-rail-tools-toggle]");
+        const point = await page.evaluate<{ x: number; y: number }>(`(() => {
+          const tile = ${button}.closest('[data-plugin-tile]');
+          tile.scrollIntoView({ block: 'center', behavior: 'instant' });
+          const { x, y, width, height } = tile.getBoundingClientRect();
+          return { x: x + width / 2, y: y + height / 2 };
+        })()`);
+        await page.command("Input.dispatchMouseEvent", { type: "mouseMoved", ...point });
+      };
+      await openMembership();
+      await page.click(toggle);
+      await page.click(toggle);
+      const stageSelector = JSON.stringify(`[data-installed-plugin="${PACKAGE_PLUGIN_ID}"]`);
+      await page.wait(`${button}?.dataset.state === 'available' && !document.querySelector(${stageSelector})`);
+      await openMembership();
+      await page.click(toggle);
+      await page.wait(`${button}?.dataset.state === 'added' && document.querySelector(${stageSelector})`);
     } finally { await browser.close(); }
   });
 });

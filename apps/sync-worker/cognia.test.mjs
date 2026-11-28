@@ -16,7 +16,7 @@ test('PCSYNC-11/15/22/23 Cognia knowledge graph retains bytes, historical citati
  const previous=process.env.MOLIS_WORK_SYNC_ORIGIN;process.env.MOLIS_WORK_SYNC_ORIGIN='https://sync.example.test';t.after(()=>{if(previous===undefined)delete process.env.MOLIS_WORK_SYNC_ORIGIN;else process.env.MOLIS_WORK_SYNC_ORIGIN=previous;});t.mock.method(globalThis,'fetch',f.transport);
  const space=personalStorageSpace('https://auth.example.test','work','alice'),homes=['a','b'].map(n=>join(root,n));homes.forEach(h=>{ensureStorageSpace(h,space);prepareSyncTestHome(h);});
  for (const home of homes) await withMolisWorkProjectCatalog({ homeDirectory: home }, catalog =>
-  catalog.addProjectPlugin({ project_id: PERSONAL_SPACE_PROJECT_ID, plugin_id: 'cognia', actor_id: 'alice' }));
+  catalog.addProjectPlugin({ project_id: PERSONAL_SPACE_PROJECT_ID, plugin_id: 'cognia', actor_id: space.ownerUserId }));
  const runtimes=await Promise.all(homes.map(home=>runtimePersonalSync(home,space,()=>{},{accessToken:async()=>'alice',authOrigin:'https://auth.example.test'})));
  t.after(async()=>{try{for(const runtime of runtimes)await runtime.close();}finally{rmSync(root,{recursive:true,force:true});}});
  const stores = homes.map(home => openCogniaStore(home, PERSONAL_SPACE_PROJECT_ID));

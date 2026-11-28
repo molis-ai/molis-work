@@ -237,7 +237,7 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
       assertHomePackageAllowed(release.packaged!.manifest);
       return lifecycle(recordFor(release.pluginId) ? 'upgrade' : 'install', release, { ...input, refresh: refreshPublicActions });
     },
-    /** The packages that run now, by plugin id: personal plugins every project reaches unless it hides them (#679). An integration package is not one: it offers sources, no actions (BL-530). */
+    /** Running Home packages a project can enable by plugin id (#679). Integration packages supply sources (BL-530). */
     running: (): string[] => records().filter(item => item.state === 'running' && !recoveryErrors.has(item.plugin_id) && standing.trusted(item) && releaseFor(item.plugin_id)?.packaged?.manifest.kind !== 'integration').map(item => item.plugin_id),
     /**
      * The packages the Home draws a page for, by the key its pages go under (the plugin id): those that run, and those that are not

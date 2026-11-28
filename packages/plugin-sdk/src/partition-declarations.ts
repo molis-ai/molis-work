@@ -39,10 +39,13 @@ function overviewProblems(value: unknown, partitionSchema: unknown, mainDatabase
     return ["overview_projection 要求 databases.partition（schema 原样写入平台的 OVERVIEW_TABLE_SQL），或 databases.project（经 services.overview 写平台在主库的表）"];
   }
   if (!isRecord(value)) return ["overview_projection 必须为对象"];
-  const extra = only(value, ["kinds", "title_text"]);
+  const extra = only(value, ["kinds", "title_text", "rolling_window"]);
   if (extra.length) return [`overview_projection 不认这些字段：${extra.join(", ")}（只声明种类，不写列名与 SQL）`];
   if (!Array.isArray(value.kinds) || value.kinds.length === 0) return [`overview_projection.kinds 至少要声明一种：${OVERVIEW_KINDS.join(", ")}`];
   const problems: string[] = [], seen = new Set<string>();
+  if (value.rolling_window !== undefined && (value.rolling_window !== true || partitionSchema === undefined)) {
+    problems.push("overview_projection.rolling_window 只接受 true，且须有独立分区库来处理窗口刷新");
+  }
   for (const kind of value.kinds) {
     if (!(OVERVIEW_KINDS as readonly unknown[]).includes(kind)) problems.push(`overview_projection.kinds 里的 ${String(kind)} 不是平台的总览种类（${OVERVIEW_KINDS.join(", ")}）`);
     else if (seen.has(kind)) problems.push(`overview_projection.kinds 重复：${kind}`);

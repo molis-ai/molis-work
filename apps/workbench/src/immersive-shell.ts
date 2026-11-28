@@ -70,11 +70,7 @@ function islandPlugins(directory: PluginDirectory, enabled: readonly string[]) {
   }));
 }
 
-/**
- * The names of the groups a view can name, which the Host owns (their order is `UI_VIEW_GROUPS`'): 推进 (the backbone plus
- * its helpers), 写与做 (things one makes), 个人 (what belongs to the person), 研究, 编码. See
- * specs/archive/plugin-e2e-review/spec.md §3.1.
- */
+/** The Host names these navigation groups. A view declares its group independently of the partition where it is enabled. */
 const RAIL_GROUP_LABELS: Readonly<Record<UiViewGroup, string>> = { advance: "workbench.immersive-shell.advance", make: "workbench.immersive-shell.write-make", personal: "workbench.immersive-shell.personal", code: "workbench.immersive-shell.coding" };
 const RAIL_HOME_HINT = "workbench.immersive-shell.today-s-work-day-s-events-things-hand";
 
@@ -105,8 +101,7 @@ function dependentPlugins(id: string, members: ReadonlySet<string> | readonly st
 /**
  * Host chrome, not a view slot. The rail answers one question per zone, top to bottom:
  * where the work lives (the project home, then the backbone plugins), and which tools this
- * project uses, in the group each plugin's view names (`group`, W5-06 2b), except 个人, which holds the person's own plugins
- * by the one rule ＋ and the bar's right tray use (`isPersonalPlugin`, 07-1 S4b); one that names no group, including one added
+ * project uses, in the group its view declares; a plugin without a group, including one added
  * later, lands in 更多, so adding a Plugin never edits the shell. An island leads the group it is in.
  *
  * Not every tool stays on screen. The tools zone shows the ones used lately and the current one;
@@ -123,7 +118,8 @@ export function renderPluginRail(
   const have = new Set(enabled);
   const extendIds = extendPluginIds(directory);
   const cards = pluginMarketCards(directory);
-  const addable = cards.map(card => card.id).filter(id => !have.has(id) && !extendIds.has(id));
+  const externalHome = directory.filter(entry => entry.home && !entry.chosen).map(entry => entry.id);
+  const addable = [...cards.map(card => card.id), ...externalHome].filter(id => !have.has(id) && !extendIds.has(id));
   const everyone = [...enabled, ...addable];
   const entries = directoryPlugins(directory, everyone);
   const islands = islandPlugins(directory, everyone);
@@ -164,15 +160,15 @@ export function renderPluginRail(
   // The second line a removal asks in (navigation-presentation.ts).
   const mark = `<small class="plugin-rail-confirm" aria-hidden="true"></small>`;
   const tile = (plugin: { id: string; surface: string; label: string; glyph: PluginIconName; chosen?: boolean; group?: string | null }, zone: string) => {
-    // A plugin installed at run time is in the project because it runs there; taking it out is whoever installed it, not this list.
-    const installed = plugin.chosen === false;
+    // A project installation supplies its own stage. A Home installation uses the partition's membership control.
+    const installed = plugin.chosen === false && !marks.get(plugin.id)?.home;
     const owned = installed || have.has(plugin.id);
     const label = escapeHtml(plugin.label);
     const along = owned ? [] : alongWith(plugin.id), dependents = owned ? dependentsOf(plugin.id) : [];
     const hint = hints[plugin.id] ? `<small class="plugin-rail-hint">${escapeHtml(hints[plugin.id])}</small>` : "";
     const main = owned ? link(plugin, zone, mark)
       : `<button class="immersive-plugin-link plugin-rail-item" type="button" data-rail-zone="${zone}" aria-disabled="true" tabindex="-1" aria-label="${uiText("workbench.immersive-shell.name-not-added", { name: plugin.label })}">${icon(plugin.glyph)}<span>${label}</span>${hint}${mark}</button>`;
-    // The tile carries its group, the person's own (个人) among them.
+    // The tile carries the group its view declares.
     return `<div class="plugin-rail-tile${owned ? "" : " is-available"}" data-plugin-tile="${plugin.id}"${plugin.group ? ` data-rail-group="${plugin.group}"` : ""}${along.length ? ` data-along="${escapeHtml(named(along))}"` : ""}${dependents.length ? ` data-dependents="${escapeHtml(named(dependents))}"` : ""}>${main}<span class="plugin-rail-ops" role="group" aria-label="${label}">${besideButton(plugin, owned)}${installed ? "" : toggleButton(plugin, owned, along)}</span></div>`;
   };
   const subgroup = (label: string, buttons: string) => buttons ? `<p class="plugin-rail-subgroup" data-rail-zone="more">${label}</p>${buttons}` : "";
@@ -342,7 +338,7 @@ export function renderPluginMarket(primitives: ImmersiveShellPrimitives, directo
   const rows = cards.map(plugin => {
     const needs = related(companionsOf(plugin.id).filter(id => id !== plugin.id));
     const neededBy = dependentPlugins(plugin.id, cardIds, companionsOf);
-    return `<article class="mw-card" data-market-plugin="${plugin.id}" data-market-runtime-id="${plugin.runtime_id}"${plugin.personal ? " data-market-personal" : ""}${needs.length ? ` data-market-needs="${needs.join(" ")}"` : ""}${neededBy.length ? ` data-market-needed-by="${neededBy.join(" ")}"` : ""}><div class="plugin-market-icon">${icon(plugin.glyph as PluginIconName)}</div><div class="plugin-market-copy"><h2>${escapeHtml(plugin.label)}</h2><p>${escapeHtml(plugin.copy)}</p>${sites(plugin)}<small class="plugin-market-version" data-market-version hidden></small></div><button class="mw-btn mw-btn--secondary" type="button" data-market-upgrade hidden disabled>${uiText("workbench.immersive-shell.upgrade")}</button><button class="mw-btn mw-btn--secondary" type="button" data-market-open="${plugin.id}" hidden>${uiText("common.control.open")}</button><button class="mw-btn mw-btn--secondary" type="button" data-market-add="${plugin.id}" disabled>${uiText("workbench.immersive-shell.add")}</button></article>`;
+    return `<article class="mw-card" data-market-plugin="${plugin.id}" data-market-runtime-id="${plugin.runtime_id}"${needs.length ? ` data-market-needs="${needs.join(" ")}"` : ""}${neededBy.length ? ` data-market-needed-by="${neededBy.join(" ")}"` : ""}><div class="plugin-market-icon">${icon(plugin.glyph as PluginIconName)}</div><div class="plugin-market-copy"><h2>${escapeHtml(plugin.label)}</h2><p>${escapeHtml(plugin.copy)}</p>${sites(plugin)}<small class="plugin-market-version" data-market-version hidden></small></div><button class="mw-btn mw-btn--secondary" type="button" data-market-upgrade hidden disabled>${uiText("workbench.immersive-shell.upgrade")}</button><button class="mw-btn mw-btn--secondary" type="button" data-market-open="${plugin.id}" hidden>${uiText("common.control.open")}</button><button class="mw-btn mw-btn--secondary" type="button" data-market-add="${plugin.id}" disabled>${uiText("workbench.immersive-shell.add")}</button></article>`;
   }).join("");
   return `<div class="plugin-market-body">
     <header class="plugin-market-heading"><div><h1>${uiText("workbench.immersive-shell.plugin")}</h1><p>${uiText("workbench.immersive-shell.add-plugins-project-open-ones-already-use")}</p></div><div class="plugin-market-destination"><label id="plugin-market-destination-label" for="plugin-market-project-trigger">${uiText("workbench.immersive-shell.add-2")}</label><button type="button" class="plugin-market-project-trigger" id="plugin-market-project-trigger" data-market-project-trigger popovertarget="plugin-market-project-menu" aria-labelledby="plugin-market-destination-label plugin-market-project-label" aria-haspopup="listbox" aria-expanded="false" disabled><strong id="plugin-market-project-label" data-market-project-label></strong>${icon("chevron-down")}</button><div id="plugin-market-project-menu" popover="auto" class="plugin-market-project-popover" data-market-project-popover role="listbox" aria-labelledby="plugin-market-destination-label"><nav data-market-project-options></nav></div><select data-market-project hidden tabindex="-1" aria-hidden="true" disabled></select><template data-market-project-check>${icon("check")}</template></div></header>

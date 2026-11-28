@@ -1,8 +1,8 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginStartContext, PluginSyncBinding } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PartitionSyncContext, PluginSyncBinding } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createSyncJsonContent, syncTupleLocation } from "@molis-ai/molis-work-plugin-sdk";
 import { todoCollection } from "./replication.js";
-export function syncBindings(context: PluginStartContext): PluginSyncBinding[] {
+export function syncBindings(context: PartitionSyncContext): PluginSyncBinding[] {
   const scope=context.sync;
   if(!scope)return [];
   const service=context.services?.sync;

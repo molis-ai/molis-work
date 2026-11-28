@@ -118,9 +118,11 @@ export async function handlePluginPageHttp(context: WebRequestContext, project?:
       const component_id = body.component_id;
       if (submit && (typeof component_id !== "string" || !component_id || !Object.hasOwn(body, "payload")))
         throw new ActionError("actions.input_invalid", "组件提交请求无效");
+      const projectInstallation = page.installedRoute()?.projectId != null;
       const beforeBackgroundEffect = async () => {
         const surface = hostSurfaceByManifestId(page.plugin_id);
-        const homeKey = surface ? undefined : localHost.homePlugins?.registered().find(item => item.manifest.plugin_id === page.plugin_id)?.key;
+        // The signed page already holds the project's installation. Only a Home page can depend on a Home registration under the same id.
+        const homeKey = surface || projectInstallation ? undefined : localHost.homePlugins?.registered().find(item => item.manifest.plugin_id === page.plugin_id)?.key;
         const key = page.project_key ?? (surface ? undefined : builtinPluginByManifestId(page.plugin_id)?.project_plugin_id ?? homeKey);
         if (shown && key && !(await shown()).includes(key)) throw new ActionError("actions.plugin_disabled", "此项目未启用该插件");
       };

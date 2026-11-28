@@ -1,3 +1,4 @@
+import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
@@ -85,7 +86,8 @@ async function cardHome(t: TestContext) {
     ungrantedRecords.definition, images.definition, imagesUngranted.definition] } });
   const installs = { records: (await grantConnections(f.host, recordsProbe)).install, whole: (await grantConnections(f.host, whole)).install,
     second: (await grantConnections(f.host, second)).install, images: await grant(f.host, images.id, images.permissions) };
-  const project = await f.project("Connection card"), other = await f.project("Connection card elsewhere");
+  const members = [recordsProbe, whole, second, ungranted, ungrantedRecords, images, imagesUngranted].map(probe => probe.id);
+  const project = await f.project("Connection card", members), other = await f.project("Connection card elsewhere", members);
   const prefix = `/projects/${project.project_id}`;
   const open = async (plugin_id: string) => {
     const opened = await f.request(prefix + "/api/host/plugin-pages", { method: "POST", body: { plugin_id } });
@@ -294,6 +296,7 @@ test("S-plugin-connection-card ASC-68 C3-1 S-91 a sandboxed package's card binds
   const client = h.host.actionClient(project.reference);
   const preview = await client.invoke(installer(project.project_id), ref(pluginInstallActions.preview), { bundle: imagePackage() }) as { preview_id: string };
   await client.invoke(installer(project.project_id), ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: "Test publisher" });
+  await addProjectPlugin(h.web, project.project_id, PACKAGE_PLUGIN_ID);
   const install_id = h.host.homePlugins!.installation(PACKAGE_PLUGIN_ID)!.install_id, prefix = `/projects/${project.project_id}`;
   const post = (path: string, body: unknown, headers: Record<string, string> = {}, routePrefix = prefix) => fetch(h.origin + routePrefix + path, { method: "POST", body: JSON.stringify(body),
     headers: { origin: h.origin, "content-type": "application/json", "x-molis-work-idempotency-key": crypto.randomUUID(), "x-molis-work-control-token": h.controlToken, ...headers } });

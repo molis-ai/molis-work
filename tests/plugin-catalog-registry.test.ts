@@ -13,7 +13,7 @@ const directory: PluginDirectory = [
     { view_id: "side", slot: "side", title: "项目侧栏", order: 20 },
     { view_id: "settings", slot: "settings", title: "项目设置" },
   ] } },
-  { id: "stalled-package", plugin_id: sharedId, name: "旧安装", chosen: false, personal: true, home: true, ui: { views: [
+  { id: "stalled-package", plugin_id: sharedId, name: "旧安装", chosen: false, home: true, ui: { views: [
     { view_id: "open", slot: "navigator", title: "旧安装入口", order: 20, group: "advance", rail: "extend" },
     { view_id: "side", slot: "side", title: "旧安装侧栏", order: 20 },
     { view_id: "settings", slot: "settings", title: "旧安装设置" },
@@ -33,7 +33,7 @@ const directory: PluginDirectory = [
     { view_id: "stage", slot: "stage", title: "岛屿舞台", order: 1 },
   ] } },
 ];
-const enabled = ["selected", "island"];
+const enabled = ["selected", "island", "stalled-package"];
 
 test("BRC-03 · one registry preserves the source of tied view ids and the old read shape", () => {
   const registry = new UiViewRegistry(directory.map(manifest => ({ manifest, enabled: !manifest.chosen || enabled.includes(manifest.id) })));
@@ -56,14 +56,14 @@ test("BRC-03 · navigation keeps shell owners, titles and enabled views", () => 
   assert.deepEqual(rail.map(({ id, label, group, rail, chosen }) =>
     [id, label, group, rail, chosen]), [
     ["selected", "项目入口", "advance", "core", true],
-    ["stalled-package", "旧安装入口", "personal", null, false],
+    ["stalled-package", "旧安装入口", "advance", null, false],
     ["artifacts", "成果", "make", null, false],
     ["sessions", "外部会话", "make", null, false],
     ["stage-only", "原包名称", null, null, false],
   ]);
   assert.ok(rail.every(entry => !("pinned_default" in entry)));
   assert.equal(rail.at(-1)!.glyph, "file");
-  assert.deepEqual(islandEntries(enabled, directory).map(({ id, label, group }) => [id, label, group]), [["island", "岛屿入口", null]]);
+  assert.deepEqual(islandEntries(enabled, directory).map(({ id, label, group }) => [id, label, group]), [["island", "岛屿入口", "personal"]]);
   // Shelf's settings come last: it is a platform part framed in every project (44B PR2b), not a plugin a project enables.
   assert.deepEqual(settingsEntries(enabled, directory).map(view => view.title), ["项目设置", "旧安装设置", "Shelf"]);
   assert.deepEqual(creatableKinds(enabled, directory).map(({ id, title }) => [id, title]), [["selected", "新文稿"], ["island", "新笔记"]]);

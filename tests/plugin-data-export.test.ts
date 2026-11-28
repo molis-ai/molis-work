@@ -1,6 +1,11 @@
-// @requires-platform darwin
+import { openImagesDatabase } from "./fixtures/plugin-home-stores.js";
 import assert from "node:assert/strict";
 import test from "node:test";
+import { mkdir, rename, symlink, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { partitionRoot } from "@molis-ai/molis-work-module-projects";
+import { imagesManifest } from "@molis-ai/molis-work-plugin-images";
+import { installIdentity } from "@molis-ai/molis-work-plugin-runtime";
 import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   PLUGIN_DATA_EXPORT_FORMAT, PLUGIN_DATA_EXPORT_PERMISSION, SANDBOX_PACKAGE_FILES, pluginDataActions,
@@ -12,6 +17,7 @@ import { pluginComponentChoices, type PluginComponentPlan } from "@molis-ai/moli
 import { PAGES_PLUGIN_ID } from "@molis-ai/molis-work-plugin-pages";
 import { CODING_PLUGIN_ID } from "@molis-ai/molis-work-plugin-coding";
 import { pluginInstallActions } from "@molis-ai/molis-work-app-local-host";
+import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { newPublisher, signedPackage, type PackageFiles } from "./fixtures/sandbox-package.js";
 import { mac, operate, operationsOf, person, ref, refused } from "./fixtures/home-sandbox.js";
@@ -118,11 +124,11 @@ test("Audit #7 plugins.data.sections and plugins.data.export serve built-in and 
     label: "from-third-party", fileBase64: Buffer.from("hello-owner-file", "utf8").toString("base64"),
   }), true);
 
-  // List sections: both built-in Pages (project-partitioned home store) and the installed third-party plugin are discovered.
+  // List sections: both built-in Pages (its partition library) and the installed third-party plugin are discovered.
   const listed = await projectClient.invoke(projectCaller, ref(pluginDataActions.sections), {}) as {
     sections: PluginDataSectionDeclaration[];
   };
-  assert.ok(listed.sections.some(section => section.plugin_id === PAGES_PLUGIN_ID && section.scope === "home"));
+  assert.ok(listed.sections.some(section => section.plugin_id === PAGES_PLUGIN_ID && section.scope === "project"));
   assert.ok(listed.sections.some(section => section.plugin_id === THIRD_PARTY_ID && section.scope === "project" && section.tables.includes("tp_items") && section.files.includes("notes")));
 
   // Export built-in Pages data in the standard format.
@@ -196,4 +202,38 @@ test("Audit #7 plugins.data.sections and plugins.data.export serve built-in and 
     homeClient.invoke(homeCaller, ref(pluginDataActions.export), { plugin_id: "io.molis.work.missing" }),
     refused("host.plugin_data_not_found"),
   );
+});
+
+test("UPP-06 B2R-06 Images data export reads owner files only from the requested partition's installation", async t => {
+  const home = await openTestHome(t), project = await home.createProject("Pictures", ["images"]);
+  await addProjectPlugin(home.web, "personal", "images");
+  const client = home.host.homeActionClient();
+  const caller: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: null, permissions: [PLUGIN_DATA_EXPORT_PERMISSION] };
+  for (const partition of ["personal", project.project_id]) {
+    const dir = join(partitionRoot(home.home, partition), "plugin-files", installIdentity(imagesManifest), "images", "assets");
+    await mkdir(dir, { recursive: true });
+    await writeFile(join(dir, "same-name.png"), partition);
+    const db = openImagesDatabase(home.home, partition);
+    try {
+      db.prepare(`INSERT INTO jobs (id,request_id,input_hash,connection_id,connection_name,api_format,model,prompt,size,aspect_ratio,status,images_json,error,created_at)
+        VALUES ('job','request','digest','service','Test','openai-images','test',?,'auto','1:1','completed','[]','',?)`)
+        .run("image for " + partition, new Date().toISOString());
+    } finally { db.close(); }
+  }
+  for (const partition of ["personal", project.project_id]) {
+    const snapshot = await client.invoke(caller, ref(pluginDataActions.export), { plugin_id: imagesManifest.plugin_id, project_id: partition }) as PluginDataExportResult;
+    assert.deepEqual(snapshot.sections.flatMap(section => section.files ?? []).map(file => [file.path, Buffer.from(file.content_base64!, "base64").toString()]),
+      [["assets/same-name.png", partition]]);
+    const jobs = snapshot.sections.flatMap(section => section.items).find(item =>
+      typeof item === "object" && item !== null && "table" in item && item.table === "jobs") as { rows: { prompt: string }[] };
+    assert.deepEqual(jobs.rows.map(row => row.prompt), ["image for " + partition]);
+  }
+  // An empty directory outside the requesting partition is not one of its readable libraries.
+  const libraries = join(partitionRoot(home.home, project.project_id), "libraries");
+  const other = join(home.home, "empty-export-fixture");
+  await mkdir(other);
+  await rename(libraries, libraries + ".saved");
+  await symlink(other, libraries, "dir");
+  await assert.rejects(client.invoke(caller, ref(pluginDataActions.export),
+    { plugin_id: imagesManifest.plugin_id, project_id: project.project_id }), { code: "actions.forbidden" });
 });

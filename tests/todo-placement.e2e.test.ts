@@ -1,39 +1,42 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { openTodoStore } from "./fixtures/plugin-home-stores.js";
+import { addProjectPlugin, createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 
 test("a todo moved away from the placement panel leaves this page: the open detail closes and the row goes; moved here, it stays", { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
-  const { command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
+  const { command, sessionId, navigate, origin, projectId, web } = browser;
+  assert.ok(projectId);
   const child = await pluginFrameBrowser(t, browser, "todo");
-  const { evaluate, waitFor, click } = child;
-  const store = openTodoStore(homeDirectory, undefined, projectId!);
-  const scope = { actor: "user" as const, actorId: "test" };
-  // Planned for a day already past, both are on the default 今天 list whatever the clock, so the rows show whether the todo is still here.
-  const away = store.create({ title: "整理 Beta 用户回访记录", planned_date: "2020-01-01" }, scope).item;
-  const stay = store.create({ title: "准备周会材料", planned_date: "2020-01-01" }, scope).item;
-  store.close();
-  // What the placement panel does (batch 108: every partition has its own Todo library): the platform carries the todo to the other
-  // partition and lets it go here, then tells the page.
+  const { evaluate, waitFor } = child;
+  const other = await createProject(web, "Other tasks");
+  await addProjectPlugin(web, other.project_id, "todo");
+  await addProjectPlugin(web, projectId, "todo");
+  // Both tasks qualify for the initial Today view, so the row assertions really observe the move.
+  const create = async (id: string, title: string) => (await web.post<{item: {id: string}}>(`/projects/${id}/api/plugins/io.molis.work.todo/items`,
+    { title, due_date: "2000-01-01" })).item;
+  const move = (id: string, from: string, to: string) => web.post("/api/placement/move", { object: { kind: "todo_item", id, project_id: from }, to_project_id: to });
+  const away = await create(projectId, "整理 Beta 用户回访记录");
+  const stay = await create(other.project_id, "准备周会材料");
   const changed = async (id: string, from: string, to: string) => {
     await browser.evaluate(`window.dispatchEvent(new CustomEvent("molis:placement-changed", { detail: { mode: "move", from: { kind: "todo_item", id: ${JSON.stringify(id)}, project_id: ${JSON.stringify(from)} }, to: { kind: "todo_item", id: ${JSON.stringify(id)}, project_id: ${JSON.stringify(to)} } } }))`);
   };
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=todo&openItem=${away.id}` }, sessionId));
-  await waitFor(`document.querySelector('[data-todo-field=title]')?.value === '整理 Beta 用户回访记录' && !!document.querySelector('[data-todo-row="${away.id}"]')`);
-  const here = openTodoStore(homeDirectory, undefined, projectId!);
-  try { here.removeCarried(away.id, here.exportRecord(away.id).revision); } finally { here.close(); }
-  await changed(away.id, projectId!, "project-q4");
+  await waitFor(`document.querySelector('[data-todo-field=title]')?.value === '整理 Beta 用户回访记录'`);
+  await waitFor(`!!document.querySelector('[data-todo-row="${away.id}"]')`);
+  await move(away.id, projectId, other.project_id);
+  await changed(away.id, projectId, other.project_id);
   await waitFor("document.querySelector('[data-todo-stage-workspace]').hidden");
   await waitFor(`!document.querySelector('[data-todo-row="${away.id}"]')`);
 
-  // One moved here from another partition is in this partition's library: the open detail stays.
+  // Move the second task into the open partition via its real owner before opening its detail.
+  await move(stay.id, other.project_id, projectId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=todo&openItem=${stay.id}` }, sessionId));
   await waitFor(`document.querySelector('[data-todo-field=title]')?.value === '准备周会材料'`);
-  await changed(stay.id, "project-q4", projectId!);
+  await changed(stay.id, other.project_id, projectId);
   await waitFor(`!!document.querySelector('[data-todo-row="${stay.id}"]')`);
   assert.equal(await evaluate("document.querySelector('[data-todo-stage-workspace]').hidden"), false);
 });

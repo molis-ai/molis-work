@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { issueModel } from "./fixtures/issue-model.js";
 import { ISSUE_FRAME, issueView, type IssueBrowser } from "./fixtures/issue-browser.js";
@@ -68,20 +69,38 @@ async function beside(b: IssueBrowser, v: Awaited<ReturnType<typeof issueView>>,
   assert.equal(await v.ask("d.documentElement.scrollWidth <= d.documentElement.clientWidth"), true, `${name} panel content fits at ${width}`);
 }
 
-test("ISSUE-35 in a project the chord and the button summon Issue from the page and from inside other frames, and put it away from inside", { timeout: 120_000 }, async t => {
+test("ISSUE-35 UPP-30 the project chord requests personal membership before opening Issues and works inside other frames", { timeout: 120_000 }, async t => {
   const b = await openGoalBrowser(t, "user", undefined, undefined, undefined, undefined, {
     prepareHome: async homeDirectory => { await issueModel(t, homeDirectory); },
   }); if (!b) return;
-  const v = await issueView(t, b, "issue-global-navigation");
+  const v = await issueView(t, b, "issue-global-navigation", { enablePersonal: false });
   const requests = captureRequests(b);
   await v.viewport(1440); await v.go(`/projects/${b.projectId}/?desktop=1`);
   assert.equal(await b.evaluate(`document.querySelector(${JSON.stringify(entry)}).getAttribute('aria-keyshortcuts')`), "Meta+Shift+I");
   assert.match(await b.evaluate<string>(`document.querySelector(${JSON.stringify(entry)}).parentElement.title`), /Issue (⌘⇧I|Ctrl\+Shift\+I)/);
   await expectClosedCapture(b, requests);
   const url = await b.evaluate<string>("location.href");
-  await v.chord(); await b.waitFor(open); await composerFocused(t, b, v);
+  await v.chord(); await b.waitFor(open);
+  const documentInPanel = `document.querySelector(${JSON.stringify(ISSUE_FRAME)})?.contentDocument`;
+  const confirm = `${documentInPanel}?.querySelector('[data-side-enable-confirm]')`;
+  const hasIssues = async () => (await b.web.get<{ projects: Array<{ project_id: string; plugins: string[] }> }>("/api/settings/project-plugins"))
+    .projects.find(project => project.project_id === "personal")?.plugins.includes("issues");
+  await b.waitFor(confirm);
+  assert.equal(await hasIssues(), false);
+  await b.command("Network.enable", {}, b.sessionId);
+  await b.command("Network.setBlockedURLs", { urls: [b.origin + "/api/settings/projects/personal/plugins"] }, b.sessionId);
+  try {
+    await b.evaluate(`${confirm}.click()`);
+    await b.waitFor(`${documentInPanel}?.querySelector('[data-side-enable-error]:not([hidden])')?.textContent && !${confirm}.disabled`);
+    assert.equal(await hasIssues(), false, "a failed confirmation leaves the plugin disabled");
+  } finally {
+    await b.command("Network.setBlockedURLs", { urls: [] }, b.sessionId);
+  }
+  await b.evaluate(`${confirm}.click()`);
+  await composerFocused(t, b, v);
+  assert.equal(await hasIssues(), true, "retrying the confirmation enables Issues");
   // The chord opens the personal space's Issues wherever it is pressed (R14, batch 108).
-  assert.deepEqual(requests, ["/projects/personal/side/issues/capture"]);
+  assert.deepEqual(requests, ["/projects/personal/side/issues/capture", "/projects/personal/side/issues/capture"]);
   assert.equal(await b.evaluate("location.href"), url, "the work stays where it was");
   await beside(b, v, 1440, "project");
   // From inside the tool the chord puts it away and the keyboard goes back to the page.
@@ -89,9 +108,10 @@ test("ISSUE-35 in a project the chord and the button summon Issue from the page 
   assert.equal(await b.evaluate("document.querySelector('[data-side-panel]').contains(document.activeElement)"), false);
   // The glyph opens it and brings the keyboard along; the chord from inside puts it away. (Its titlebar button was a switch; the
   // side's glyphs open, and the side closes from its chord, ⌘\ or the layout menu — 07-1 S4b.)
+  const requestsBeforeReopen = requests.length;
   await b.click(entry); await b.waitFor(open);
   await composerFocused(t, b, v);
-  assert.equal(requests.length, 1, "reopening reuses the loaded view");
+  assert.equal(requests.length, requestsBeforeReopen, "reopening reuses the loaded view");
   await v.type("项目页里写了一半");
   await v.chord(); await b.waitFor(closed);
   // Pressed while the keyboard is inside another side view's frame, the chord still reaches the shell.
@@ -135,6 +155,34 @@ test("ISSUE-35 in a project the chord and the button summon Issue from the page 
   await v.until(`!$('[data-issue-detail]').hidden && $('[data-issue-title]').textContent === ${JSON.stringify(title)}`, 15_000);
   assert.equal(await v.ask("$('[data-issue-text]').textContent"), description);
   assert.deepEqual(await b.evaluate('window.__issueDestinations'), [record.id]);
+
+  // Save B with the same right-hand view open. Start from a closed A in a new document so its destination must await the frame load.
+  const switchItem = (id: string) => `document.dispatchEvent(new CustomEvent('molis-work:work-item-changed',{detail:{item_id:${JSON.stringify(id)}}}))`;
+  const openIssues = "document.dispatchEvent(new CustomEvent('molis:side-open',{detail:{tab:'plugin',view:'issues/capture'},cancelable:true}))";
+  await b.evaluate(switchItem("right-pane-b") + ";" + openIssues);
+  await b.waitFor(open);
+  await b.evaluate(switchItem("right-pane-a"));
+  if (await b.evaluate(open)) {
+    await b.click("[data-layout-open]"); await b.click("[data-layout-action=side]");
+  }
+  await b.waitFor(closed);
+  await v.go(`/projects/${b.projectId}/?desktop=1`);
+  await b.waitFor(closed);
+  assert.equal(await b.evaluate(`document.querySelector(${JSON.stringify(ISSUE_FRAME)}).getAttribute('src')`), null);
+  await b.evaluate(`(() => {
+    const frame=document.querySelector(${JSON.stringify(ISSUE_FRAME)}); window.destinationsAfterSwitch=[];
+    frame.addEventListener('load',()=>frame.contentWindow.addEventListener('message',event=>{
+      if(event.data?.type==='molis:side-target')window.destinationsAfterSwitch.push(event.data.target.item);
+      if(event.data==='frame-checkpoint')window.frameCheckpoint=true;
+    }),{once:true});
+    document.dispatchEvent(new CustomEvent('molis:side-open',{detail:{tab:'plugin',view:'issues/capture',target:{item:${JSON.stringify(record.id)}}},cancelable:true}));
+    ${switchItem("right-pane-b")};
+  })()`);
+  await b.waitFor(open);
+  await v.until("!!$('[data-issue-composer]')");
+  await b.evaluate(`document.querySelector(${JSON.stringify(ISSUE_FRAME)}).contentWindow.postMessage('frame-checkpoint',location.origin)`);
+  await b.waitFor("window.frameCheckpoint === true");
+  assert.deepEqual(await b.evaluate("window.destinationsAfterSwitch"), []);
 });
 
 test("ISSUE-31 ISSUE-35 on Home the draft survives closing and a full navigation, and Escape closes from the composer", { timeout: 90_000 }, async t => {
@@ -223,4 +271,72 @@ test("RAC-2801 RAC-2802: native search from the nested Issue composer keeps its 
   await probe(''); // mounted but panel closed
   await b.click(entry); await b.waitFor(open);
   await probe("window.removedSearchSource=window.issueSearchFrame.contentWindow;window.issueSearchFrame.remove()", 'Mod+K', 'location.origin', 'window.removedSearchSource');
+});
+
+test("UPP-30 B2R-09 capture a task in personal space after confirmation, then find its owner from the overview", { timeout: 90_000 }, async t => {
+  const b = await openGoalBrowser(t, "user", undefined, null, undefined, undefined, { projectPlugins: ["todo"] });
+  if (!b) return;
+  const todo = await pluginFrameBrowser(t, b, "todo");
+  const visit = (path: string) => b.navigate(() => b.command("Page.navigate", { url: b.origin + path }, b.sessionId));
+  await visit("/projects/" + b.projectId + "/");
+  const panel = "[data-personal-tasks=capture]";
+  const member = async () => (await b.web.get<{ projects: {project_id: string; plugins: string[]}[] }>("/api/settings/project-plugins"))
+    .projects.find(row => row.project_id === "personal")!.plugins.includes("todo");
+  assert.equal(await member(), false);
+  await b.click(panel + " summary"); await b.waitFor("document.querySelectorAll('[data-personal-tasks-body] button').length === 2");
+  await b.click(panel + " button:last-child"); assert.equal(await member(), false);
+  await b.click(panel + " summary");
+  await b.waitFor("document.querySelectorAll('[data-personal-tasks-body] button').length === 2");
+  await b.click(panel + " button:first-of-type");
+  await b.waitFor("!!document.querySelector('[data-personal-tasks-body] form input')");
+  const switchLanguage = async (tag: string) => {
+    await b.evaluate(`(() => { const link = document.createElement('a'); link.dataset.uiLanguage = '${tag}';
+      link.href = '/locale?lang=${tag}'; document.body.append(link); link.click(); link.remove(); })()`);
+    await b.waitFor(`document.documentElement.dataset.uiLanguageTag === '${tag}'`);
+  };
+  await b.evaluate("window.captureInput=document.querySelector('[data-personal-tasks-body] form input'); captureInput.value='B2 personal capture'; captureInput.focus()");
+  await switchLanguage("en");
+  assert.deepEqual(await b.evaluate("[document.activeElement === captureInput, captureInput.isConnected, captureInput.value]"), [true, true, "B2 personal capture"]);
+  assert.equal(await b.evaluate("captureInput.form.querySelector('button').textContent"), await b.evaluate("t.text('workbench.personal-tasks.save')"));
+  // A rejected write leaves the original form editable and retryable.
+  await b.evaluate(`(() => { const real = window.fetch;
+    window.fetch = (input, init) => {
+      if (new URL(input?.url || input, location.href).pathname.endsWith('/api/plugins/io.molis.work.todo/items') && (init?.method || input?.method) === 'POST') {
+        window.fetch = real;
+        return new Promise(resolve => { window.rejectCapture = () => resolve(Response.json({ message: 'capture temporarily unavailable' }, { status: 503 })); });
+      }
+      return real(input, init);
+    };
+  })()`);
+  await b.click(panel + " form button");
+  await b.waitFor("typeof window.rejectCapture === 'function'");
+  assert.equal(await b.evaluate("captureInput.readOnly"), true);
+  await b.evaluate("window.rejectCapture()");
+  await b.waitFor("captureInput.form?.lastElementChild.textContent && !captureInput.form.querySelector('button').disabled");
+  assert.deepEqual(await b.evaluate("[captureInput.readOnly, captureInput.value]"), [false, "B2 personal capture"]);
+  await b.click(panel + " form button");
+  await b.waitFor("!document.querySelector('[data-personal-tasks-body] form')");
+  await switchLanguage("ja");
+  await b.waitFor("document.querySelector('[data-personal-tasks-body]').textContent === t.text('workbench.personal-tasks.saved')");
+  assert.equal(await member(), true);
+  await b.web.post("/projects/" + b.projectId + "/api/plugins/io.molis.work.todo/items", { title: "B2 project task" });
+  await visit("/projects/personal/");
+  const { runningPartitionPlatformServices } = await import("@molis-ai/molis-work-app-local-host");
+  const { installIdentity } = await import("@molis-ai/molis-work-plugin-runtime");
+  const { todoManifest } = await import("@molis-ai/molis-work-plugin-todo");
+  const { refreshedOverview } = await import("./fixtures/overview-read.js");
+  await refreshedOverview(() => b.web.post("/api/runtime/overview/read", { kinds: ["task"] }));
+  const overview = runningPartitionPlatformServices(b.homeDirectory)!.overview;
+  for (const id of ["personal", b.projectId!]) overview.markDirty(id, installIdentity(todoManifest));
+  await b.click("[data-personal-tasks=overview] summary");
+  await b.waitFor("!!document.querySelector('[data-personal-tasks-body] [role=status]')");
+  assert.equal(await b.evaluate("document.querySelectorAll('[data-personal-tasks-body] a').length"), 0);
+
+  await b.waitFor("document.querySelector('[data-personal-tasks-body]')?.textContent.includes('B2 project task')");
+  const links = await b.evaluate<{ title: string; url: string }[]>("Array.from(document.querySelectorAll('[data-personal-tasks-body] a'), a => ({ title: a.textContent, url: a.href }))");
+  assert.equal(new URL(links.find(row => row.title.includes("B2 personal capture"))!.url).pathname, "/projects/personal/");
+  const owner = new URL(links.find(row => row.title.includes("B2 project task"))!.url);
+  assert.equal(owner.pathname, "/projects/" + b.projectId + "/");
+  await b.navigate(() => b.click("[data-personal-tasks-body] a[href^='/projects/" + b.projectId + "/']"));
+  await todo.waitFor("document.querySelector('[data-todo-field=title]')?.value === 'B2 project task'");
 });

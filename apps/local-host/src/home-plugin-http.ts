@@ -121,6 +121,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
   // A dual-instance plugin's routes are split between its halves (specs/archive/dual-instance-plugins): the Home answers those its running half
   // binds and leaves every other declared route to the project's instance, next in the request chain. Only the Host's start list marks a plugin so.
   const split = Boolean(route) && !PLUGIN_MANAGEMENT_OPERATIONS.has(operation) && home.dualInstance(pluginId);
+  const suppliedDual = split && home.providesDualInstance(pluginId);
   let platform;
   try { platform = await (operation === "retry" ? home.retry() : home.ready()); }
   catch (error) {
@@ -142,7 +143,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
   let splitContext: (() => Promise<ActionCallContext>) | undefined;
   if (split && projectHalfRoute(platform, install, request.method, url.pathname)) {
     if (install?.state === "running" || !prefixed) return false;
-    const found = await routeProject(prefixed[1]!, pluginId, projectPlugins, split);
+    const found = await routeProject(prefixed[1]!, pluginId, projectPlugins, suppliedDual);
     if (!(found instanceof ActionError)) {
       earlyProject = found;
       splitContext = requestProjectContext(host, found);
@@ -159,7 +160,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
   if (operation === "retry") { sendLocalWebJson(response, 200, { ready: true }); return true; }
   let project = earlyProject;
   if (prefixed && !project) {
-    const found = await routeProject(prefixed[1]!, pluginId, projectPlugins, split);
+    const found = await routeProject(prefixed[1]!, pluginId, projectPlugins, suppliedDual);
     if (found instanceof ActionError) { const refused = localizeActionErrorResponse(found); sendLocalWebJson(response, refused.status, refused.body); return true; }
     project = found;
   }
@@ -220,7 +221,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
     abort.signal.throwIfAborted();
     routed = projectRouteControl(plain, project?.project_id ?? null, project ? host.actionClient(project) : host.homeActionClient(), async () => {
       if (!project || !prefixed) return;
-      const found = await routeProject(prefixed[1]!, pluginId, projectPlugins, split);
+      const found = await routeProject(prefixed[1]!, pluginId, projectPlugins, suppliedDual);
       if (found instanceof ActionError) throw found;
     }, caller, { id: randomUUID() });
     const execution = routed?.control ?? plain;
@@ -256,19 +257,18 @@ async function registeredPage(homePlugins: HomePluginHost, key: string): Promise
 }
 
 /**
- * The project the path names, while it exists and reaches this plugin (the shared judgement: a shipped plugin while the project shows it,
- * a personal Home plugin outside the build unless the project hid it); otherwise why not. Asked when the route starts and before each
+ * The project the path names, while it exists and can reach this plugin through its membership. Checked when the route starts and before each
  * write. A dual-instance plugin the build does not ship (a Host's fixture) has no key in the project's list: like its project half,
  * which every project reaches, it is shown wherever the project exists.
  */
-async function routeProject(segment: string, pluginId: string, projectPlugins: HomeRouteProjectPlugins | undefined, dualInstance: boolean)
+async function routeProject(segment: string, pluginId: string, projectPlugins: HomeRouteProjectPlugins | undefined, suppliedDual: boolean)
   : Promise<(LocalHostProjectReference & { display_name?: string }) | ActionError> {
   let projectId: string;
   try { projectId = decodeURIComponent(segment); } catch { return new ActionError("actions.missing", readErrorWord("common.error.not-found")); }
   const found = projectPlugins ? await projectPlugins(projectId) : null;
   if (!found) return new ActionError("actions.missing", readErrorWord("common.error.not-found"));
   const shipped = shippedPartByManifestId(pluginId);
-  if (!found.reaches(pluginId) && (!dualInstance || (shipped && runsInHome(shipped)))) return new ActionError("actions.plugin_disabled", readErrorWord("common.error.plugin-disabled"));
+  if (!found.reaches(pluginId) && (!suppliedDual || (shipped && runsInHome(shipped)))) return new ActionError("actions.plugin_disabled", readErrorWord("common.error.plugin-disabled"));
   return { ...molisWorkHostProjectReference({ databasePath: found.database_path, projectId }), display_name: found.display_name };
 }
 

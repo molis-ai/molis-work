@@ -343,7 +343,7 @@ test("RAC-2516 RAC-2518 trusted Feed and Inbox drag handles reach the actual Goa
 });
 
 test("Goal Frames use outer tabs, preserve references, and isolate project state", { timeout: 90_000 }, async (t) => {
-  const browser = await openGoalBrowser(t, true);
+  const browser = await openGoalBrowser(t, "user", undefined, undefined, undefined, undefined, { projectPlugins: ["goals", "feed", "inbox"] });
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, store, projectId } = browser;
   assert.ok(projectId);
@@ -358,15 +358,12 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
       else setTimeout(read, 16);
     }; read();
   })`);
-  // T405-FULL-01: the running Host keeps ownership while this fixture enables its project plugins.
-  const owner = new LocalHostHttpClient({ origin, controlToken: browser.controlToken });
-  for (const plugin_id of ["feed", "inbox"] as const) {
-    await owner.post(`/api/settings/projects/${projectId}/plugins`, { plugin_id, expected_revision: await projectPluginRevision(owner, projectId) });
-  }
+  // Keep the three real owners in this project from its first open. The second project below starts blank.
+  const owner = browser.web;
   const now = new Date().toISOString();
   const feed = createLocalFeedApplication(store.db);
   const source = feed.sources.upsert({
-    project_id: DEMO_PROJECT_ID, source_id: "frame-rss", kind: "rss", definition_id: "rss", sync_kind: "manual",
+    project_id: projectId, source_id: "frame-rss", kind: "rss", definition_id: "rss", sync_kind: "manual",
     name: "产品观察", description: "Frame 验证", status: "active", enabled: true, item_count: 0, origin: "molis_work",
     config: {}, schedule: { mode: "manual" }, cursor: null, credential_ref: null, account_label: null,
     last_sync_at: null, last_outcome: null, last_error_code: null, imported_at: now, updated_at: now,
@@ -375,28 +372,28 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
     source, externalId: "frame-feed", title: "核对 Frame 的 Feed 条目",
     summary: "点进 Frame 后应变成引用卡片。", body: "只验证引用，不打开整页。", occurredAt: now, attention: false,
   });
-  const inbox = feed.ensureInboxEntryForFeedItem(DEMO_PROJECT_ID, feedItem.item.item_id, "manual");
+  const inbox = feed.ensureInboxEntryForFeedItem(projectId, feedItem.item.item_id, "manual");
   const archived = feed.ingestItem({ source, externalId: "frame-archived", title: "已忽略的 Frame 材料", summary: "隐藏筛选仍可引用", occurredAt: now, attention: false }).item;
-  feed.setDisposition(DEMO_PROJECT_ID, archived.item_id, "archived");
+  feed.setDisposition(projectId, archived.item_id, "archived");
   // FBR-05: the cold picker traverses beyond the first owner page, including archived metadata, without mounting its client.
   store.db.transaction(() => {
     for (let n = 0; n < 201; n++) feed.ingestItem({ source, externalId: `picker-page-${n}`, title: `Picker page ${n}`,
       summary: "Metadata only", occurredAt: new Date(Date.parse(now) + 1000 + n).toISOString(), attention: false });
   })();
   const historyItem = feed.ingestItem({ source, externalId: "frame-history", title: "已处理的 Frame 事项", summary: "保留历史引用", occurredAt: now, attention: false }).item;
-  const history = feed.ensureInboxEntryForFeedItem(DEMO_PROJECT_ID, historyItem.item_id, "manual").entry;
-  feed.setInboxEntryStatus(DEMO_PROJECT_ID, history.entry_id, "done");
-  new GoalProjectApplication(store).goalTreeSubmission.submitGoalTreeProposal({ project_id: DEMO_PROJECT_ID, actor_id: "runtime:frame-fixture:session", root_goal_id: "CORE", summary: "Frame 中保留待决定事项", items: [{ item_id: "frame-pending-child", kind: "goal", operation: "create", payload: { goal_id: "frame-pending-child", title: "待确认的 Frame 子目标", outcome: "保留原候选范围" }, source_refs: ["runtime"], reason: "用户确认后创建", confidence: 1 }], idempotency_key: "frame-pending-goal" });
-  const decision = new AttentionModule(store.db, { exists: (_project, kind, id) => kind === "goal_decision" && id === "CORE" }).query.findForSubject(DEMO_PROJECT_ID, "goal_decision", "CORE", "io.molis.work.goals")[0]!;
+  const history = feed.ensureInboxEntryForFeedItem(projectId, historyItem.item_id, "manual").entry;
+  feed.setInboxEntryStatus(projectId, history.entry_id, "done");
+  new GoalProjectApplication(store).goalTreeSubmission.submitGoalTreeProposal({ project_id: projectId, actor_id: "runtime:frame-fixture:session", root_goal_id: "CORE", summary: "Frame 中保留待决定事项", items: [{ item_id: "frame-pending-child", kind: "goal", operation: "create", payload: { goal_id: "frame-pending-child", title: "待确认的 Frame 子目标", outcome: "保留原候选范围" }, source_refs: ["runtime"], reason: "用户确认后创建", confidence: 1 }], idempotency_key: "frame-pending-goal" });
+  const decision = new AttentionModule(store.db, { exists: (_project, kind, id) => kind === "goal_decision" && id === "CORE" }).query.findForSubject(projectId, "goal_decision", "CORE", "io.molis.work.goals")[0]!;
   assert.ok(decision, "Goals creates its own pending decision before the cold picker opens");
   installProducers(store.db, { plugin_id: "example.writer", artifact_types: ["example.note"] });
   for (const version of [1, 2]) openProjectVersionStores(store).artifacts.commands.registerVersion({ ...pinnedArtifact("Frame artifact", undefined, String(version)),
-    project_id: DEMO_PROJECT_ID, actor_id: "frame-container", artifact_id: "frame-note", version,
+    project_id: projectId, actor_id: "frame-container", artifact_id: "frame-note", version,
     artifact_type_id: "example.note", schema_version: 1,
     producer: { plugin_id: "example.writer", plugin_version: "1.0.0", binding_signature: "fixture" },
     content: { kind: "inline", payload: { text: "Frame artifact" } }, metadata: {},
   });
-  const before = boardSnapshot(store, DEMO_PROJECT_ID);
+  const before = boardSnapshot(store, projectId);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
@@ -554,8 +551,8 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('[data-titlebar-tabs] .tab-item[data-item-id=CORE]')");
   await evaluate("document.querySelector('[data-titlebar-tabs] .tab-item[data-item-id=CORE]').click()");
   await waitFor("document.querySelectorAll('[data-frame-block]').length === 3");
-  assert.deepEqual(boardSnapshot(store, DEMO_PROJECT_ID).goals, before.goals);
-  assert.deepEqual(boardSnapshot(store, DEMO_PROJECT_ID).runs, before.runs);
+  assert.deepEqual(boardSnapshot(store, projectId).goals, before.goals);
+  assert.deepEqual(boardSnapshot(store, projectId).runs, before.runs);
 });
 
 // SYS-52: the Frame draws itself again whenever its stored state arrives from another window (the `storage` handler) or a block opens, closes

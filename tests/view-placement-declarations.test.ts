@@ -213,7 +213,7 @@ test("RAC-75 W5-06-PLACE-01 every bundled Manifest's placement declarations pass
 // ---- the rail -----------------------------------------------------------------------------------------------------------
 
 const PROJECT = "project-view-placement";
-const HEADINGS: Readonly<Record<(typeof UI_VIEW_GROUPS)[number], string>> = { advance: "推进", make: "写与做", personal: "个人", code: "编码" };
+const HEADINGS: Readonly<Record<(typeof UI_VIEW_GROUPS)[number], string>> = { advance: "推进", make: "写与做", personal: "计划与整理", code: "编码" };
 const BACKBONE = new Set(["goals", "inbox", "feed", "sessions"]);
 
 function projectView(enabled: readonly string[]): MolisWorkWebView {
@@ -249,16 +249,14 @@ const declaredGroups = new Map(BUILTIN_PLUGIN_CATALOG.flatMap(entry => (entry.ma
   .map(view => [entry.project_plugin_id, view.group ?? null] as const)));
 
 test("RAC-76 W5-06-PLACE-02 the rail lists each plugin under the group its view names, the rest under 更多", () => {
-  // 07-1 S4b (口径 9): 个人 is the person's own plugins by the one rule (isPersonalPlugin: the Host's personal and home marks), not
-  // a view naming it. Drawn without the Host's directory, nothing carries those marks: there is no 个人, and a view that names it
-  // is under 更多 with the plugins that name no group. Every other group is the one its view names, in the Host's order.
+  // Partition membership determines availability; the view declares its navigation group.
   const bare = railSections(renderMolisWorkWeb(projectView([...BUILTIN_PLUGIN_IDS])));
-  assert.deepEqual(bare.map(section => section.heading), [...UI_VIEW_GROUPS.filter(group => group !== "personal").map(group => HEADINGS[group]), "更多"], "the Host keeps the names and their order");
+  assert.deepEqual(bare.map(section => section.heading), [...UI_VIEW_GROUPS.map(group => HEADINGS[group]), "更多"], "the Host keeps the names and their order");
   for (const { heading, tiles } of bare) {
     for (const tile of tiles.filter(id => !BACKBONE.has(id))) {
       if (tile === "artifacts") { assert.equal(heading, "写与做", "RAC-2342 the platform Artifact entry retains its existing group"); continue; }
       const group = declaredGroups.get(tile);
-      assert.equal(heading, group && group !== "personal" ? HEADINGS[group] : "更多", `${tile} sits under the group its view names`);
+      assert.equal(heading, group ? HEADINGS[group] : "更多", `${tile} sits under the group its view names`);
     }
   }
   // The declarations keep the groups the shell used to list by name. Within a group the views go by their `order`, then by plugin
@@ -269,28 +267,13 @@ test("RAC-76 W5-06-PLACE-02 the rail lists each plugin under the group its view 
   assert.deepEqual(members(bare, "写与做"), ["pages", "form", "dataset", "ppt", "images", "artifacts"]);
   assert.equal(bare.some(section => section.heading === "研究"), false, "the 研究 group left with the old Alchemist (44B): no view names it");
   assert.deepEqual(members(bare, "编码"), ["coding"]);
-  for (const id of ["lingguang", "todo", "jelly", "cognia"]) assert.ok(members(bare, "更多").includes(id), `${id} names 个人 and is not marked the person's own: under 更多`);
+  for (const id of ["lingguang", "todo", "jelly", "cognia"]) assert.ok(members(bare, HEADINGS.personal).includes(id), `${id} declares the planning group in this project`);
   // Files, the former example, is retired (batch 06); Diff's view names no group either.
   assert.equal(declaredGroups.get("diff"), null, "Diff's rail view names no group");
   assert.ok(members(bare, "更多").includes("diff"), "a plugin whose view names no group is under 更多");
 
-  // With the Host's directory, the plugins it marks personal and home are 个人, in its declared place, whatever group their view names;
-  // one that names 个人 without the marks stays under 更多. Since batch 108 no built-in carries the marks: only a Home plugin outside the
-  // build does (until batch 109-3), so the Host's marking is drawn here on Jelly as it would be on such a plugin.
-  const own = new Set(["jelly"]);
-  const marked = pluginDirectoryFor().map(entry => own.has(entry.id) ? { ...entry, personal: true as const, home: true as const } : entry);
-  const hosted = railSections(renderMolisWorkWeb({ ...projectView([...BUILTIN_PLUGIN_IDS]), plugin_directory: marked } as MolisWorkWebView));
-  assert.deepEqual(hosted.map(section => section.heading), [...UI_VIEW_GROUPS.map(group => HEADINGS[group]), "更多"], "the Host keeps the names and their order");
-  for (const { heading, tiles } of hosted) {
-    for (const tile of tiles.filter(id => !BACKBONE.has(id))) {
-      if (tile === "artifacts") { assert.equal(heading, "写与做", "RAC-2342 the platform Artifact entry retains its existing group"); continue; }
-      const group = declaredGroups.get(tile);
-      assert.equal(heading, own.has(tile) ? "个人" : group && group !== "personal" ? HEADINGS[group] : "更多", `${tile} sits under 个人 when it is the person's own, else the group its view names`);
-    }
-  }
-  assert.deepEqual(members(hosted, "个人"), ["jelly"]);
-  assert.deepEqual(members(hosted, "写与做"), ["pages", "form", "dataset", "ppt", "images", "artifacts"]);
-  for (const id of ["lingguang", "todo", "cognia"]) assert.ok(members(hosted, "更多").includes(id), `${id} names 个人 without the Host's marks: under 更多`);
+  const hosted = railSections(renderMolisWorkWeb({ ...projectView([...BUILTIN_PLUGIN_IDS]), plugin_directory: pluginDirectoryFor() } as MolisWorkWebView));
+  assert.deepEqual(hosted, bare, "the installed directory keeps each view in the same manifest group and order");
 });
 
 // ---- settings icons -----------------------------------------------------------------------------------------------------

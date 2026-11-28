@@ -17,7 +17,7 @@ import { todoUiContribution } from "./ui.js";
  * due wakes only this partition's instance, which says what it reminds of (`onDue`).
  */
 export function createTodoPlugin(): PluginDefinition {
-  return { manifest: todoManifest, agent_prompts: todoPrompts, instructions: TODO_INSTRUCTIONS, methods: todoSkills, async start(context) {
+  return { manifest: todoManifest, partitionSync: syncBindings, agent_prompts: todoPrompts, instructions: TODO_INSTRUCTIONS, methods: todoSkills, async start(context) {
     for (const permission of todoManifest.permissions) if (permission.required) context.requireGrant(permission.permission);
     const database = context.services?.database;
     if (!database) throw new ActionError("actions.unredeemed", "宿主未提供待办库");

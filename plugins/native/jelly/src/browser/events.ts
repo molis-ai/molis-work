@@ -270,6 +270,10 @@ export function bindPageEvents(page: JellyPage): void {
   });
   view.addEventListener("input", (event) => {
     const target = event.target as HTMLInputElement | HTMLTextAreaElement;
+    if (target.closest("[data-jelly-form]")) {
+      readForm();
+      return;
+    }
     if (target.matches("[data-jelly-search]")) {
       state.query = target.value.trim();
       paint();

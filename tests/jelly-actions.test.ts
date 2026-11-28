@@ -33,7 +33,7 @@ test("UPP-15 Jelly is a partition plugin with sixteen typed actions and no model
   assert.equal(Object.keys(a).length, 16);
   assert.equal(jellyManifest.runtime, undefined, "no Home runtime: one instance per partition it is enabled in");
   assert.equal(jellyManifest.databases?.partition?.store_name, "jelly");
-  assert.deepEqual(jellyManifest.overview_projection, { kinds: ["event"] });
+  assert.deepEqual(jellyManifest.overview_projection, { kinds: ["event"], rolling_window: true });
   assert.equal(jellyManifest.routes, undefined); assert.equal(jellyManifest.settings_entries, undefined);
   assert.ok(!JELLY_ACTION_PERMISSIONS.includes("model:invoke"));
   const directory = await f.bound.discover();
@@ -193,6 +193,34 @@ test("notes keep plain text or Markdown, pin to a day, list by day or words, ref
   await assert.rejects(f.bound.invoke(a.saveNote, { id: note.id, expected_revision: 2, body: "删了还写" }), { code: "jelly.not_found" });
   await f.bound.invoke(a.restore, { rows: restore });
   assert.equal((await f.bound.invoke(a.note, { id: note.id })).note.body, "改过");
+});
+
+test("B2R-04 a calendar full of past one-offs still projects the next reminder", { timeout: 90_000 }, async t => {
+  const f = fixture(t);
+  const past = { start_date: "2000-01-01", end_date: "2000-01-01", time_zone: "UTC" };
+  for (let i = 0; i < 500; i++)
+    await f.bound.invoke(a.createItem, { item: { ...past, title: "Past " + i } });
+  assert.equal(f.events().length, 500);
+  const day = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+  const result = await f.bound.invoke(a.createItem, { item: { title: "Tomorrow", start_date: day, end_date: day,
+    start_time: 600, end_time: 660, time_zone: "UTC", reminder_minutes: 5 } });
+  assert.equal(f.events().length, 500);
+  assert.deepEqual(f.events().find(row => row.row_id === result.item.id), { row_id: result.item.id, title: "Tomorrow",
+    starts_at: day + "T10:00:00.000Z", ends_at: day + "T11:00:00.000Z", time_zone: "UTC", all_day: 0, remind_at: day + "T09:55:00.000Z" });
+});
+
+test("B2R-04 completing a projected one-off immediately registers the omitted 501st reminder", { timeout: 90_000 }, async t => {
+  const f = fixture(t), day = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+  const entry = { start_date: day, end_date: day, start_time: 600, end_time: 660, time_zone: "UTC", reminder_minutes: 5 };
+  const first = (await f.bound.invoke(a.createItem, { item: { ...entry, title: "First" } })).item;
+  for (let i = 1; i < 500; i++) await f.bound.invoke(a.createItem, { item: { ...entry, title: "Busy " + i } });
+  const last = (await f.bound.invoke(a.createItem, { item: { ...entry, start_time: 601, title: "Next reminder" } })).item;
+  assert.equal(f.events().length, 500);
+  assert.ok(!f.events().some(row => row.row_id === last.id));
+  await f.bound.invoke(a.updateItem, { id: first.id, expected_revision: first.revision, patch: { completed: true } });
+  assert.equal(f.events().length, 500);
+  assert.deepEqual(f.events().find(row => row.row_id === last.id), { row_id: last.id, title: "Next reminder", starts_at: day + "T10:01:00.000Z",
+    ends_at: day + "T11:00:00.000Z", time_zone: "UTC", all_day: 0, remind_at: day + "T09:56:00.000Z" });
 });
 
 test("deleting a category matches exact category_id without LIKE wildcard or exception notes false positives", async t => {

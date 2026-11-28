@@ -92,6 +92,7 @@ type PluginUi = ReturnType<typeof createPluginUiClient>;
  */
 export async function openHostSession(options: PluginHostExecutorOptions, definition: PluginDefinition, context: PluginStartContext,
   stoppedCalls: StoppedServiceCalls): Promise<HostSession> {
+  const settingsLifetime = new AbortController();
   let active = true, stopped = false;
   const ui = createPluginUiClient(options.ui, context, definition.manifest,
     { invalidate: () => options.invalidateView?.(context.plugin_id), active: () => active, draw: draw => runWithPluginText(context, draw) });
@@ -105,7 +106,9 @@ export async function openHostSession(options: PluginHostExecutorOptions, defini
   let terminal: ReturnType<typeof pluginTerminalFor>;
   let withdrawText: (() => void) | undefined;
   const dispose = async () => {
-    active = false; stopped = true;
+    active = false;
+    stopped = true;
+    settingsLifetime.abort();
     let sqlClosed: Promise<void> | undefined;
     try { terminal?.dispose(); if (options.home) disposeWorkTerminalsForOwner({ home: options.home.directory, install_id: context.install_id, project_id: options.project_id }); } finally {
       try {
@@ -148,7 +151,7 @@ export async function openHostSession(options: PluginHostExecutorOptions, defini
     // A project instance has no owner files of its own: only a sandboxed package has them here, and the sandbox is refused the terminal at start.
     terminal = options.home ? pluginTerminalFor({ home: options.home.directory, manifest, context, ownerFiles: undefined, assertActive }) : undefined;
     const imageGeneration = partitionImageGenerationFor(options, definition, context, assertActive);
-    const hosted = hostedContext(options, manifest, context, { pluginCaller, artifactService, ui, assertActive, isActive: () => active,
+    const hosted = hostedContext(options, manifest, context, { pluginCaller, artifactService, ui, assertActive, settingsLifetime: settingsLifetime.signal, isActive: () => active,
       scheduler: scheduler?.client, agents: agents?.client, sync: combinePluginSyncLibraries(manifest, library?.sync, projectLibrary?.sync),
       database: library?.client, artifactRows: library?.artifactRows, ownerFiles: ownerFiles?.client, project_database: projectLibrary?.client, project_statements: definition.execution === "sandbox" ? projectLibrary?.statements : undefined, model: pluginModelFor(options.home, definition, context, assertActive),
       imageGeneration,
@@ -165,6 +168,7 @@ export async function openHostSession(options: PluginHostExecutorOptions, defini
     withdrawPages = options.home ? pluginPagesFor(options.home.directory).connect({ manifest, install_id: context.install_id, instance: context, project_id: options.project_id, actor_id: options.actor_id,
       ...(imageGeneration && manifest.image_generation ? { image_generation: manifest.image_generation } : {}),
       release: record ? installedPageRelease(record) : undefined, componentForm: submit?.form,
+      image_generation: hosted.services?.imageGeneration ? manifest.image_generation : undefined,
       invoke: pluginPageActions(manifest, context, { client: options.actions.client, actions: hosted.services?.actions, caller: pluginCaller, provider: providerId, submit }),
       assertCurrent: permission => { assertActive(); if (permission) context.requireGrant(permission); } }) : undefined;
     if (options.home) {
@@ -187,7 +191,10 @@ export async function openHostSession(options: PluginHostExecutorOptions, defini
       hasProjectWork: projectId => !!background?.hasProjectWork(projectId) || !!terminal?.live()
         || (!!options.home && hasLiveWorkTerminals({ home: options.home.directory, install_id: context.install_id, project_id: projectId })),
       activeWorkCount: () => background?.activeWorkCount() ?? 0,
-      revoke: () => { active = false; withdrawText?.(); try { terminal?.dispose(); if (options.home) disposeWorkTerminalsForOwner({ home: options.home.directory, install_id: context.install_id, project_id: options.project_id }); } finally { withdrawPages?.(); directory?.dispose(); scheduler?.dispose(); agents?.dispose(); background?.close(); withdrawCaller?.(); } }, dispose };
+      revoke: () => {
+        active = false;
+        settingsLifetime.abort();
+        withdrawText?.(); try { terminal?.dispose(); if (options.home) disposeWorkTerminalsForOwner({ home: options.home.directory, install_id: context.install_id, project_id: options.project_id }); } finally { withdrawPages?.(); directory?.dispose(); scheduler?.dispose(); agents?.dispose(); background?.close(); withdrawCaller?.(); } }, dispose };
   } catch (error) {
     await dispose();
     throw error;
@@ -308,6 +315,7 @@ function hostPluginCaller(options: PluginHostExecutorOptions, definition: Plugin
 }
 
 interface SessionParts {
+  readonly settingsLifetime: AbortSignal;
   readonly pluginCaller: HostPluginCaller;
   readonly artifactService: ArtifactService;
   readonly ui: PluginUi;
@@ -417,7 +425,7 @@ function hostedContext(options: PluginHostExecutorOptions, manifest: PluginManif
       ...(parts.directory === undefined ? {} : { directory: parts.directory }),
       ...(parts.terminal === undefined ? {} : { terminal: parts.terminal }),
       ...(parts.projects === undefined ? {} : { projects: parts.projects }),
-      ...partitionServices(options, manifest, context, parts.assertActive),
+      ...partitionServices(options, manifest, context, parts.assertActive, parts.settingsLifetime),
       ...coordinationServices(options, manifest, context, parts),
     }) });
 }
@@ -432,8 +440,8 @@ function partitionImageGenerationFor(options: PluginHostExecutorOptions, definit
 }
 
 /** `services.personSettings` when the Manifest declares keys, and `services.due` for a per-partition instance (batch 108). */
-function partitionServices(options: PluginHostExecutorOptions, manifest: PluginManifest, context: PluginStartContext, assertActive: () => void) {
-  const personSettings = pluginPersonSettingsFor(options.home?.directory, manifest, context, assertActive);
+function partitionServices(options: PluginHostExecutorOptions, manifest: PluginManifest, context: PluginStartContext, assertActive: () => void, lifetime: AbortSignal) {
+  const personSettings = pluginPersonSettingsFor(options.home?.directory, manifest, context, assertActive, lifetime);
   const due = pluginDueFor(options.home?.directory, options.partitionScope, manifest, context, assertActive);
   return { ...(personSettings ? { personSettings } : {}), ...(due ? { due } : {}) };
 }

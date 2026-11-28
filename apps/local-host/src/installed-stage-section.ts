@@ -25,7 +25,7 @@ export function installedRepairStage({ record, manifest }: { record: PluginInsta
   const { install_id, installation_generation, version, manifest_digest } = record;
   const words = manifest ? projectDirectoryWords(manifest) : { name: pluginId, ui: { views: [{ view_id: "recovery", slot: "stage" as const, title: pluginId }] } };
   return {
-    directory: { id: surface, plugin_id: pluginId, chosen: false, ...(scope === "home" ? { home: true, personal: true } : {}), ...words },
+    directory: { id: surface, plugin_id: pluginId, chosen: false, ...(scope === "home" ? { home: true } : {}), ...words },
     unavailable: {
       scope, surface, label: words.name, reason: uiText.text("workbench.unavailable-plugin-stage.package-damaged"),
       packageRepair: { plugin_id: pluginId, target: { install_id, installation_generation, version, manifest_digest },

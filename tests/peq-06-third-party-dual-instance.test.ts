@@ -14,6 +14,7 @@ import { DatabaseSync } from "node:sqlite";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import { MemoryPluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
 import { readRecords } from "@molis-ai/molis-work-service-observation";
+import { addProjectPlugin, projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { partitionRoot } from "@molis-ai/molis-work-module-projects";
 import { attachConversationFile, holdsConversationAttachment, PluginInstallService, pluginInstallActions, readSandboxPackage, sandboxImageNamespace, SandboxPackageStore, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { newPublisher, signedPackage, type PackageFiles } from "./fixtures/sandbox-package.js";
@@ -125,6 +126,7 @@ function dualPackage(
       ...["project.list", "common.sample"].map(operationId => ({ id: operationId.split(".")[0]!, pageId: "home", regionId: "main",
         intent: "collection" as const, purpose: "Read notes", props: { idField: "id", titleField: "title" }, read: { operationId, input: {} } })),
       { id: "title", pageId: "home", regionId: "main", intent: "heading", purpose: "说明双实例插件", props: { title: "双实例笔记" } },
+      { id: "notes", pageId: "home", regionId: "main", intent: "collection", purpose: "浏览笔记", props: { idField: "id", titleField: "text" }, read: { operationId: "home.list", input: {} } },
     ];
     const nodes = parts.map(part => ({ ...part, kind: pluginComponentChoices(part, contract)[0]!.kind }));
     files[SANDBOX_PACKAGE_FILES.contract] = JSON.stringify(contract);
@@ -172,6 +174,23 @@ test("PEQ-06 S-48 S-80 S-87 a signed third-party dual-instance package shares it
   assert.deepEqual(await operate(h.homeClient(), homeCaller, homeViews, "home.list", {}), [{ id: "1", text: "shared-from-home" }]);
   assert.equal(await operate(clientA, projectACaller, projectAViews, "project.add", { title: "task-in-A" }), true);
   assert.deepEqual(await operate(clientA, projectACaller, projectAViews, "project.list", {}), [{ id: "1", title: "task-in-A" }]);
+
+  // B2R-08 S-31: the signed Home component in a project uses that project's explicit membership.
+  const prefix = `/projects/${projectB.project_id}`;
+  const readHomeComponent = () => served.web.post(`${prefix}/api/plugins/${DUAL_PLUGIN_ID}/call`, { componentId: "notes", binding: "read", payload: {} });
+  const expectMembershipControl = async (state: "available" | "added") => {
+    const response = await fetch(`${served.origin}${prefix}/`);
+    assert.equal(response.status, 200);
+    assert.ok((await response.text()).includes(`data-plugin-toggle="${DUAL_PLUGIN_ID}" data-state="${state}"`), state);
+  };
+  await expectMembershipControl("available");
+  await assert.rejects(readHomeComponent(), { status: 403, code: "actions.plugin_disabled" });
+  await addProjectPlugin(served.web, projectB.project_id, DUAL_PLUGIN_ID);
+  await expectMembershipControl("added");
+  assert.deepEqual(await readHomeComponent(), { value: [{ id: "1", text: "shared-from-home" }] });
+  await served.web.delete(`/api/settings/projects/${projectB.project_id}/plugins`, { plugin_id: DUAL_PLUGIN_ID, expected_revision: await projectPluginRevision(served.web, projectB.project_id) });
+  await expectMembershipControl("available");
+  await assert.rejects(readHomeComponent(), { status: 403, code: "actions.plugin_disabled" });
 
   // PSD-03: the signed page and its actual call route agree about the selected instance.
   for (const prefix of ["", "/projects/" + projectA.project_id]) {

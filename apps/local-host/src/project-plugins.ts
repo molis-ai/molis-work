@@ -14,7 +14,7 @@ import type { PluginDependencyCheck } from "./plugin-actions-client.js";
 import { consentRevision } from "./consent-revision.js";
 import { bindDeclaredDefaults } from "./plugin-default-bindings.js";
 import { registeredNativePlugin } from "./native-plugin-release-artifact.js";
-import { fixtureAdmission, installedFixturesFor, pluginHomeFor, projectFixtureEntries } from "./home-side.js";
+import { fixtureAdmission, fixtureDeclarationsFor, installedFixturesFor, pluginHomeFor, projectFixtureEntries } from "./home-side.js";
 import { projectScopeEntries } from "./plugin-scope-entries.js";
 import { installationSwitchedOff, projectPluginEnablement, projectPluginEnablementRefresh, type ProjectPluginRefreshResult } from "./project-plugin-enablement.js";
 import { projectPluginDatabaseRefusal, withoutRefusedPlugins } from "./project-plugin-databases.js";
@@ -22,7 +22,7 @@ import { reviewSettlementForwarder, type ObserveReviewSettlements } from "./revi
 import { continuationForwarder, type ObserveContinuations } from "./agent-continuation-starts.js";
 import { projectRuntimeDeclarations } from "./plugin-registry.js";
 import { assembledPerPartition, type PartitionPluginScope } from "./partition-plugin-assembly.js";
-import { existingPartitionPluginHost, partitionPluginHostFor, partitionPluginRemoved, releasePartitionPlugins, type PartitionPluginInstance } from "./partition-plugin-host.js";
+import { existingPartitionPluginHost, partitionPluginHostFor, partitionPluginMembershipChanged, releasePartitionPlugins, type PartitionPluginInstance } from "./partition-plugin-host.js";
 import type { PluginRuntimeDatabase } from "@molis-ai/molis-work-plugin-runtime";
 
 export interface ProjectPluginPorts {
@@ -231,6 +231,16 @@ export async function ensureProjectPlugins(ports: ProjectPluginPorts): Promise<P
   return project.ready;
 }
 
+/** Partition declarations used before the first project opens, so a due entry can resolve its own plugin on cold start. */
+export function declarePartitionPlugins(home: string): void {
+  const fixtures = fixtureDeclarationsFor(home, "project");
+  const scoped = projectScopeEntries([...projectPluginEntries(), ...fixtures], home);
+  // Scope checks see both halves. Execution checks for fixtures belong to their project startup.
+  const sandboxFixtures = new Set(fixtures.filter(entry => entry.definition.execution === "sandbox").map(entry => entry.definition));
+  partitionPluginHostFor(home, startPartitionPluginInstance).declare(scoped.filter(({ definition }) =>
+    assembledPerPartition(definition.manifest) && !sandboxFixtures.has(definition)));
+}
+
 async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginState> {
   const record: ProjectPluginState = { platform: null };
   try {
@@ -287,7 +297,7 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
         return { ...entry, enabled: (enabled?.get(pluginId) ?? true) && !installationSwitchedOff(platform, pluginId) };
       }));
     const refreshProject = projectPluginEnablementRefresh(platform, ports.homeDirectory, ports.projectId,
-      ports.homeDirectory ? pluginId => partitionPluginRemoved(ports.homeDirectory!, pluginId, ports.projectId) : undefined);
+      ports.homeDirectory ? pluginId => partitionPluginMembershipChanged(ports.homeDirectory!, pluginId, ports.projectId, false) : undefined);
     record.refreshEnablement = refreshProject;
     record.reconciledAt = consentRevision();
     bindDeclaredDefaults(platform, ports.projectId, ports.actorId);

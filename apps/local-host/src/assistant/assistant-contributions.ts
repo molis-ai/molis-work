@@ -25,7 +25,7 @@ const examples = (views: readonly ActionView[]) => joined(views.slice(0, 3).map(
 
 export function assistantContributions(views: readonly ActionView[]): AssistantContribution[] {
   const referenceGaps = new Map<string, AssistantContribution["gaps"]>();
-  for (const problem of boundReferenceKinds(projectReferenceKinds(views, undefined, new Set())).problems) {
+  for (const problem of boundReferenceKinds(projectReferenceKinds(views, undefined)).problems) {
     referenceGaps.set(problem.plugin_id, [...referenceGaps.get(problem.plugin_id) ?? [], { area: "context", text: REFERENCE_GAPS[problem.reason](problem) }]);
   }
   const agents = views.filter(view => view.action.audiences.includes("agent"));

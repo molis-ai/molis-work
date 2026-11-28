@@ -26,6 +26,7 @@ import { dispatchNativePluginJsonHttp, type NativePluginJsonResult, writeNativeP
 import { readText, pageLocale, type WebLocale } from "../web-locale.js";
 import { modelRoundLocale } from "../reply-language.js";
 import { lastUsedLocale, rememberUiLocale, runBackgroundWorkIn } from "../ui-locale-memory.js";
+import { existingPartitionPluginHost } from "../partition-plugin-host.js";
 import { bindLocalWebActions, localWebActionContext } from "../local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS, MATERIALS_OWNER_PERMISSIONS } from "../local-owner-permissions.js";
 import { materialsActions } from "@molis-ai/molis-work-contracts/platform/project-materials";
@@ -143,7 +144,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
   if (existing && existing.home === ports.homeDirectory) return existing;
   const store = ports.localHost.assistantStore?.();
   if (!store) throw assistantErrors.executor_unavailable("宿主未装配助理工作存储");
-  const { personContext, personClient, personBound } = assistantPersonActions(ports.localHost, (reference, decision) =>
+  const { personContext, personClient, personBound, freshPersonClient } = assistantPersonActions(ports.localHost, (reference, decision) =>
     localWebActionContext(ports.localHost, reference, LOCAL_OWNER_PERMISSIONS, decision?.signal, decision));
   const definitions = () => agentDefinitionsFor(ports.homeDirectory, builtinRegistrations);
   // The shared Skill catalog, read as the person for an Assistant round: the Host's own entry freezes what the person named (§2.3).
@@ -153,6 +154,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
   };
   let threads: AssistantThreads;
   const servicePorts: AssistantServicePorts = {
+    reminderSourceName: (pluginId, installId) => existingPartitionPluginHost(ports.homeDirectory)?.installationName(pluginId, installId),
     lastLocale: () => lastUsedLocale(ports.homeDirectory), attachments: assistantAttachments(ports.homeDirectory),
     cancelSetups: sessionId => cancelConnectorAuthorizationsForSession(ports.homeDirectory, sessionId, WEB_ACTOR),
     retainSetups: (sessionId, control) => retainConnectorSetupsForSession(ports.homeDirectory, sessionId, WEB_ACTOR, (...args) => ports.localHost.connectorMcp!.remember(...args), control),
@@ -192,6 +194,9 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     characters: project => asPersonWithRoles(ports, project, where => assistantRoleCatalog(personClient(where))),
     resolveRole: project => asPersonWithRoles(ports, project, where => assistantResolveRole(personClient(where))),
     projectTitle: ports.projectTitle,
+    overviewReadable: (actor_id, workId, candidates) => ports.localHost.overviewReadable({
+      actor_id, audit_actor_id: "assistant:" + workId, actor_kind: "runtime", audience: "agent", project_id: null, permissions: [],
+    }, candidates),
     // Role material from the Home's registry of Agent definitions; Skills from the shared catalog, read as the person.
     methods: { roles: () => definitions().signedRoles(),
       readSigned: (install, ref) => definitions().signedMaterial(install, ref, modelRoundLocale(ports.homeDirectory)),
@@ -239,7 +244,9 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     client: project => ports.localHost.actionClient(project), caller: project => localWebActionContext(ports.localHost, project, LOCAL_OWNER_PERMISSIONS),
     alive: () => ports.localHost.lifecycle() === "running",
   });
-  const entry = { home: ports.homeDirectory, service, store, threads, surroundings, reports: watchTaskReports(ports, personTaskTable(ports.projectReference, personClient), service.reports) };
+  // A plugin can join after the conversation started. Read the task providers with the person's current grants on each table read.
+  const taskTable = personTaskTable(ports.projectReference, freshPersonClient);
+  const entry = { home: ports.homeDirectory, service, store, threads, surroundings, reports: watchTaskReports(ports, taskTable, service.reports) };
   services.set(ports.localHost, entry);
   // The runtime looks at the background jobs these works follow with the work's own authority, from its first look on.
   registerWorkAuthority(ports.localHost, at => service.jobs.authority(at));
@@ -247,7 +254,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
   projectDeletedHooksFor(ports.homeDirectory).register({ id: "assistant", label: { key: "workbench.project-deletion.assistant" }, alive: () => ports.localHost.lifecycle() === "running",
     clear: async projectId => { await purgeAssistantProject(ports.homeDirectory, projectId, { stop: id => service.closeForProjectDeletion(id) }); } });
   // The person's attention rules are the Assistant's own actions: found like any capability, changed only on confirmation.
-  const threadActions = assistantThreadRegistration(threads), relatedActions = assistantRelatedRegistration(() => relatedSource(service)), lineActions = assistantLineRegistration(() => assistantLineSource(store, personTaskTable(ports.projectReference, personClient), service, WEB_ACTOR,
+  const threadActions = assistantThreadRegistration(threads), relatedActions = assistantRelatedRegistration(() => relatedSource(service)), lineActions = assistantLineRegistration(() => assistantLineSource(store, taskTable, service, WEB_ACTOR,
     review => assertHumanReview(computerHolderFor(ports.localHost)?.(), review.run?.session_id), assistantLineAcceptance(ports)));
   try { registerAssistantRuleActions(ports.localHost.actionRegistry(), () => service, ports.homeDirectory,
     { definitions: [...threadActions.definitions, ...relatedActions.definitions, ...lineActions.definitions], handlers: [...threadActions.handlers, ...relatedActions.handlers, ...lineActions.handlers] }); }

@@ -9,7 +9,7 @@
 | 工作树 Git 元数据中的本地快查 | CI 不读，不入库；没有时默认对照 origin/main | `node scripts/check-health-gates.mjs --update --base origin/main` |
 | `page-asset-budgets.json` | 路由与首屏总载荷预算（工作台、到达页、设置页、插件 iframe 运行时与 `/desktop/pty-client.js`、插件包、字体及四个首屏路由冷/热上限），以及单资源/单插件上限；相对 merge-base 只许收紧（替代已退役的逐字节 `page-asset-allowances/*.json`） | 人，过评审 |
 | `test-typecheck-baseline.json` | `tests/` 的逐文件 TypeScript 诊断上限（`scripts/gates/test-typecheck.mjs`，`pnpm typecheck:tests:check`）；新测试文件从 0 起，已有文件只许减少 | `node scripts/gates/test-typecheck.mjs --update --base origin/main` |
-| `call-budget.json` | 宿主各请求场景的调用次数上限（`tests/call-budget.test.ts` 实测不许超过；门禁 `scripts/gates/call-budget.mjs` 对照 merge-base 只许变小，口径见 `specs/batch-06-call-cost/spec.md`；`personalOverview.ownerResolutions` 是每个分区、每个总览插件的上限，测试按分区数 × 总览插件数放大，见 `specs/unified-partition-plugins/spec.md` G4） | 变小随改动写；变大只经下一行的许可 |
+| `call-budget.json` | 宿主各请求场景的调用次数上限（`tests/call-budget.test.ts` 实测不许超过；门禁 `scripts/gates/call-budget.mjs` 对照 merge-base 只许变小，口径见 `specs/batch-06-call-cost/spec.md`；`personalOverview.ownerResolutions` 是每个分区、每个总览插件的上限，测试按分区数 × 总览插件数放大；干净缓存开库为零，多份真实待办库全脏时前台开库为零，后台逐库重建，见 `specs/unified-partition-plugins/spec.md` G4） | 变小随改动写；变大只经下一行的许可 |
 | `call-budget-allowances/*.json` | 每项任务必要增长的独立一次性许可：`reason`、`review`、`userApproval`、`counters`（场景 → 计数 → 允许到的值） | 只认 merge-base 没有的文件；只能点名真变大的计数，预算必须正好等于许可值；已采用的不能改、不能删、不再放行 |
 | `giant-exceptions/**/*.json` | 按源码文件分开的巨大单元登记；重复 key 拒绝（第 100 批 `100-2` 放宽至防巨型对象阈值 `2500/1200/60/600` 并接入 `packedStatements` AST 门禁后，当前 0 条例外） | 保留 kind、reason、精确 size，仍须评审 |
 | `limits.json` | 巨大单元（`giantPolicy: "anti-god-object"`，`2500/1200/60/600`）与 vendored SDK 的阈值，以及 `docs/` 下一个 `.json` 最多多少字节（`docsJsonBytes`，依据见 `scripts/gates/README.md`「文档里的原始数据」），只许收紧 | 人，过评审 |

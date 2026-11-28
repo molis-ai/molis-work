@@ -160,7 +160,7 @@ writeFileSync(mainline, compactClientScript(readFileSync(mainline, "utf8")));
 
 const source = workbenchClientSource();
 if (!source.startsWith(UI_REQUEST_CLIENT_SCRIPT)) throw new Error("Workbench request bootstrap must be first");
-const home = homeResult.outputFiles[0].text;
+const home = compactClientScript(homeResult.outputFiles[0].text);
 const body = compactClientScript(source.slice(UI_REQUEST_CLIENT_SCRIPT.length));
 writeFileSync(
   new URL("../dist/workbench-client.js", import.meta.url),

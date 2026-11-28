@@ -7,7 +7,7 @@ import type { GeneratedImage, ImageConnection, ImageConnectionInput, ImageGenera
 import { imagesErrors } from "./error.js";
 import { normalizeImageBaseUrl } from "./providers.js";
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { exceedsCharacters } from "@molis-ai/molis-work-plugin-sdk/whole-units";
+import { cutCharacters, exceedsCharacters } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { ImagesStore, INTERRUPTED } from "./store.js";
 import type { ImagesConnectionChanges, ImagesConnections, StoredConnection } from "./connections.js";
 import { runImageJob } from "./service-job.js";
@@ -23,7 +23,11 @@ export type ImagesControl = Omit<PluginExecutionControl, "project_id">;
 export const IMAGES_JOB_DEADLINE_MS = 30 * 60_000;
 const dueKey = (id: string) => `job:${id}`;
 
+// A service and its account slot belong to one Home installation. Only simultaneous edits share this guard.
+const changingConnections = new Set<string>();
+
 export interface ImagesServiceOptions {
+  installationGeneration: string;
   /** The partition this instance serves: its library holds only that partition's jobs. */
   projectId: string;
   sync?:PluginSyncContext;
@@ -42,7 +46,6 @@ export class ImagesService {
   private readonly store: ImagesStore;
   private readonly active = new Map<string, AbortController>();
   private readonly interruptions = new Map<string, { projectId: string; at: string }>();
-  private readonly changingConnections = new Set<string>();
   private closed = false;
 
   constructor(private readonly options: ImagesServiceOptions) {
@@ -148,9 +151,10 @@ export class ImagesService {
   }
 
   private async changeConnection<T>(id: string, change: () => Promise<T>): Promise<T> {
-    if (this.changingConnections.has(id)) throw imagesErrors.connection_changed("另一项服务更改正在进行，请稍后重试。");
-    this.changingConnections.add(id);
-    try { return await change(); } finally { this.changingConnections.delete(id); }
+    const key = JSON.stringify([this.options.installationGeneration, id]);
+    if (changingConnections.has(key)) throw imagesErrors.connection_changed("另一项服务更改正在进行，请稍后重试。");
+    changingConnections.add(key);
+    try { return await change(); } finally { changingConnections.delete(key); }
   }
 
   private executionState(job: ImageJob): ImageJob {
@@ -210,7 +214,7 @@ export class ImagesService {
     const admitted = new Promise<boolean>(resolve => { admit = resolve; });
     const current = () => {
       controller.signal.throwIfAborted(); this.assertOpen();
-      const latest = this.options.connections.remembered().find(item => item.id === connection.id);
+      const latest = this.options.connections.tryList().find(item => item.id === connection.id);
       if (!latest || latest.change || latest.base_url !== connection.base_url || latest.api_format !== connection.api_format || latest.model !== connection.model) {
         throw imagesErrors.connection_changed("图像连接已改变，本次结果未保存。");
       }
@@ -234,7 +238,7 @@ export class ImagesService {
       admit(!duplicate);
       if (duplicate) { execution.cancel(); return this.executionState(duplicate); }
       this.options.due?.register({ entry_key: dueKey(job.id), due_at: new Date(Date.parse(job.created_at) + IMAGES_JOB_DEADLINE_MS).toISOString() });
-      void execution.result.finally(() => { if (!this.closed) try { this.options.due?.cancel(dueKey(job.id)); } catch { /* The deadline settles it instead. */ } }).catch(() => {});
+      void execution.result.finally(() => { if (recorded && !this.closed) try { this.options.due?.cancel(dueKey(job.id)); } catch { /* The deadline settles it instead. */ } }).catch(() => {});
       return job;
     } catch (error) {
       admit(false); controller.abort(); this.active.delete(job.id); throw error;
@@ -265,13 +269,13 @@ export class ImagesService {
   async due(entryKey: string, control: ImagesControl): Promise<PluginDueOutcome> {
     if (!entryKey.startsWith("job:")) return {};
     const id = entryKey.slice("job:".length), row = this.store.findJob(id);
-    if (!row || row.status !== "running") return {};
+    if (!row || (row.status !== "running" && row.status !== "interrupted")) return {};
     if (this.active.has(id)) {
       this.options.due?.register({ entry_key: entryKey, due_at: new Date(Date.now() + IMAGES_JOB_DEADLINE_MS).toISOString() });
       return {};
     }
-    await this.write(control, store => store.finish(id, "interrupted", [], INTERRUPTED));
-    return { reminder: { title: uiText.text("images.background.interrupted", { prompt: [...row.prompt].slice(0, 120).join("") }), open: { surface: "images", id } } };
+    if (row.status === "running") await this.write(control, store => store.finish(id, "interrupted", [], INTERRUPTED));
+    return { reminder: { title: cutCharacters(row.prompt, 120), interrupted: true, open: { surface: "images", id } } };
   }
 
   close(): void { this.closed = true; for (const controller of this.active.values()) controller.abort(); this.active.clear(); }

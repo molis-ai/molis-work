@@ -14,7 +14,7 @@ import { checkWorkspaceFile } from "./workspace-files.js";
 import { changedProjectPluginEnablement, type ProjectPluginRefreshResult } from "./project-plugin-enablement.js";
 import { builtinPluginByManifestId, builtinPluginByProjectKey } from "./plugin-registry.js";
 import { disposeWorkTerminalsForHomePluginInProject } from "./work-terminal-service.js";
-import { partitionPluginRemoved } from "./partition-plugin-host.js";
+import { partitionPluginMembershipChanged } from "./partition-plugin-host.js";
 import { hostErrors } from "./host-errors.js";
 import { hostLog } from "./host-log.js";
 
@@ -127,17 +127,14 @@ export function projectPluginMembershipActionProvider(catalogOwner: ProjectCatal
       }, caller.beforeEffect));
       const home = catalogOwner()?.home;
       if (home) {
-        const beforeHidden = new Set(before.hidden);
-        const savedPlugins = new Set(saved.plugins);
-        const disabledKeys = new Set<string>([
-          ...saved.hidden.filter(id => !beforeHidden.has(id)),
-          ...before.plugins.filter(id => !savedPlugins.has(id)),
-        ]);
-        for (const key of disabledKeys) {
+        const previous = new Set(before.plugins), current = new Set(saved.plugins);
+        for (const key of new Set([...previous, ...current])) {
+          const enabled = current.has(key);
+          if (previous.has(key) === enabled) continue;
           const entry = builtinPluginByProjectKey(key) ?? builtinPluginByManifestId(key);
-          disposeWorkTerminalsForHomePluginInProject(home, entry?.manifest.plugin_id ?? key, projectId);
-          // Per-partition and overview-declaring plugins: their due entries and overview rows (including main-DB plugin_overview_rows) go now, even if the partition is closed.
-          partitionPluginRemoved(home, entry?.manifest.plugin_id ?? key, projectId);
+          const pluginId = entry?.manifest.plugin_id ?? key;
+          if (!enabled) disposeWorkTerminalsForHomePluginInProject(home, pluginId, projectId);
+          partitionPluginMembershipChanged(home, pluginId, projectId, enabled);
         }
       }
       const changed = changedProjectPluginEnablement(before, saved);

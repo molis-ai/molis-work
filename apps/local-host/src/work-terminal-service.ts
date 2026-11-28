@@ -18,8 +18,8 @@ import { pinnedProjectGuidanceRead } from "./project-guidance-actions.js";
 
 const workTerminalErrors = defineErrorCodes("host", { work_terminal_read_only: "conflict" });
 
-/** Live platform work-terminal panels, keyed by `(resolvedHome, install_id, project_id)` so plugin stop/disable/uninstall ends them. */
-const livePanels = new Map<string, Map<string, MolisWorkPtyHost>>();
+/** The key identifies the providing instance. A Home instance can open panels in several projects. */
+const livePanels = new Map<string, Map<string, { project_id: string; host: MolisWorkPtyHost }>>();
 interface ActiveWorkTerminalOwner {
   readonly installation_generation: string;
   readonly plugin_id: string;
@@ -34,7 +34,7 @@ const ownerBucket = (home: string, installId: string, projectId: string | null) 
 /** Whether a work terminal of this installation in this project is still running: closing the project would end it. */
 export function hasLiveWorkTerminals(input: { home: string; install_id: string; project_id: string }): boolean {
   const bucket = livePanels.get(ownerBucket(input.home, input.install_id, input.project_id));
-  return !!bucket && [...bucket].some(([panelId, host]) => host.alive(panelId));
+  return !!bucket && [...bucket].some(([panelId, panel]) => panel.host.alive(panelId));
 }
 
 /** Register a running plugin installation's synchronous active fence for platform work-terminal TOCTOU checks. */
@@ -57,81 +57,65 @@ export function registerWorkTerminalOwner(input: {
   });
 }
 
-/** Kill live platform work terminals for a Home-scoped plugin hidden/removed from one project, leaving other projects running. */
+/** Kill live platform work terminals for a Home-scoped plugin removed from one project, leaving other projects running. */
 export function disposeWorkTerminalsForHomePluginInProject(homeDirectory: string, pluginId: string, projectId: string): void {
   const home = resolve(homeDirectory);
   for (const [key, entry] of activeOwners) {
     if (entry.plugin_id !== pluginId) continue;
-    const [entryHome, installId, entryProject] = JSON.parse(key) as [string, string, string | null];
+    const [entryHome, , entryProject] = JSON.parse(key) as [string, string, string | null];
     if (entryHome !== home || entryProject !== null) continue;
-    const panelKey = ownerBucket(home, installId, projectId);
-    const bucket = livePanels.get(panelKey);
-    if (!bucket) continue;
-    livePanels.delete(panelKey);
-    for (const [panelId, host] of bucket) host.kill(panelId);
+    endPanels(key, projectId);
   }
 }
 
-/** Synchronously kill live platform work terminals and revoke active fences for all installations signed by a revoked publisher (S-87). */
+/** Synchronously end panels and revoke every running instance signed by this publisher (S-87). */
 export function disposeWorkTerminalsForPublisher(homeDirectory: string, publisherKeyId: string): void {
   const home = resolve(homeDirectory);
-  const revokedInstalls = new Set<string>();
-  for (const [key, entry] of [...activeOwners.entries()]) {
-    const [entryHome, installId] = JSON.parse(key) as [string, string, string | null];
-    if (entryHome !== home || entry.publisher_key_id !== publisherKeyId) continue;
-    revokedInstalls.add(installId);
+  for (const [key, entry] of activeOwners) {
+    if (JSON.parse(key)[0] !== home || entry.publisher_key_id !== publisherKeyId) continue;
     activeOwners.delete(key);
-  }
-  for (const installId of revokedInstalls) {
-    disposeWorkTerminalsForOwner({ home, install_id: installId });
+    endPanels(key);
   }
 }
 
-/** Kill any running platform work terminals started for this plugin installation (called on plugin stop/revoke/project close). */
-export function disposeWorkTerminalsForOwner(input: { home: string; install_id: string; project_id?: string | null }): void {
-  const home = resolve(input.home);
-  if (input.project_id !== undefined) {
-    const key = ownerBucket(home, input.install_id, input.project_id);
-    activeOwners.delete(key);
-    const bucket = livePanels.get(key);
-    if (!bucket) return;
-    livePanels.delete(key);
-    for (const [panelId, host] of bucket) host.kill(panelId);
-    return;
+/** Stop only the instance being disposed. Its sibling may have the same installation id. */
+export function disposeWorkTerminalsForOwner(input: { home: string; install_id: string; project_id: string | null }): void {
+  const key = ownerBucket(input.home, input.install_id, input.project_id);
+  activeOwners.delete(key);
+  endPanels(key);
+}
+
+function endPanels(key: string, projectId?: string): void {
+  const bucket = livePanels.get(key);
+  if (!bucket) return;
+  for (const [panelId, panel] of bucket) {
+    if (projectId !== undefined && panel.project_id !== projectId) continue;
+    bucket.delete(panelId);
+    panel.host.kill(panelId);
   }
-  const prefix = JSON.stringify([home, input.install_id]).slice(0, -1) + ",";
-  for (const key of [...activeOwners.keys()]) {
-    if (key.startsWith(prefix)) activeOwners.delete(key);
-  }
-  for (const [key, bucket] of [...livePanels.entries()]) {
-    if (!key.startsWith(prefix)) continue;
-    livePanels.delete(key);
-    for (const [panelId, host] of bucket) host.kill(panelId);
-  }
+  if (!bucket.size) livePanels.delete(key);
 }
 
 function pruneDeadPanels(): void {
   for (const [bucketKey, existingBucket] of livePanels) {
-    for (const [existingId, existingHost] of existingBucket) {
-      if (!existingHost.alive(existingId)) existingBucket.delete(existingId);
+    for (const [existingId, panel] of existingBucket) {
+      if (!panel.host.alive(existingId)) existingBucket.delete(existingId);
     }
     if (!existingBucket.size) livePanels.delete(bucketKey);
   }
 }
 
-function trackLivePanel(home: string, owner: TerminalOwner, panelId: string, host: MolisWorkPtyHost): void {
+function trackLivePanel(key: string, projectId: string, panelId: string, host: MolisWorkPtyHost): void {
   pruneDeadPanels();
-  const key = ownerBucket(home, owner.install_id, owner.project_id);
   let bucket = livePanels.get(key);
   if (!bucket) {
     bucket = new Map();
     livePanels.set(key, bucket);
   }
-  bucket.set(panelId, host);
+  bucket.set(panelId, { project_id: projectId, host });
 }
 
-function untrackLivePanel(home: string, owner: TerminalOwner, panelId: string): void {
-  const key = ownerBucket(home, owner.install_id, owner.project_id);
+function untrackLivePanel(key: string, panelId: string): void {
   const bucket = livePanels.get(key);
   if (!bucket) return;
   bucket.delete(panelId);
@@ -151,6 +135,7 @@ function assertPersonCaller(caller: ActionCallContext): string {
 }
 
 interface ResolvedTarget {
+  readonly ownerKey: string;
   readonly view: ActionView;
   readonly install_id: string;
   readonly installation_generation: string;
@@ -169,9 +154,8 @@ const callerCheck = (caller: ActionCallContext) => () => {
   requireSynchronous(caller.assert_authority_current?.(), "工作终端最终授权检查必须同步完成");
 };
 
-function assertTargetOwnerActive(homeDirectory: string, target: ResolvedTarget, projectId: string): void {
-  const owner = activeOwners.get(ownerBucket(homeDirectory, target.install_id, projectId))
-    ?? activeOwners.get(ownerBucket(homeDirectory, target.install_id, null));
+function assertTargetOwnerActive(target: ResolvedTarget): void {
+  const owner = activeOwners.get(target.ownerKey);
   if (!owner || owner.installation_generation !== target.installation_generation) {
     throw new ActionError("actions.forbidden", "此插件实例已停止或权限已变更，请重新打开");
   }
@@ -188,8 +172,8 @@ function assertTargetCurrent(
   pluginId: string,
   target: ResolvedTarget,
 ): void {
-  assertTargetOwnerActive(homeDirectory, target, projectId);
-  if (projectPluginJudge(projects, projectId, homeDirectory)(pluginId) === false) {
+  assertTargetOwnerActive(target);
+  if (projectPluginJudge(projects, projectId, homeDirectory)(pluginId, target.view.provider) === false) {
     throw new ActionError("actions.plugin_disabled", "此项目未启用该插件");
   }
 }
@@ -205,8 +189,9 @@ async function resolveWorkTerminalTarget(
   const project = await ports.resolveProject(projectId);
   if (!project) throw new ActionError("actions.scope_mismatch", "找不到当前项目");
   const discovered = await client.discover(caller);
-  const view = discovered.find(item => item.provider.plugin_id === pluginId && isWorkTerminalPromptAction(item.action)
+  const candidates = discovered.filter(item => item.provider.plugin_id === pluginId && isWorkTerminalPromptAction(item.action)
     && item.action.subject_kinds.includes(subject.kind));
+  const view = candidates.find(item => item.provider.project_id === projectId) ?? candidates.find(item => item.provider.project_id === undefined);
   if (!view) {
     const inspected = (await ports.localHost.inspectActions(caller, project)).find(item => item.provider.plugin_id === pluginId
       && isWorkTerminalPromptAction(item.action) && item.action.subject_kinds.includes(subject.kind));
@@ -221,16 +206,16 @@ async function resolveWorkTerminalTarget(
   const installId = view.provider.plugin_install_id;
   if (!installId) throw new ActionError("actions.unavailable", "该插件缺少运行中的安装身份");
   const manifest = await installedPluginManifestFor(installId, pluginId, ports.localHost.homePlugins,
-    reference => ports.localHost.withProject(reference, runtime => installedPluginManifest(runtime.store.db, installId)), project);
+    reference => ports.localHost.withProject(reference, runtime => installedPluginManifest(runtime.store.db, installId)), view.provider.project_id === undefined ? undefined : project);
   const declared = manifest ? workTerminalDeclarationFor(manifest, subject.kind) : undefined;
   if (!declared || declared.action.capability_id !== view.capability_id || declared.action.version !== view.version) {
     throw new ActionError("actions.missing", "该插件未在 Manifest 中声明这类对象的工作终端");
   }
-  const owner = activeOwners.get(ownerBucket(ports.homeDirectory, installId, projectId))
-    ?? activeOwners.get(ownerBucket(ports.homeDirectory, installId, null));
+  const ownerKey = ownerBucket(ports.homeDirectory, installId, view.provider.project_id ?? null);
+  const owner = activeOwners.get(ownerKey);
   if (!owner) throw new ActionError("actions.forbidden", "此插件实例已停止，请重新打开");
-  const target: ResolvedTarget = { view, install_id: installId, installation_generation: owner.installation_generation, permissions: view.action.permissions };
-  assertTargetOwnerActive(ports.homeDirectory, target, projectId);
+  const target: ResolvedTarget = { view, ownerKey, install_id: installId, installation_generation: owner.installation_generation, permissions: view.action.permissions };
+  assertTargetOwnerActive(target);
   return target;
 }
 
@@ -256,7 +241,7 @@ async function listWorkTerminals(ports: WorkTerminalProviderPorts, input: WorkTe
   const projectId = assertPersonCaller(caller), check = callerCheck(caller), client = ports.clientFor(caller);
   check();
   const target = await resolveWorkTerminalTarget(ports, caller, client, projectId, input.plugin_id, input.subject);
-  const assertLive = () => { check(); assertTargetOwnerActive(ports.homeDirectory, target, projectId); };
+  const assertLive = () => { check(); assertTargetOwnerActive(target); };
   assertLive();
   const info = await readWorkTerminalSubjectPrompt(caller, client, target, input.subject);
   assertLive();
@@ -282,7 +267,7 @@ async function openWorkTerminal(ports: WorkTerminalProviderPorts, input: WorkTer
   const projectId = assertPersonCaller(caller), check = callerCheck(caller), client = ports.clientFor(caller);
   check();
   const target = await resolveWorkTerminalTarget(ports, caller, client, projectId, input.plugin_id, input.subject);
-  const assertLive = () => { check(); assertTargetOwnerActive(ports.homeDirectory, target, projectId); };
+  const assertLive = () => { check(); assertTargetOwnerActive(target); };
   assertLive();
   const info = await readWorkTerminalSubjectPrompt(caller, client, target, input.subject);
   assertLive();
@@ -334,13 +319,13 @@ async function openWorkTerminal(ports: WorkTerminalProviderPorts, input: WorkTer
           env: terminalEnvironment({ home: ports.homeDirectory, record, webUrl: webUrl(), focusKind: input.subject.kind, focusId: input.subject.id }),
         }));
         spawned = true;
-        trackLivePanel(ports.homeDirectory, owner, panelId, host);
+        trackLivePanel(target.ownerKey, projectId, panelId, host);
         return true;
       });
     } catch (error) {
       if (spawned) {
         host.kill(panelId);
-        untrackLivePanel(ports.homeDirectory, owner, panelId);
+        untrackLivePanel(target.ownerKey, panelId);
       }
       throw error;
     }
@@ -352,7 +337,7 @@ async function closeWorkTerminal(ports: WorkTerminalProviderPorts, input: WorkTe
   const projectId = assertPersonCaller(caller), check = callerCheck(caller), client = ports.clientFor(caller);
   check();
   const target = await resolveWorkTerminalTarget(ports, caller, client, projectId, input.plugin_id, input.subject);
-  const assertLive = () => { check(); assertTargetOwnerActive(ports.homeDirectory, target, projectId); };
+  const assertLive = () => { check(); assertTargetOwnerActive(target); };
   assertLive();
   // Allow closing a lingering panel even after its underlying object was deleted (`actions.missing`).
   try {
@@ -372,7 +357,7 @@ async function closeWorkTerminal(ports: WorkTerminalProviderPorts, input: WorkTe
     const record = projects.terminalPanels.get(panelId);
     if (!record || record.subject !== subjectKey) throw new ActionError("actions.missing", "找不到这个终端");
     host.kill(panelId);
-    untrackLivePanel(ports.homeDirectory, owner, panelId);
+    untrackLivePanel(target.ownerKey, panelId);
     projects.terminalPanels.remove(record);
   }));
   return { closed: true };
@@ -382,7 +367,7 @@ async function buildWorkTerminalPrompt(ports: WorkTerminalProviderPorts, input: 
   const projectId = assertPersonCaller(caller), check = callerCheck(caller), client = ports.clientFor(caller);
   check();
   const target = await resolveWorkTerminalTarget(ports, caller, client, projectId, input.plugin_id, input.subject);
-  const assertLive = () => { check(); assertTargetOwnerActive(ports.homeDirectory, target, projectId); };
+  const assertLive = () => { check(); assertTargetOwnerActive(target); };
   assertLive();
   const info = await readWorkTerminalSubjectPrompt(caller, client, target, input.subject, input.onboarding);
   assertLive();

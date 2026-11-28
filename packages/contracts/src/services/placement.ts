@@ -18,7 +18,7 @@ export const PLACEMENT_PERMISSIONS = [PLACEMENT_READ_PERMISSION, PLACEMENT_WRITE
 
 /**
  * One object by its owner's identity. `project_id` is the partition it was last seen in: a project, the personal space
- * (`personal`), or null for Home-level plugins whose content is always personal (Shelf, Cognia, Jelly…).
+ * (`personal`), or null for Home-level content such as Shelf entries.
  */
 export interface PlacedObject { kind: string; id: string; project_id: string | null }
 /** `private`: only the person (the personal space); `home`: the person, and assistants or workflows they granted the plugin to; `project`: the project's environment. */

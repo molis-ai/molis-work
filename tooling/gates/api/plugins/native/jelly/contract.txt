@@ -41,7 +41,7 @@ export interface JellyOccurrence extends JellyItem {
     original_date: string | null;
 }
 
-export type JellyOccurrencePatch = Partial<Pick<JellyItem, "title" | "kind" | "category_id" | "notes" | "start_date" | "end_date" | "start_time" | "end_time">>;
+export type JellyOccurrencePatch = Partial<Pick<JellyItem, "title" | "kind" | "category_id" | "notes" | "start_date" | "end_date" | "start_time" | "end_time" | "reminder_minutes">>;
 
 export type JellyRestoreReceipt = JellyRestoreRows & {
     modified?: {
@@ -64,6 +64,7 @@ export interface JellySchedule {
     start_time: number | null;
     end_time: number | null;
     time_zone: string;
+    reminder_minutes: number | null;
 }
 
 export interface JellySeries extends Omit<JellyItem, "completed_at"> {

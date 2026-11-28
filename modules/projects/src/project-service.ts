@@ -96,48 +96,31 @@ export class ProjectService {
     });
   }
 
-  /**
-   * The members a project stored, and its 常开 plugins, which are members of every project without a stored row (ac-trust T3). A
-   * personal plugin is not a stored member whatever it is (it is on unless hidden), so a 常开 one adds nothing here.
-   */
+  /** Stored membership of this partition. */
   listPlugins(projectId: string): ProjectPluginId[] {
     return this.repository.projects.listProjectPlugins(this.get(projectId).project_id);
   }
 
-  /** One synchronous reach judgement uses the same current registry answer for both membership and hidden marks. */
+  /** Read one partition without consulting other partitions. */
   pluginMembership(projectId: string): ProjectPluginMembership {
-    const hidden = this.listHidden(projectId);
-    return { plugins: this.listPlugins(projectId), hidden };
+    return { plugins: this.listPlugins(projectId) };
   }
 
   /**
    * `pluginMembership` and the project's latest member add or remove from one read of the owner's rows, for a versioned read. The
-   * lists follow the same rules as `listPlugins` and `listHidden`.
+   * members follow the same rules as `listPlugins`.
    */
   pluginMembershipWithLatestEvent(projectId: string): { membership: ProjectPluginMembership; latest_event_id: string | null } {
     const normalized = this.requiredProjectId(projectId);
     const facts = this.repository.projects.pluginMembershipFacts(normalized);
     if (!facts) throw catalogErrors.project_not_found(`找不到 Molis Work 项目: ${normalized}`);
-    const membership = { plugins: facts.plugins, hidden: facts.hidden };
+    const membership = { plugins: facts.plugins };
     return { membership, latest_event_id: facts.latest_event_id };
-  }
-
-  /** What the project hid. */
-  listHidden(projectId: string): ProjectPluginId[] {
-    return this.repository.projects.listHiddenPlugins(this.get(projectId).project_id);
   }
 
   addPlugin(input: AddProjectPluginInput): ProjectPluginId[] {
     const project = this.get(input.project_id);
     const actor = this.requiredActorId(input.actor_id);
-    if (this.plugins.isPersonal?.(input.plugin_id) === true) {
-      return this.repository.transaction(() => {
-        if (this.repository.projects.showProjectPlugin(project.project_id, input.plugin_id)) {
-          this.appendEvent(project.project_id, "project.plugin_added", actor, { plugin_id: input.plugin_id });
-        }
-        return this.listPlugins(project.project_id);
-      });
-    }
     if (!this.plugins.has(input.plugin_id)) {
       throw catalogErrors.plugin_not_found("找不到这个插件");
     }
@@ -155,8 +138,7 @@ export class ProjectService {
   removePlugin(input: RemoveProjectPluginInput): ProjectPluginMembership {
     const project = this.get(input.project_id);
     const actor = this.requiredActorId(input.actor_id);
-    const personal = this.plugins.isPersonal?.(input.plugin_id) === true;
-    if (!personal && !this.plugins.has(input.plugin_id)) {
+    if (!this.plugins.has(input.plugin_id)) {
       throw catalogErrors.plugin_not_found("找不到这个插件");
     }
     return this.repository.transaction(() => {
@@ -175,15 +157,12 @@ export class ProjectService {
       }
       for (const id of removing) {
         const deleted = this.repository.projects.removeProjectPlugin(project.project_id, id);
-        const hidden = personal && id === input.plugin_id
-          && this.repository.projects.hideProjectPlugin(project.project_id, id, this.now());
-        if (deleted || hidden) {
+        if (deleted) {
           this.appendEvent(project.project_id, "project.plugin_removed", actor, { plugin_id: id });
         }
       }
       return {
         plugins: this.listPlugins(project.project_id),
-        hidden: this.repository.projects.listHiddenPlugins(project.project_id),
       };
     });
   }
@@ -244,7 +223,7 @@ export class ProjectService {
       }
       const at = this.now();
       for (const pluginId of desired) {
-        if (this.plugins.isPersonal?.(pluginId) === true || !this.plugins.has(pluginId)) continue;
+        if (!this.plugins.has(pluginId)) continue;
         this.repository.projects.addProjectPlugin(id, pluginId, at, this.requiredActorId(actorId));
       }
     });

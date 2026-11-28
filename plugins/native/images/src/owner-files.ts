@@ -4,7 +4,7 @@ import type { PluginOwnerFilesDeclaration } from "@molis-ai/molis-work-contracts
 export const IMAGES_FILES_WRITE = "images:files:write";
 export const IMAGES_FILES_READ = "images:read";
 
-/** The generated images, one file each, under `images/assets/` in the Home, beside the plugin's own library. */
+/** The generated images, one file each, under the installation’s declared `images/assets/` in the owning partition. */
 export const IMAGES_ASSETS = "assets";
 
 export const IMAGES_OWNER_FILES: PluginOwnerFilesDeclaration = {

@@ -5,7 +5,7 @@ import { changeJellySeries, jellyAddDays, jellyDate, jellyOccurrences, jellyWeek
 const at = "2026-09-01T08:00:00.000Z", zone = "Asia/Shanghai";
 const categories = new Set(["uncategorized", "work"]);
 const item = (patch: Partial<JellyItem> = {}): JellyItem => ({ id: "a", title: "写周报", kind: "event", category_id: "uncategorized", notes: "", start_date: "2026-09-21", end_date: "2026-09-21",
-  start_time: 540, end_time: 600, time_zone: zone, completed_at: null, revision: 1, created_at: at, updated_at: at, ...patch });
+  start_time: 540, end_time: 600, time_zone: zone, reminder_minutes: null, completed_at: null, revision: 1, created_at: at, updated_at: at, ...patch });
 // Monday and Wednesday from 2026-09-21 (a Monday), no end.
 const series = (patch: Partial<JellySeries> = {}): JellySeries => ({ ...item({ id: "s", title: "站会", start_time: 570, end_time: 585 }), weekdays: [1, 3], until: null, exceptions: {}, completions: {}, ...patch });
 const days = (list: { start_date: string }[]) => list.map(entry => entry.start_date);

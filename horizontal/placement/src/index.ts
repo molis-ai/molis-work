@@ -44,7 +44,7 @@ export interface PlacementPorts {
 }
 
 const ACCESS: ContextAccess = { actor_id: "module:placement", scope: { kind: "personal", id: "placement" } };
-/** Ledger-only marker for Home-level content (Shelf, Jelly, Cognia…): always personal, never moved. */
+/** Ledger-only marker for Home-level content such as Shelf entries: always personal, never moved. */
 const HOME = "home";
 const TYPES = { location: "placement.location", used: "placement.used_in", derived: CONTEXT_RELATION_TYPES.derived_from, copied: CONTEXT_RELATION_TYPES.copied_from, attached: "placement.attached_in",
   belonging: "placement.belonged_to", belongs: "placement.belongs_to", carrying: "placement.carrying" } as const;

@@ -102,7 +102,7 @@ test("灵光由项目按分区启用（第 107 批做法 A），岛上叫灵光�
   assert.equal(entry?.label, "灵光");
   assert.equal(entry?.glyph, "idea");
   const market = pluginMarketCards(builtinMarketDirectory()).find((card) => card.id === "lingguang");
-  assert.notEqual(market?.personal, true);
+  assert.equal(market?.runtime_id, lingguangManifest.plugin_id);
   assert.equal(market?.copy, "先记下想法，再决定留下或丢掉。");
   parsePluginManifest(lingguangManifest);
   assert.ok(lingguangManifest.ui.views?.some(view => view.slot === "stage" && view.view_id === "workbench"));
@@ -124,7 +124,7 @@ test("PRR-12 the Manifest fallback only renders stages no host path already rend
   assert.match(pluginDocuments(renderMolisWorkWeb(withHostPluginFacts({ ...view, plugin_stage_surfaces: [], plugin_stages: [] } as MolisWorkWebView))).join("\n"), /data-lingguang="directory"/,
     "without the host's stage, Lingguang comes from its Manifest stage");
 
-  const hiddenIssues = { ...view, enabled_plugins: ["goals", "lingguang"], hidden_plugins: ["issues"] } as MolisWorkWebView;
+  const hiddenIssues = { ...view, enabled_plugins: ["goals", "lingguang"] } as MolisWorkWebView;
   assert.doesNotMatch(pluginDocuments(renderMolisWorkWeb(withHostPluginFacts(hiddenIssues))).join("\n"), /data-issue-root/, "a plugin the project does not show gets no fallback stage");
 });
 

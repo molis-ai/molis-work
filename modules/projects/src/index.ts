@@ -114,13 +114,12 @@ export class ProjectsModule implements ProjectsApplicationApi {
       wasProjectPluginRemoved:(projectId,pluginId)=>{this.records.get(projectId);return wasProjectPluginRemoved(options.db,projectId,pluginId);},
       storedProjectPluginMembership: projectId => {
         this.records.get(projectId);
-        return { plugins: repository.projects.listProjectPlugins(projectId), hidden: repository.projects.listHiddenPlugins(projectId) };
+        return { plugins: repository.projects.listProjectPlugins(projectId) };
       },
       projectPluginMembership: (projectId) => this.records.pluginMembership(projectId),
       projectPluginMembershipWithRevision: (projectId) => membership.get(projectId),
       partitionPluginMembership: (partitionId) => membership.getPartition(partitionId),
       listProjectPlugins: (projectId) => this.records.listPlugins(projectId),
-      listHiddenPlugins: (projectId) => this.records.listHidden(projectId),
       listProjects: () => this.records.list(),
       listPartitions: () => this.records.partitions(),
       getProject: (projectId) => this.records.get(projectId),

@@ -11,17 +11,16 @@ Contract: `@molis-ai/molis-work-contracts/platform/plugin`，记录结构见 `@m
 
 连接列表 `images.connections.list@1` 的账号记录带 `enabled`，停用保留已选账号与凭据但拒绝生成；重新启用后沿用同一引用。调用方从共同目录取当前版本，旧版精确引用须重选。
 
-数据：每个启用图片的分区（个人空间或项目）各有自己的库 `<分区>/libraries/images.db` 与文件 `<分区>/plugin-files/<安装>/images/assets/`（第 108 批，`databases.partition`）。生图服务属于本人，存在本人设置（`services.personSettings` 的 `connections`，不同步），在每个分区都一样。Web 和独立 MCP 进程共享原数据库、请求去重与并发上限；每个任务记录执行进程，关闭或崩溃只中断该进程负责的任务。跨进程取消会通知原执行者停止等待，打开或关闭管理页面不影响任务。当前基线含同步日志，不兼容旧库直接拒绝、不做迁移；禁止新旧执行器同时修改任务。
+每个启用图片的分区（个人空间或项目）拥有自己的 `<分区>/libraries/images.db` 和 `<分区>/plugin-files/<安装>/images/assets/`。本人设置的 `connections` 保存服务名称、地址、协议和模型，随本人同步。账号绑定、密钥和待办的绑定变更留在设备。Web 和 MCP 都由常驻宿主执行动作，按分区去重并限制并发。打开或关闭页面不影响已受理的生成。
 
-个人空间的 `saved_images` 集合由本包声明和实现，只传已保存终态的提示词、生成资料、结果与实际图片。运行中记录暂不上传，接收不调用厂商，不继承连接、请求幂等键、input hash 或 runner。图片经过共同 R2 内容通道，长度、编码及 MIME 与实际格式一致后才加入 owner 事务；文件名由目标 owner 生成，不接受网络路径或覆盖唯一本机文件。同步连接不取得生成运行锁、不恢复执行进程，停用的项目仍由 Host 拒绝接收。
-生成动作 `images.jobs.start@1` 使用 Runtime 并发后台受理并要求 `model:invoke`，后台状态查询指向 `images.jobs.get@1`。`images.jobs.list/get/cancel@1` 的终态结果允许 `connection_id` 为空，表示同步或复制后的历史没有本机生图绑定；列出历史、预览和下载不要求配置服务。运行中记录仍要求非空连接；新生成输入仍要求有效本机服务和当前授权。HTTP/页面从共同描述符取版本，MCP 使用对应新版本名，旧固定引用须重新选择，不提供别名；数据库和同步格式不变。
-生成动作 `images.jobs.start@1` 使用 Runtime 并发后台受理并要求 `model:invoke` 与 `images:files:write`；删除动作 `images.jobs.delete@1` 要求 `images:delete` 与 `images:files:write`。输入输出保持，旧固定版本须重新选择，MCP 当前工具为 `images.jobs.start__v1`、`images.jobs.delete__v1`。已授权给 MCP 客户端、工作流步骤的调用方要补授 `images:files:write`（内置安装默认同意）。
+各分区的 `saved_images` 集合由本包声明和实现，只传已保存终态的提示词、生成资料、结果与实际图片。运行中记录暂不上传，接收不调用厂商，不继承连接、请求幂等键、input hash 或 runner。图片经过共同 R2 内容通道，长度、编码及 MIME 与实际格式一致后才加入 owner 事务；文件名由目标 owner 生成，不接受网络路径或覆盖唯一本机文件。同步连接不取得生成运行锁、不恢复执行进程，停用的项目仍由 Host 拒绝接收。
+生成动作 `images.jobs.start@1` 通过 Runtime 并发受理，需要 `model:invoke` 和 `images:files:write`，状态查询使用 `images.jobs.get@1`。同步或复制的终态记录可以没有本机 `connection_id`。查看、预览和下载历史均无需另配生图服务。新生成需要有效连接和当前授权。删除任务需要 `images:delete` 和 `images:files:write`。页面、工作流和 MCP 通过同一份动作描述取得版本与权限。
 
-插件声明统一动作：`images.connections.list/save/delete`、`images.jobs.list/start/get/cancel/delete` 和 `images.images.read`。还在等厂商的生成由 `images.background.tasks@1`（`src/background.ts`，只读、要 `images:read`）报到平台的后台任务总表，行上的「停止」就是 `images.jobs.cancel@1`；结束的生成是页面上的记录，不是任务。HTTP 仅转发到同一动作服务；标准 MCP 导出相同合同。配置操作遵守 Home 权限，任务和图片遵守项目权限；模型参数不能改变调用者的项目。启动返回持久任务，`request_id` 对相同输入去重；图片读取返回实际 Base64 字节、MIME 和文件名。
+插件声明统一动作：`images.connections.list/save/delete`、`images.jobs.list/start/get/cancel/delete` 和 `images.images.read`。还在等厂商的生成由 `images.background.tasks@1`（`src/background.ts`，只读、要 `images:read`）报到平台的后台任务总表，行上的「停止」就是 `images.jobs.cancel@1`；结束的生成是页面上的记录，不是任务。HTTP 仅转发到同一动作服务；标准 MCP 导出相同合同。本人设置按调用身份授权。任务和图片属于调用者的分区。启动返回持久任务，`request_id` 对相同输入去重；图片读取返回实际 Base64 字节、MIME 和文件名。
 
 每个分区一个实例，拥有该分区的任务与图片；Web、MCP 通过同一个动作服务调用。数据库、文件和生图由宿主注入的有限服务提供，插件不持有分区路径或凭据解析器；文件声明在 Manifest 的 `owner_files`（`IMAGES_OWNER_FILES`：根 `images`，顶层目录 `assets`，读 `images:read`、写 `images:files:write`，根与自己的库同在），动作之内由动作和原调用者的权限决定。启动前由 Runtime 检查安装当前的必需授权（`storage:private` 与 `images:files:write`）。任务在后台保留原调用者的可撤销授权，普通请求断开不取消已受理任务；撤权、停用和项目删除后不写晚到结果或失败记录。停止不写业务状态。
 
-每次获准启动都先按 `storage:private` 授权，把数据库中遗留的 `running` 标为 `interrupted`，不依赖可选的 `images:read`，不重新调用厂商。随后单独回收所有项目均未引用的图片文件，还需当前安装的 `images:read` 授权，并保留文件写权限和启动生命周期的检查；缺少读取授权时仍可启动，未引用文件留到下次具备所需授权的启动再清理。
+实例获准启动后，按 `storage:private` 将本分区遗留的生成标为 `interrupted`。宿主在登记的时间投递队列工作。生成仍在执行时续约，已中断时发送一次带原提示词、可打开对应生成的提醒。显示或重投提醒都不会重新调用厂商。清理本分区无人引用的图片还需当前的读写授权。缺少授权时留待下次清理。
 
 此版不包含图生图、蒙版、多图批处理、异步厂商私有协议或 Artifact 发布。完整产品验收仍须覆盖真实 Host、MCP 和浏览器路径。
 
@@ -32,9 +31,9 @@ Contract: `@molis-ai/molis-work-contracts/platform/plugin`，记录结构见 `@m
 ## 项目复制
 
 `openImagesCopyOwner` 只读打开既有本地库，复用当前图片格式和原件校验；目标使用新的记录及图片身份，保留完整字节和终态记录，不复制连接、密钥或 runner，不恢复生成。相同结果重试不重复写入，目标删除/修改后拒绝重建或覆盖，最终授权失败回滚 SQL 记录及同步队列。失败事务可能留下不被记录引用的不可变暂存文件，由原有有界清理处理。该端口不代表整项目用户入口已经接通。验证另跑 `tests/security-invariants-images-copy.test.ts`。
-界面文字用 `images.*` 稳定键，在 Manifest 的 `ui.locales` 声明 [中文](locales/zh.json)和[英文](locales/en.json)词包。`ui.ts` 与浏览器客户端共用它们。换措辞时保留键，新增场景时按含义命名；格式与登记见 [Workbench 界面文字](../../../apps/workbench/README.md#界面文字稳定键和翻译检查)。
+Manifest 的 `ui.locales` 声明[中文](locales/zh.json)、[英文](locales/en.json)和[日文](locales/ja.json)词包。`ui.ts` 与浏览器客户端共用 `images.*` 稳定键。[Workbench 界面文字](../../../apps/workbench/README.md#界面文字稳定键和翻译检查)
 
-服务配置先在 Images 私库登记待完成的绑定或删除，连接器提交后才结束操作。中断后此服务暂停生成，从同一服务重试即可。创建方可传 `create_id` 以便重放。私库 v1 → v2 只新增空的 `connection_changes` 表，凭据仍由连接器保管。
+服务配置的绑定或删除先记入本机本人设置的 `binding_changes`，连接器提交后才结束操作。中断期间暂停使用该服务，重试后继续。创建方可传 `create_id` 以便重放。凭据归连接器保管。
 
 ## 开发要求
 
@@ -63,8 +62,6 @@ Contract: `@molis-ai/molis-work-contracts/platform/plugin`，记录结构见 `@m
 页面客户端是 `src/browser/` 的 TypeScript（`tsconfig.browser.json` 类型检查），构建时由 esbuild 打成 `dist/images-client.js`，`src/client.ts` 读取它；请求只经共同的 `molisWorkRequest`，不直接 `fetch`。
 
 客户端资源由 Host 注入的 UI 生命周期管理：隐藏停止进度轮询，再次显示刷新；卸载取消本机请求并释放监听、定时器和观察器。服务端任务保持原有取消与恢复语义。
-
-执行时限与持久取消监测复用 Plugin SDK 的执行生命周期；请求去重、进程锁、图片提交和重启后中断记录继续由 Images 拥有。监测失去执行资格后停止等待，不能把撤销或关闭改写成普通失败。
 
 个人空间删除任务时，在同一数据库事务先保存完整可携带记录与图片字节，再删除任务；从未上传的唯一图片也可在原版本和空内容前提下离线撤销。旧且无任何当前任务引用的 owner 图片按数据库写锁有界回收（每次至多 20 个，至少 24 小时）；本机保留快照自包含原字节。新文件、共享引用、链接和未知文件名不清理；不依据设备时间丢弃唯一保留原件。
 执行时限与取消监测复用 Plugin SDK 的执行生命周期；请求去重、图片提交和重启后中断记录继续由 Images 拥有。监测失去执行资格后停止等待，不能把撤销或关闭改写成普通失败。

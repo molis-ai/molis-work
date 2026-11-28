@@ -49,7 +49,7 @@ export { renderAssistantNoticeText, renderAssistantSavedText } from "./assistant
 export { readAssistantReviewWords } from "./assistant-review-html.js";
 export { BUILTIN_PLUGIN_CATALOG, OWN_DIRECTORY_SURFACES, hostSurfaceDirectory, manifestFor, pluginMarketCards, pluginTabGlyphs, pluginTabTitles, islandEntries, railEntries, settingsEntries, sideOpenedPlugins, sideOpenedItemPlugins, sidePlaces, creatableKinds, homeStarts, builtinPluginDirectory, pluginDirectoryFor, extendPluginIds } from "./plugin-catalog.js";
 export { HOST_FRAMED_SURFACES } from "./host-surfaces.js";
-export { clientPluginDirectory, isPersonalPlugin, renderPluginDirectoryData, renderPluginTabTitlesData, sanitizePluginDirectory, scriptJson, type PluginDirectoryEntry } from "./plugin-directory.js";
+export { clientPluginDirectory, renderPluginDirectoryData, renderPluginTabTitlesData, sanitizePluginDirectory, scriptJson, type PluginDirectoryEntry } from "./plugin-directory.js";
 export { declaredStageContributionId, stageContributionId, stageOpeningView, stageDataAction, stageObjectAction, stageSurfaceDescriptors, stageDataInput, renderStagePage, withoutPagePublisher, type RenderedStagePage } from "./declared-stages.js";
 export { pluginWorkbenchPacks, pluginWorkbenchStyles } from "./plugin-workbench.js";
 export type { BuiltinPluginWorkbenchPack } from "./plugin-workbench.js";

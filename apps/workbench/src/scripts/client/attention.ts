@@ -44,12 +44,15 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
   };
   const render = () => {
     if (!tab || !list) return;
-    const { tasks, incomplete } = background;
+    const { tasks, incomplete, updating } = background;
     // Every task the attention read lists is unfinished: running, or waiting on the person.
     count.hidden = !tasks.length;
-    count.textContent = String(tasks.length) + (incomplete ? "+" : "");
+    count.textContent = String(tasks.length) + (incomplete || updating ? "+" : "");
     tab.setAttribute("aria-label", globalThis.t.text("workbench.attention.background-job") + (tasks.length ? " · " + globalThis.t.text("workbench.attention.n-background-n-not-finished", { n: tasks.length }) : ""));
-    list.replaceChildren(...(tasks.length || incomplete ? [] : [node("p", globalThis.t.text("workbench.attention.no-background-tasks-right-now"), "side-tasks-empty")]));
+    list.replaceChildren(...(tasks.length || incomplete || updating ? [] : [node("p", globalThis.t.text("workbench.attention.no-background-tasks-right-now"), "side-tasks-empty")]));
+    if (updating) {
+      const status = node("p", globalThis.t.text("workbench.home.refreshing")); status.setAttribute("role", "status"); list.append(status);
+    }
     if (incomplete) {
       const problem = node("div", undefined, "mw-alert"); problem.dataset.backgroundTasksProblem = ""; problem.setAttribute("role", "status");
       const retry = node("button", globalThis.t.text("common.control.retry"), "mw-btn mw-btn--ghost"); retry.type = "button"; retry.dataset.backgroundTasksRetry = "";
@@ -97,11 +100,11 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
   };
   const showTasks = (result, sequence) => {
     if (!tab) return;
-    const value = { tasks: result ? result.tasks : background.tasks, incomplete: !result || result.issues.length > 0 };
+    const value = { tasks: result ? result.tasks : background.tasks, incomplete: !result || result.issues.length > 0, updating: result?.updating === true };
     // Only a read started after the receipt may replace that receipt's short-lived feedback with the owner's current offer.
     let commandChanged = false;
     if (result) for (const [id, attempt] of commands) if (attempt.state === "succeeded" && sequence > attempt.after) { commands.delete(id); commandChanged = true; }
-    if (!value.incomplete) {
+    if (!value.incomplete && !value.updating) {
       const offered = new Set(value.tasks.flatMap(task => task.commands.map(command => commandKey(task, command))));
       for (const [id, attempt] of commands) if (attempt.state !== "pending" && !offered.has(id)) commands.delete(id);
     }
@@ -134,19 +137,26 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
     const previous = reading; reading = null; previous?.controller.abort();
     clearTimeout(scheduled?.timer); scheduled = null; again = false;
   };
+  let hasReminderSources = false;
+  document.addEventListener("molis-work:language-changed", () => {
+    if (hasReminderSources) { discardRead(); void read(true); }
+  });
   const read = async (immediate = false) => {
     if (document.hidden || gone.has(route("/api/attention"))) return;
     const address = readAddress();
     if ((reading && reading.address !== address) || (scheduled && scheduled.address !== address)) discardRead();
     if (immediate && scheduled) { clearTimeout(scheduled.timer); scheduled = null; }
     if (reading || scheduled) { again = true; return; }
-    const current = { address, controller: new AbortController() };
+    const current = { address, controller: new AbortController(), language: document.documentElement.dataset.uiLanguageTag };
     reading = current; again = false;
     const started = performance.now(), sequence = ++readSequence;
     try {
       const data = await molisWorkRequest(address, { signal: current.controller.signal });
       if (reading !== current || address !== readAddress()) return;
+      if (Array.isArray(data.notices)) hasReminderSources = data.notices.some(notice => notice.reminder_source);
+      if (hasReminderSources && current.language !== document.documentElement.dataset.uiLanguageTag) { again = true; return; }
       showTasks(data.background_tasks, sequence);
+      again ||= data.background_tasks?.updating === true;
       document.dispatchEvent(new CustomEvent("molis-work:attention", { detail: Object.assign(data, { started, sequence }) }));
       heard = new Date().toISOString();
     } catch (error) {

@@ -13,7 +13,7 @@ interface Run { run_id: string; title: string; due_at: string; project_id: strin
   missed_at?: string; source: { scope_project_id: string | null; provider_id: string; surface: string; title: string } }
 interface Gap { from: string; to: string; cause: "quit" | "crash" | "sleep" }
 interface Expired { count: number; through: string; sources: Array<{ title: string; count: number }> }
-interface Overview { state: "running"; waiting: { network: boolean; model: boolean }; gaps: Gap[]; upcoming: Run[]; missed: Run[]; expired: Expired;
+interface Overview { updating?: boolean; state: "running"; waiting: { network: boolean; model: boolean }; gaps: Gap[]; upcoming: Run[]; missed: Run[]; expired: Expired;
   unavailable_sources: Array<{ project_id: string | null; provider_id: string | null; code: string }> }
 
 const page = globalThis as typeof globalThis & { molisWorkRequest?: UiRequest };
@@ -64,9 +64,16 @@ const root = document.querySelector<HTMLElement>("[data-runtime-panel]"), reques
 if (root && request) {
   const body = root.querySelector<HTMLElement>("[data-runtime-body]")!;
   let view: Overview | null = null, hadMissed = false, expiredUpdated = false;
+  let retry: number | undefined;
   const paint = () => {
     if (!view) return;
-    body.innerHTML = renderHome(view, hadMissed && !view.missed.length, expiredUpdated);
+    body.innerHTML = renderHome(view, !view.updating && hadMissed && !view.missed.length, expiredUpdated);
+    if (view.updating) {
+      const status = document.createElement("p");
+      status.setAttribute("role", "status");
+      status.textContent = globalThis.t.text("workbench.home.refreshing");
+      body.append(status);
+    }
     root.hidden = !body.innerHTML;
   };
   const load = async (updated = false): Promise<boolean> => {
@@ -76,6 +83,8 @@ if (root && request) {
       hadMissed ||= view.missed.length > 0;
       expiredUpdated = updated && view.expired.count > 0;
       paint();
+      window.clearTimeout(retry);
+      if (view.updating) retry = window.setTimeout(() => void load(), 750);
       return true;
     } catch {
       return false;
@@ -133,6 +142,7 @@ if (root && request) {
       }
     }
   });
+  window.addEventListener("pagehide", () => window.clearTimeout(retry));
   void load();
 }
 

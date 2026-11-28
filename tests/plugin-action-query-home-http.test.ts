@@ -7,7 +7,7 @@ import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/a
 import { openTestHome } from "./fixtures/test-home.js";
 import { queryProbe } from "./fixtures/action-query.js";
 
-for (const mode of ["allowed", "source-missing", "pages-hidden", "controlled owner unavailable", "hidden", "disabled"] as const) test(`AQD-04 Home plugin on a real project HTTP path: ${mode}`, async t => {
+for (const mode of ["allowed", "source-missing", "pages-removed", "controlled owner unavailable", "removed", "disabled"] as const) test(`AQD-04 Home plugin on a real project HTTP path: ${mode}`, async t => {
   const probe = queryProbe(`queryhome-${mode.replaceAll(" ", "-")}`, "home", mode !== "source-missing");
   // No built-in plugin runs only in the Home since batch 108 (Issues and the others moved into partitions): the probe is a Home plugin of its own.
   const pluginId = probe.definition.manifest.plugin_id;
@@ -19,15 +19,18 @@ for (const mode of ["allowed", "source-missing", "pages-hidden", "controlled own
   await platform.runtime.stop(install.install_id); platform.runtime.grant(install.install_id, probe.definition.manifest.permissions.map(row => row.permission)); await platform.supervisor.restart(pluginId);
   const request = (path: string, body: unknown, method = "POST", signal?: AbortSignal) => fetch(s.origin + path, { method, signal, headers: { origin: s.origin, "content-type": "application/json",
     "x-molis-work-control-token": s.controlToken, "x-molis-work-idempotency-key": randomUUID() }, body: JSON.stringify(body) });
+  const enabled = await request(`/api/settings/projects/${project.project_id}/plugins`,
+    { plugin_id: pluginId, expected_revision: await projectPluginRevisionAt(s.origin, project.project_id) });
+  assert.equal(enabled.status, 200, await enabled.clone().text());
   const page = await client.invoke({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: project.project_id, permissions: ["pages:write"] }, pagesActions.create,
     { title: "Home query material", markdown: "Native Pages through Home" }) as { document: { id: string } };
-  if (mode === "pages-hidden") {
+  if (mode === "pages-removed") {
     const disabled = await request(`/api/settings/projects/${project.project_id}/plugins`, { plugin_id: "pages", expected_revision: await projectPluginRevisionAt(s.origin, project.project_id) }, "DELETE");
     assert.equal(disabled.status, 200, await disabled.clone().text());
     assert.equal((await disabled.json()).plugins.includes("pages"), false, "taken out of the project (batch 107: Pages is no longer personal)");
   }
   const path = `/projects/${project.project_id}/api/plugins/${pluginId}/read`;
-  if (mode === "allowed" || mode === "source-missing" || mode === "pages-hidden" || mode === "controlled owner unavailable") {
+  if (mode === "allowed" || mode === "source-missing" || mode === "pages-removed" || mode === "controlled owner unavailable") {
     const response = await request(path, { item_id: page.document.id });
     if (mode === "allowed") {
       assert.equal(response.status, 200, await response.clone().text()); assert.match(await response.text(), /Native Pages through Home/);
@@ -38,7 +41,7 @@ for (const mode of ["allowed", "source-missing", "pages-hidden", "controlled own
       // Pages taken out of the project refuses the delegated read too: a dependency does not keep a plugin available (platform-authority-audience §9.1).
       // An owner the Host holds back is disabled; Pages taken out of the project has no instance here, so the read it depends on is missing.
       if (mode === "controlled owner unavailable") assert.equal((await response.json()).code, "actions.plugin_disabled");
-      if (mode === "pages-hidden") assert.equal((await response.json()).code, "actions.dependency_missing");
+      if (mode === "pages-removed") assert.equal((await response.json()).code, "actions.dependency_missing");
       assert.equal(probe.contexts.at(-1)!.services!.storage!.get("delivered"), null);
     }
     if (mode !== "allowed") {
@@ -57,11 +60,11 @@ for (const mode of ["allowed", "source-missing", "pages-hidden", "controlled own
   const pending = request(path, { item_id: page.document.id });
   try {
     await Promise.race([entered.promise, pending.then(async response => { throw new Error(`Missed query wait: ${response.status} ${await response.text()}`); })]);
-    if (mode === "hidden") {
+    if (mode === "removed") {
       const expected_revision = await projectPluginRevisionAt(s.origin, project.project_id);
       const response = await request(`/api/settings/projects/${project.project_id}/plugins`, { plugin_id: pluginId, expected_revision }, "DELETE", AbortSignal.timeout(20_000));
       assert.equal(response.status, 200, await response.clone().text());
-      assert.ok((await response.json()).hidden.includes(pluginId));
+      assert.equal((await response.json()).plugins.includes(pluginId), false);
     } else {
       const response = await request(`/api/plugins/${pluginId}/disable`, {});
       assert.equal(response.status, 200, await response.clone().text());

@@ -8,6 +8,7 @@
 
 起点之前，没有任何需要保留或迁移的旧用户数据：破坏性合同变更、库表结构调整与文件格式更新一律直接在 v1 原地修改，不留兼容代码、不写 `upgrades` 步骤、不维护开发金样。待 1.0.0 对外发布进入阶段二后，才启用「读取兼容、写入严格」与持久化存储升级链。本文保留两个阶段的定义，让开发前阶段有清晰硬边界，也让未来 1.0 起有现成流程可用。（阶段一各批次的逐项合同变更记录统一收在[第 8 节](#8-阶段一已做对插件作者有影响的合同改动)。）
 
+
 ## 1. 哪些算合同
 
 这里的合同是别人（别的包、别的进程、外部插件、用户的数据）依赖的形状：
@@ -396,3 +397,4 @@ Casebook 已于 2026-10-10 按用户决定删除，不再有对外合同 id；�
 - **2026-11-26 主线事件卡**：新增 `system.mainline` 的 `mainline.line.contains@1`，本人在项目内持 `mainline:read` 可给出 `{ subject, window }`，取得 `{ on_line }`。事件卡每次操作沿用事项线的时间窗口和本人可见的事件登记；已有整线读取及插件事件登记合同保持原形。
 - **2026-11-26 BL-b47-package-install-discard-kept-data**：`plugins.install.preview@1` 返回布尔值 `kept_data_incompatible`。确认结果的可选字段 `retained_cleanup_incomplete` 表示新版已经装好，部分旧数据清理失败；两个入口均提示检查磁盘空间和文件夹权限。为 true 时，只有本人受保护入口在 `plugins.install.confirm@1` 显式传 `discard_kept_data: true` 才可放弃此次预览对应的旧数据；省略或 false 保留数据并拒绝安装。一骏确认清理范围包括该安装的私有数据、当前项目内签名和归属登记均吻合的业务表，以及本次涉及的个人空间实例自己的数据库。取消保留全部。两个动作原位更新，页面仍只收到原有结果。
 - **2026-11-26 第 112 批复核修复**：Jelly 的日历查询返回日程与分类；月视图另经随手记读组的 `jelly.note.days@1` 查询区间内有笔记的日期，随手记列表支持可选 `limit`（1 至 500）。撤销仍接收删除命令返回的行，只删除系列中的部分日期或重分类时，回执的 `modified` 为每条保留行给出类型、ID 和写后内容摘要。撤销在事务内核对写后行，跳过已删除、改写或同 ID 重建且内容不同的行。签名沙箱的模型配置端口只公开候选和当前选择，只写 `provider_id` 与 `model_id`。Jelly 四张业务表沿用 Clean v1；决定 69 后按本批旧库拒绝与恢复用例复验。[逐项验收](../../specs/batch-112-review-fixes/spec.md)
+- **2026-11-27 第 108 批 B2 复核**。带独立分区库的插件可声明 `overview_projection.rolling_window: true`。本人重新启用已有库时，宿主为该安装登记现有的 `OVERVIEW_REFRESH_ENTRY_KEY`，插件在原来的 `onDue` 中续展窗口。参见[分区插件手册](../../skills/molis-plugin-dev/partitions.md)。Jelly 单次与循环日程可设置提前提醒。Images 的本人默认连接由本人设置保存，可同步配置与设备凭据分别存储。`PluginDueReminder.title` 保留用户原文。到期工作中断时，插件可返回 `interrupted: true`。助理按查看时的语言显示原因，并通过 `AssistantNotice.reminder_source` 找到原安装声明的来源名称。分区目录使用显式成员关系。Jelly 与目录库采用决定 69 的干净 v1。本人设置增加启动时的变更订阅 `onChange`。总览动作可用 `incomplete` 表明部分获准来源暂时读不到，`updating` 仅表示重建尚在进行。[修复与验收](../../specs/b108-review-remediation/spec.md)

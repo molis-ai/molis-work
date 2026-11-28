@@ -1,7 +1,7 @@
 import { existsSync, lstatSync, realpathSync } from "node:fs";
 import path from "node:path";
-import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { OVERVIEW_MAIN_TABLE, type OverviewIndexRow, type OverviewKind, type PluginManifest, type PluginPersonSettingsDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { OVERVIEW_MAIN_TABLE, type OverviewReadResult, type PluginDueEntry, type OverviewKind, type PluginManifest, type PluginPersonSettingsDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { DUE_REGISTRY_STORE, DueTimer, openDueRegistry, type DueEntryOwner, type DueEntryRecord, type DueExpiredRecord, type DueRegistry } from "@molis-ai/molis-work-service-scheduler";
 import { EVIDENCE_STORE, openEvidenceLedger } from "@molis-ai/molis-work-service-evidence";
 import { PERSON_SETTINGS_STORE, openPersonSettings, type PersonSettingsInstallation } from "@molis-ai/molis-work-service-person-settings";
@@ -9,6 +9,7 @@ import { OverviewService, overviewReach, type OverviewGrant, type OverviewLibrar
 import { homeSqlitePath, openHomeSqliteFile, openOverviewIndex, TEXT_SEARCH_STORE } from "@molis-ai/molis-work-storage";
 import { attentionOverviewRows } from "@molis-ai/molis-work-module-attention-resumption";
 import { partitionPluginScope, type PartitionPluginLease } from "./partition-plugin-assembly.js";
+import { liveObservation } from "./observation-live.js";
 import { directoryForHome } from "./plugin-directory-service.js";
 import { forgetMainOverviewRows } from "./plugin-overview-service.js";
 import { partitionDatabasePath, partitionRoot } from "@molis-ai/molis-work-module-projects";
@@ -199,6 +200,14 @@ export function runningPartitionPlatformServices(home: string): PartitionPlatfor
   return running.get(canonical(home));
 }
 
+/** Persist a wake before or after the timer starts. A running timer immediately observes the committed entry. */
+export function registerPartitionDue(home: string, owner: DueEntryOwner, entry: PluginDueEntry): DueEntryRecord {
+  const services = runningPartitionPlatformServices(home);
+  if (services) return services.registerDue(owner, entry);
+  const due = openDueRegistry(home);
+  try { return due.register(owner, entry); } finally { due.close(); }
+}
+
 export class PartitionPlatformServices {
   readonly due: DueRegistry;
   readonly timer: DueTimer;
@@ -231,6 +240,10 @@ export class PartitionPlatformServices {
         this.timer.arm();
       },
       readAttention: library => readAttentionLibrary(this.home, library),
+      rebuilt: (refreshed, failed) => {
+        liveObservation(this.home)?.sink("home").bind({ kind: "background", entry: "background", actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null })
+          .record({ fact: "home.overview_rebuild", outcome: failed ? "failed" : "succeeded", stage: "rebuild", detail: { refreshed, failed } });
+      },
     });
     this.timer.arm();
     running.set(this.home, this);
@@ -268,11 +281,19 @@ export class PartitionPlatformServices {
    * handed over (`overview-readers`).
    */
   readOverview(caller: ActionCallContext, libraries: readonly OverviewLibrary[], now: () => { readonly readable: readonly string[]; readonly grants: readonly OverviewGrant[] },
-    query: { readonly kinds?: readonly OverviewKind[]; readonly limit?: number } = {}): OverviewIndexRow[] {
+    query: { readonly kinds?: readonly OverviewKind[]; readonly limit?: number } = {}): OverviewReadResult & { refreshing?: string[]; unavailable?: string[] } {
     const initial = overviewReach(caller, now());
     const allowed = new Set(initial.map(entry => entry.partition_id));
-    this.overview.refreshDirty(libraries.filter(library => allowed.has(library.partition_id)));
-    return this.overview.read(() => overviewReach(caller, now()), query);
+    const { pending, unavailable } = this.overview.refreshForRead(libraries.filter(library => allowed.has(library.partition_id)));
+    let reach = initial;
+    const rows = this.overview.read(() => {
+      reach = overviewReach(caller, now());
+      return reach;
+    }, query);
+    const visible = new Set(reach.map(entry => entry.partition_id));
+    const missing = [...new Set(unavailable.map(library => library.partition_id).filter(id => visible.has(id)))];
+    const refreshing = [...new Set(pending.map(library => library.partition_id).filter(id => visible.has(id)))];
+    return { rows, ...(refreshing.length && { updating: true, refreshing }), ...(missing.length && { unavailable: missing }) };
   }
 
   /** The plugin was disabled in this partition: its due entries and overview rows there go now. */

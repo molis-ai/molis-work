@@ -163,12 +163,11 @@ async function prepareCatalogStorage(options: MolisWorkProjectCatalogOptions) {
 }
 
 /**
- * The registry a Home's projects validate against. Which Plugins a project may enable comes from what this build ships, not from a list
- * compiled into Projects. The Home's own registration adds its personal plugins outside the build, so a project can hide those too (#679).
+ * Projects can enable plugins shipped with this build and external Home registrations identified by the running Host.
  */
 function homeProjectPlugins(homeDirectory: string): ProjectPluginRegistry {
   return { ...BUILTIN_PLUGIN_REGISTRY,
-    isPersonal: pluginId => homePluginsOutsideBuild(homeDirectory).includes(pluginId) };
+    has: pluginId => BUILTIN_PLUGIN_REGISTRY.has(pluginId) || homePluginsOutsideBuild(homeDirectory).includes(pluginId) };
 }
 
 /** Local catalog resource lifetime and explicit composition of Project, Session and platform owners. */

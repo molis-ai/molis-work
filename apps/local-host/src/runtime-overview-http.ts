@@ -1,3 +1,5 @@
+import { authorizationSettingsControl } from "./authorization-settings-control.js";
+import { overviewReadAction, OVERVIEW_PROVIDER_ID } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -6,7 +8,7 @@ import { currentHostPresence } from "./host-presence.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { localWebActionContext } from "./local-web-actions.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
-import { homeScheduledRuns } from "./home-overview.js";
+import { homeScheduledRuns, hostOverviewSource, overviewPerson } from "./home-overview.js";
 import { decideRuntimeRun, hasNetwork, runtimeExpiredSeenRequest, runtimeOverview, runtimeRunDecisionRequest, type RunsClient, type RuntimeOverviewPorts } from "./runtime-overview.js";
 import { expiredSeen, markExpiredSeen } from "./runs-expired-seen.js";
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
@@ -15,16 +17,20 @@ import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
  * The person's own client in the Home or in one open project, one context per request (N42): its discovery and every answer it
  * invokes share it, and each call still re-checks the person's authority, so a grant taken back meanwhile refuses.
  */
-function personRuns(host: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined): RunsClient {
+function personRuns(host: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined, assertCurrent?: () => void): RunsClient {
   const client = reference ? host.actionClient(reference) : host.homeActionClient();
   let pending: Promise<ActionCallContext> | undefined;
-  const context = () => pending ??= localWebActionContext(host, reference, LOCAL_OWNER_PERMISSIONS);
+  const context = () => pending ??= localWebActionContext(host, reference, LOCAL_OWNER_PERMISSIONS, undefined, { assertCurrent });
   return { discover: async () => client.discover(await context()), invoke: async (action, input) => client.invoke(await context(), action, input) };
 }
 
 export function runtimeOverviewPorts(host: MolisWorkLocalHost, homeDirectory: string): RuntimeOverviewPorts {
   return {
-    projectRuns: async (window, bounds) => homeScheduledRuns({ home: homeDirectory, reach: partitionId => host.projectPluginReach(partitionId) }, await host.partitions(), window, bounds),
+    readableProjects: ids => host.overviewReadable(overviewPerson, ids),
+    projectRuns: async (window, bounds) => {
+      const source = hostOverviewSource(host);
+      return source ? homeScheduledRuns(source, await host.partitions(), window, bounds) : null;
+    },
     within: async (projectId, work) => {
       if (projectId === null) return work(personRuns(host, undefined));
       // The panel lists a sleeping project's runs from the overview, so the person's 「现在做」 or 「跳过」 opens it to hand the run to its owner.
@@ -54,8 +60,17 @@ const toldKey = (homeDirectory: string, through: string) => `${homeDirectory}\u0
  * `POST /api/runtime/runs/decide`: 「现在做」 or 「跳过」 on one missed run, handed to its owner.
  * `POST /api/runtime/expired/seen`: the person read the summary of runs skipped on their own; it is not said again (`runs-expired-seen.ts`).
  */
-export async function handleRuntimeOverviewHttp(request: IncomingMessage, response: ServerResponse, url: URL, host: MolisWorkLocalHost, homeDirectory: string | undefined): Promise<boolean> {
+export async function handleRuntimeOverviewHttp(request: IncomingMessage, response: ServerResponse, url: URL, host: MolisWorkLocalHost, homeDirectory: string | undefined, accountCurrent?: () => void): Promise<boolean> {
   if (!homeDirectory) return false;
+  if (request.method === "POST" && url.pathname === "/api/runtime/overview/read") {
+    const { assertCurrent } = authorizationSettingsControl(request, response, host, accountCurrent);
+    assertCurrent();
+    const input = await readLocalWebBody(request);
+    const rows = await personRuns(host, undefined, assertCurrent).invoke({ ...overviewReadAction, provider_id: OVERVIEW_PROVIDER_ID }, input);
+    assertCurrent();
+    sendLocalWebJson(response, 200, rows);
+    return true;
+  }
   if (request.method === "GET" && url.pathname === "/api/runtime/overview") {
     const { expired: { owners, ...expired }, ...overview } = await runtimeOverview(runtimeOverviewPorts(host, homeDirectory));
     if (expired.count > 0 && owners.length > 0) {

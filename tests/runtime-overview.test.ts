@@ -1,10 +1,11 @@
+import { openTestHome } from "./fixtures/test-home.js";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
 import { existsSync, mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createLocalWebCoreFactory, decideRuntimeRun, expiredOwnerKey, expiredSeen, LocalProjectDatabase, markExpiredSeen, runtimeExpiredSeenRequest, runtimeOverview, runtimeRunDecisionRequest, scheduledRunsOf, type RuntimeOverviewPorts, type RunsClient } from "@molis-ai/molis-work-app-local-host";
+import { createLocalWebCoreFactory, decideRuntimeRun, expiredOwnerKey, expiredSeen, LocalProjectDatabase, markExpiredSeen, runningPartitionPlatformServices, runtimeExpiredSeenRequest, runtimeOverview, runtimeRunDecisionRequest, scheduledRunsOf, type RuntimeOverviewPorts, type RunsClient } from "@molis-ai/molis-work-app-local-host";
 import { desktopWorkbenchRendererPorts, isDesktopShellRequest, NATIVE_DESKTOP_BOOTSTRAP_SCRIPT, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { ActionError, defineRunDecisionAction, defineRunsOverviewAction, RUN_MISSED_KEPT_MS, type ActionDefinition, type ActionView, type RunsOverview,
   type RunsWindow } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -12,7 +13,7 @@ import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/p
 import type { OverviewIndexRow } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { scheduleManifest } from "@molis-ai/molis-work-plugin-schedule";
 import { writeMainOverviewRows } from "./fixtures/overview-rows.js";
-import { createProject, LocalHostHttpClient } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { createProject, LocalHostHttpClient, projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 
 /**
  * RES-05, V17: the partitions' runs come from the overview, where each plugin wrote them as `scheduled_run` rows (no project is asked or
@@ -258,4 +259,70 @@ test("BL-missed-runs-never-expire /api/runtime/expired/seen isolates homes, igno
   const afterRes = await fetch(`${originA}/api/runtime/overview`);
   const after = await afterRes.json() as { expired: { count: number } };
   assert.equal(after.expired.count, 0, "acknowledged expired summary is not repeated");
+});
+
+test("B2R-02 a delayed Home provider cannot retain a revoked project in the runtime response", async () => {
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  const { ports } = harness([
+    row("p1", "schedule", "first", "2026-11-11T10:00:00.000Z"), row("p2", "schedule", "second", "2026-11-11T10:00:00.000Z"),
+    row("p1", "schedule", "missed", "2026-11-11T06:00:00.000Z", { missed_at: NOW }),
+    row("p1", "schedule", "expired", "2026-10-01T00:00:00.000Z", { missed_at: NOW }),
+  ], { "home:assistant.runs.overview": async input => { entered.resolve(); await release.promise; return overview("assistant", [])(input); } });
+  let denied = "";
+  const pending = runtimeOverview({ ...ports, readableProjects: ids => ids.filter(id => id !== denied), projectRuns: async (...args) => {
+    const runs = await ports.projectRuns(...args);
+    return runs && { ...runs, refreshing: ["p1"], updating: true };
+  } });
+  await entered.promise;
+  denied = "p1";
+  release.resolve();
+  const result = await pending;
+  assert.deepEqual(result.upcoming.map(run => run.run_id), ["second"]);
+  assert.equal(result.updating, undefined, "the only refreshing partition lost access");
+  assert.deepEqual(result.missed, []);
+  assert.equal(result.expired.count, 0);
+  assert.ok(!result.expired.owners.includes(expiredOwnerKey("p1", "schedule")));
+});
+
+test("UPP-30 the runtime panel applies project readability to cached scheduled runs", async t => {
+  let denied = "";
+  const home = await openTestHome(t, { host: { overviewProjectAccess: (_caller, id) => id !== denied } });
+  const a = await home.createProject("A"), b = await home.createProject("B");
+  const now = new Date().toISOString(), due = new Date(Date.now() + 60_000).toISOString();
+  for (const project of [a, b]) {
+    await fetch(`${home.origin}/projects/${project.project_id}/?openPlugin=schedule`);
+    const store = new LocalProjectDatabase(project.database_path);
+    try {
+      await writeMainOverviewRows(home.home, store, project.project_id, scheduleManifest, rows => rows.upsert("scheduled_run",
+        { row_id: project.project_id, title: project.project_id, due_at: due, updated_at: now }));
+    } finally { store.close(); }
+  }
+  const titles = async () => {
+    const result = await fetch(`${home.origin}/api/runtime/overview`);
+    assert.equal(result.status, 200);
+    return ((await result.json()) as { upcoming: { title: string }[] }).upcoming.map(row => row.title);
+  };
+  const visible = await titles();
+  assert.ok(visible.includes(a.project_id) && visible.includes(b.project_id));
+  denied = a.project_id;
+  const allowed = await titles();
+  assert.ok(!allowed.includes(a.project_id) && allowed.includes(b.project_id));
+  denied = "";
+  const release = Promise.withResolvers<void>(), entered = Promise.withResolvers<void>(), projected = Promise.withResolvers<void>();
+  const index = runningPartitionPlatformServices(home.home)!.overview, readIndex = index.read.bind(index);
+  t.mock.method(index, "read", (...args: Parameters<typeof readIndex>) => {
+    const rows = readIndex(...args);
+    if ([a, b].every(project => rows.some(row => row.row_id === project.project_id && row.kind === "scheduled_run"))) projected.resolve();
+    return rows;
+  });
+  const query = defineRunsOverviewAction("fixture.pending.runs", 1, "Pending source", [], "home");
+  home.host.actionRegistry().registerProvider({ provider: { provider_id: "fixture.pending", title: "Pending", kind: "system" }, definitions: [query],
+    handlers: [{ ...query, async handle() { entered.resolve(); await release.promise; return { source: { title: "Pending", surface: "pending" }, upcoming: [], missed: [], expired: 0 }; } }] });
+  const inFlight = titles();
+  try {
+    await Promise.all([entered.promise, projected.promise]);
+    await home.web.delete(`/api/settings/projects/${a.project_id}/plugins`, { plugin_id: "schedule", expected_revision: await projectPluginRevision(home.web, a.project_id) });
+  } finally { release.resolve(); }
+  const afterRemoval = await inFlight;
+  assert.ok(!afterRemoval.includes(a.project_id) && afterRemoval.includes(b.project_id), "B2R-02: removal while the Home run source waits applies to this response");
 });

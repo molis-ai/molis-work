@@ -28,7 +28,7 @@ async function fromIndex(f: Awaited<ReturnType<typeof serveHomeRuntime>>, projec
   const { projects } = await response.json() as { projects: Array<VersionedProjectPluginMembership & { project_id: string }> };
   const row = projects.find(row => row.project_id === projectId);
   assert.ok(row?.revision);
-  return { plugins: row.plugins, hidden: row.hidden, revision: row.revision };
+  return { plugins: row.plugins, revision: row.revision };
 }
 
 test("SPC-C08 public membership actions and HTTP use the same observation and refuse stale or forged changes", async t => {
@@ -39,7 +39,7 @@ test("SPC-C08 public membership actions and HTTP use the same observation and re
   assert.deepEqual(opened, [], "the settings index cannot wake either project runtime");
   await f.host.ensureWebCatalog(f.home, openMolisWorkProjectCatalog).withCatalog({ homeDirectory: f.home }, catalog => {
     const id = project.project_id;
-    assert.deepEqual(catalog.projectPluginMembership(id), { plugins: observed.plugins, hidden: observed.hidden });
+    assert.deepEqual(catalog.projectPluginMembership(id), { plugins: observed.plugins });
     assert.deepEqual(catalog.projectPluginMembershipWithRevision(id), observed, "the versioned read is the same observation");
   });
   const caller = { ...person(["projects:settings"], project.project_id), actor_id: "test-action-person" };

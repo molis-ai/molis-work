@@ -9,12 +9,15 @@ export type StoredConnection = Pick<ImageConnection, "id" | "name" | "model" | "
 };
 
 /**
- * The person's image services follow the person, not the partition (specs/unified-partition-plugins §4.2 第 4 条, batch 108): one
- * `person_settings` key, kept in the Home for this installation and never synced (it names a connection of this machine). Every partition
- * Images is enabled in sees the same services; the jobs and pictures stay in each partition's own library.
+ * Service descriptions follow the person across devices. Pending account changes refer to local credentials and stay on this device.
+ * Every partition where Images is enabled sees the same services; jobs and pictures belong to that partition.
  */
 export const IMAGES_CONNECTIONS_SETTING = "connections";
-export const IMAGES_PERSON_SETTINGS: readonly PersonSettingDeclaration[] = [{ key: IMAGES_CONNECTIONS_SETTING, kind: "connection_ref" }];
+const LOCAL_CHANGES = "binding_changes";
+export const IMAGES_PERSON_SETTINGS: readonly PersonSettingDeclaration[] = [
+  { key: IMAGES_CONNECTIONS_SETTING, kind: "preference", portable: true },
+  { key: LOCAL_CHANGES, kind: "connection_ref" },
+];
 const LIMIT = 20;
 
 /**
@@ -24,18 +27,20 @@ const LIMIT = 20;
  */
 export class ImagesConnections {
   private known: StoredConnection[] = [];
+  private current: () => boolean = () => false;
 
   constructor(private readonly settings: PluginPersonSettingsClient) {}
 
   /** The services, read again for the person or this instance; refused for anyone else. */
   list(): StoredConnection[] {
-    const record = this.settings.get(IMAGES_CONNECTIONS_SETTING);
-    this.known = record === null ? [] : parse(record.value);
+    const snapshot = this.settings.snapshot();
+    this.current = snapshot.current;
+    this.known = joined(snapshot.records);
     return this.known.map(connection => ({ ...connection }));
   }
 
   /** The services this instance last read, for a caller that may not read them (an Agent's generation). */
-  remembered(): StoredConnection[] { return this.known.map(connection => ({ ...connection })); }
+  remembered(): StoredConnection[] { return this.current() ? this.known.map(connection => ({ ...connection })) : []; }
 
   /** The service by id: read again when the caller may, otherwise as last read. */
   get(id: string, fresh: boolean): StoredConnection | null {
@@ -55,8 +60,10 @@ export class ImagesConnections {
    * account change planned with it are kept together or not at all, as one transaction kept them when they were rows.
    */
   batch<T>(apply: (changes: ImagesConnectionChanges) => T): T {
-    const record = this.settings.get(IMAGES_CONNECTIONS_SETTING);
-    let next = record === null ? [] : parse(record.value), changed = false;
+    const records = this.settings.list();
+    const record = records.find(row => row.key === IMAGES_CONNECTIONS_SETTING);
+    const privateRecord = records.find(row => row.key === LOCAL_CHANGES);
+    let next = joined(records), changed = false;
     const edit = (change: (list: StoredConnection[]) => StoredConnection[]) => {
       next = change(next);
       changed = true;
@@ -75,10 +82,28 @@ export class ImagesConnections {
     });
     if (!changed) return result;
     if (next.length > LIMIT) throw imagesErrors.invalid(`最多保存 ${LIMIT} 个生图服务。`);
-    this.settings.set(IMAGES_CONNECTIONS_SETTING, { services: next }, { expected_revision: record?.revision ?? null });
-    this.known = next.map(connection => ({ ...connection }));
+    const services = next.map(withoutChange);
+    const changes = Object.fromEntries(next.flatMap(item => item.change ? [[item.id, item.change.authId]] : []));
+    const updates = [];
+    if (JSON.stringify(record?.value) !== JSON.stringify({ services }))
+      updates.push({ key: IMAGES_CONNECTIONS_SETTING, value: { services }, expected_revision: record?.revision ?? null });
+    if (JSON.stringify(privateRecord?.value ?? {}) !== JSON.stringify(changes))
+      updates.push({ key: LOCAL_CHANGES, value: changes, expected_revision: privateRecord?.revision ?? null });
+    this.settings.setMany(updates);
+    this.list();
     return result;
   }
+}
+
+function joined(records: readonly ReturnType<PluginPersonSettingsClient["list"]>[number][]): StoredConnection[] {
+  const record = records.find(row => row.key === IMAGES_CONNECTIONS_SETTING);
+  const services = record?.portable ? parse(record.value) : [];
+  const changes = records.find(row => row.key === LOCAL_CHANGES)?.value;
+  if (!changes || typeof changes !== "object" || Array.isArray(changes)) return services;
+  return services.map(item => {
+    const authId = Object.hasOwn(changes, item.id) ? (changes as Record<string, unknown>)[item.id] : undefined;
+    return authId === null || typeof authId === "string" ? { ...item, change: { authId } } : item;
+  });
 }
 
 /** The changes one `batch` makes to the person's services before its one write. */
@@ -101,9 +126,7 @@ function parse(value: unknown): StoredConnection[] {
     const row = item as Record<string, unknown>;
     if (!row || typeof row !== "object" || [row.id, row.name, row.base_url, row.model, row.created_at, row.updated_at].some(field => typeof field !== "string")
       || (row.api_format !== "openai-images" && row.api_format !== "gemini")) return [];
-    const change = row.change as { authId?: unknown } | undefined;
     return [{ id: String(row.id), name: String(row.name), api_format: row.api_format, base_url: String(row.base_url), model: String(row.model),
-      created_at: String(row.created_at), updated_at: String(row.updated_at),
-      ...(change && typeof change === "object" && (change.authId === null || typeof change.authId === "string") ? { change: { authId: change.authId as string | null } } : {}) }];
+      created_at: String(row.created_at), updated_at: String(row.updated_at) }];
   });
 }

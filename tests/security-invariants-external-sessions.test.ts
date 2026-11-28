@@ -768,7 +768,7 @@ test("S-sessions-person-decides 5: plugins with knowledge:read cannot proxy-read
     const projectClient = home.host.actionClient(ref);
     const views = await projectClient.discover(personProjectCaller);
     assert.equal(
-      projectReferenceKinds(views, undefined, new Set()).some(entry => entry.kind === "external_session"),
+      projectReferenceKinds(views, undefined).some(entry => entry.kind === "external_session"),
       false,
       "projectReferenceKinds excludes external_session even when sessions.search.entries and sessions.subject.read are registered",
     );

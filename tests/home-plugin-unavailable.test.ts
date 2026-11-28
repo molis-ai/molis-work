@@ -25,13 +25,14 @@ test("D0308 the unavailable page has one translated alert, keeps the original fi
   const { desktopWorkbenchRendererPorts } = await import("@molis-ai/molis-work-app-desktop");
   // The page says why in its own words and gives the number to quote (upgrade-continuity U3 §2.3), never the store's message or code.
   for (const [reason, kept] of [["store_too_new", "neither reads nor changes it"], ["unreadable", "The original file is kept unchanged."]] as const) {
-    const html = runWithLocale("en", () => renderOwnerUnavailablePage({ project: { project_id: "fixture", display_name: "Fixture" }, membership: { plugins: ["goals", "feed"], hidden: ["feed"] },
+    const html = runWithLocale("en", () => renderOwnerUnavailablePage({ project: { project_id: "fixture", display_name: "Fixture" }, membership: { plugins: ["goals", "feed"] },
       card: { title: "The Home plugin store", reason, diagnostic_id: "D-3F9A2C81", rollback_href: null, reload_href: "/projects/fixture/" },
       desktopShell: false }, { readText, htmlLang: () => "en", desktop: desktopWorkbenchRendererPorts }));
     assert.equal((html.match(/role="alert"/g) ?? []).length, 1, reason);
     assert.doesNotMatch(html, /PRIVATE_FAILURE_BODY|storage\./u);
     assert.ok(html.includes(kept), reason);
     assert.match(html, /data-copy-value="D-3F9A2C81"/u);
-    assert.match(html, /data-stored-project-plugin="feed" data-plugin-hidden="true"/u);
+    assert.match(html, /data-stored-project-plugin="feed"/u);
+    assert.doesNotMatch(html, /data-plugin-hidden/u);
   }
 });

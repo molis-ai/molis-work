@@ -6,7 +6,7 @@ import type { MolisWorkProjectCatalog } from "./project-catalog.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { homePluginsOutsideBuild } from "./home-registration.js";
 
-type ReachEntry = PluginRegistration | { readonly personal: true; readonly project_plugin_id: string; readonly runtime?: never };
+type ReachEntry = PluginRegistration | { readonly project_plugin_id: string; readonly runtime?: never };
 type ReachCatalog = Pick<MolisWorkProjectCatalog, "projectPluginMembership"> & {
   readonly catalogDataStamp?: () => string | null;
   readonly homeDirectory?: string;
@@ -61,14 +61,14 @@ export function projectMembershipReach({ plugins }: ProjectPluginMembership): Re
  * The plugins a project's actions and routes may reach right now (PG-013): the ones the project has and what those embed. `null`
  * where there is no project record (a deleted project). The one list actions and routes share; it reads the catalog on every call, so
  * adding and taking out count at once. `outsideBuild` is the Home plugins its build does not ship (`homePluginsOutsideBuild`, #679):
- * reached unless the project hid them (until batch 109-3). A caller that passes none reaches none of them.
+ * reached only if the project enabled them (until batch 109-3). A caller that passes none reaches none of them.
  */
 export function projectReachablePlugins(catalog: Pick<MolisWorkProjectCatalog, "projectPluginMembership">, projectId: string,
   outsideBuild: readonly string[] = []): ReadonlySet<string> | null {
   try {
     const membership = catalog.projectPluginMembership(projectId);
     const reachable = new Set(projectMembershipReach(membership));
-    for (const key of outsideBuild) if (!membership.hidden.includes(key)) reachable.add(key);
+    for (const key of outsideBuild) if (membership.plugins.includes(key)) reachable.add(key);
     return reachable;
   }
   catch (error) {
@@ -78,21 +78,19 @@ export function projectReachablePlugins(catalog: Pick<MolisWorkProjectCatalog, "
   }
 }
 
-/**
- * Whether a catalog plugin can be reached from a project: where there is no project list, only a Home plugin outside the build (it is on
- * in every project and has nothing to hide; removed with the Home runtime in batch 109-3).
- */
-export function pluginReachable(entry: { readonly personal?: true; readonly project_plugin_id: string }, reachable: ReadonlySet<string> | null): boolean {
-  return reachable === null ? entry.personal === true : reachable.has(entry.project_plugin_id);
+/** A registered catalog plugin needs membership in the caller's partition. */
+export function pluginReachable(entry: { readonly project_plugin_id: string }, reachable: ReadonlySet<string> | null): boolean {
+  return reachable?.has(entry.project_plugin_id) === true;
 }
 
 /**
- * What the reach judgement knows of a plugin in this Home: its catalog entry, or, for a personal Home plugin outside the build, the same
- * shape keyed by its plugin id. Anything else (a project's own Runtime plugin) is not the catalog's to judge.
+ * What the reach judgement knows of a plugin in this Home: its catalog entry, or, for a registered Home plugin outside the build, the same
+ * shape keyed by its plugin id. A provider owned by the project's Runtime has its own installation and grants even when a Home
+ * installation uses the same plugin id (BL-586).
  */
-export function reachEntry(homeDirectory: string | undefined, pluginId: string): ReachEntry | undefined {
+export function reachEntry(homeDirectory: string | undefined, pluginId: string, provider?: Pick<ActionView["provider"], "project_id">): ReachEntry | undefined {
   return builtinPluginByManifestId(pluginId)
-    ?? (homePluginsOutsideBuild(homeDirectory).includes(pluginId) ? { personal: true, project_plugin_id: pluginId } : undefined);
+    ?? (provider?.project_id === undefined && homePluginsOutsideBuild(homeDirectory).includes(pluginId) ? { project_plugin_id: pluginId } : undefined);
 }
 
 /**
@@ -102,22 +100,17 @@ export function reachEntry(homeDirectory: string | undefined, pluginId: string):
  * the old rule. Returned once, so a caller outside the catalog's callback never holds its database open.
  */
 export function projectPluginJudge(catalog: ReachCatalog, projectId: string,
-  homeDirectory: string | undefined): (pluginId: string) => boolean | undefined {
+  homeDirectory: string | undefined): (pluginId: string, provider?: Pick<ActionView["provider"], "project_id">) => boolean | undefined {
   const reachable = cachedProjectReachablePlugins(catalog, projectId, homePluginsOutsideBuild(homeDirectory));
-  return pluginId => {
-    const entry = reachEntry(homeDirectory, pluginId);
+  return (pluginId, provider) => {
+    const entry = reachEntry(homeDirectory, pluginId, provider);
     return entry ? pluginReachable(entry, reachable) : undefined;
   };
 }
 
 /** Bundled plugins use the existing project installation record; Runtime plugins enforce their own grants. */
 export function projectActionAvailability(withCatalog: LocalWebCatalogRunner, homeDirectory: string) {
-  const entryOf = (action: Pick<ActionView, "provider">) => {
-    const entry = action.provider.plugin_id ? reachEntry(homeDirectory, action.provider.plugin_id) : undefined;
-    // A Home plugin outside the build has no project half: a project's own provider under its id is another publisher's plugin (BL-586),
-    // whose grants are its own, not the Home one the project's list shows or hides.
-    return entry && !("manifest" in entry) && action.provider.project_id !== undefined ? undefined : entry;
-  };
+  const entryOf = ({ provider }: Pick<ActionView, "provider">) => provider.plugin_id ? reachEntry(homeDirectory, provider.plugin_id, provider) : undefined;
   const read = async (caller: ActionCallContext): Promise<ReadonlySet<string> | null> => {
     if (!caller.project_id) return null;
     return withCatalog({ homeDirectory }, catalog => cachedProjectReachablePlugins(catalog, caller.project_id!, homePluginsOutsideBuild(homeDirectory)));
@@ -126,7 +119,8 @@ export function projectActionAvailability(withCatalog: LocalWebCatalogRunner, ho
     // Only Runtime stamps an installation id. A Home provider belongs to its trusted Home registration,
     // not to a project's shown-plugin list; a missing/deleted project is still a project caller.
     const homeRuntime = caller.project_id == null && action.provider.kind === "plugin"
-      && !!action.provider.plugin_install_id && action.provider.project_id === undefined && !!entry?.runtime;
+      && !!action.provider.plugin_install_id && action.provider.project_id === undefined
+      && entry !== undefined && (!("manifest" in entry) || !!entry.runtime);
     return !entry || homeRuntime || pluginReachable(entry, reachable) ? { available: true }
       : { available: false, code: "actions.plugin_disabled", reason: "此项目未启用该插件" };
   };

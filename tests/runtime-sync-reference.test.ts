@@ -5,6 +5,8 @@ import { PluginRuntime, PluginSupervisor, HOST_BUILD_TRUST, bindRuntimeSyncColle
 import { bindActionClient } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { PluginDefinition } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SyncReplicaAdapter } from '@molis-ai/molis-work-contracts/platform/sync-transport';
+import { existingPartitionPluginHost, molisWorkHostProjectReference } from '@molis-ai/molis-work-app-local-host';
+import { todoManifest } from '@molis-ai/molis-work-plugin-todo';
 import { goalsActions } from '@molis-ai/molis-work-plugin-goals';
 import { pagesActions } from '@molis-ai/molis-work-plugin-pages';
 import { person } from './fixtures/home-runtime.js';
@@ -54,4 +56,29 @@ test('a fresh Pages replica receives documents with Goals references on its firs
 
   const restored = await client(target).invoke(pagesActions.get, { id: document.id });
   assert.equal(restored.document.goal_id, goal_id);
+});
+
+test('B2R-07 a sleeping partition can synchronize a legal collection without optional recovery hooks', { timeout: 90_000 }, async t => {
+  const { target } = await syncOwnerPair(t, ['todo']);
+  const project = target.project(), host = existingPartitionPluginHost(target.home)!;
+  await target.host.closeProject(molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path }));
+  await host.assembly.stopPlugin(todoManifest.plugin_id, project.project_id);
+  const owner = host.syncOwner(todoManifest.plugin_id)!;
+  let passiveReads = 0;
+  host.declare([{ trust: HOST_BUILD_TRUST, definition: { ...owner.definition, partitionSync(context) {
+    return owner.bindings(context).map(binding => {
+      passiveReads++;
+      const replica = { ...binding.replica };
+      delete replica.retryWaiting;
+      delete replica.recoveries;
+      return { ...binding, replica };
+    });
+  } } }]);
+  const registration = await target.bind(todoManifest.plugin_id);
+  registration.withReplica(replica => {
+    replica.retryWaiting?.();
+    assert.deepEqual(replica.recoveries?.(), []);
+  });
+  assert.ok(passiveReads > 0);
+  assert.equal(host.platform(todoManifest.plugin_id, project.project_id), undefined);
 });

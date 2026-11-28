@@ -36,13 +36,16 @@ test('Runtime contributions prepare only selected installed owners and lose auth
 test('AP-09 runtimeSyncRegistration read-only polls do not dirty overview_libraries while mutating receive marks only its own install dirty', async t => {
  const f = personalSyncFixture(t);
  const received: unknown[] = [];
+ let damaged = false;
+ let retries = 0;
  const replica: SyncReplicaAdapter = {
   next: () => null,
   receive(event) { received.push(event); },
   acknowledge() {},
   cursor: () => 0,
   counts: () => ({ pending: 0, conflicts: 0 }),
-  conflicts: () => [],
+  conflicts() { if (damaged) throw new Error("Unreadable conflict"); return []; },
+  retryWaiting() { retries++; },
   resolve() {},
  };
  const definition: PluginDefinition = {
@@ -74,6 +77,10 @@ test('AP-09 runtimeSyncRegistration read-only polls do not dirty overview_librar
   registration.withReplica(r => { r.counts(); r.next(); r.conflicts(); r.cursor(); });
   assert.deepEqual(index.state('proj-1', installId), { dirty: false }, 'read-only polls leave own overview library clean');
   assert.deepEqual(index.state('proj-1', otherInstallId), { dirty: false }, 'read-only polls leave sibling overview library clean');
+  damaged = true;
+  registration.withReplica(r => r.retryWaiting!());
+  assert.equal(retries, 1, 'unreadable conflict diagnostics do not block the owner retry');
+  damaged = false;
   // Mutating receive marks ONLY this plugin's install_id dirty, never the whole partition.
   registration.withReplica(r => r.receive({
    key: JSON.stringify(['proj-1', 'item-1']),

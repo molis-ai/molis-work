@@ -21,10 +21,9 @@ export function renderOwnerUnavailablePage(input: {
   desktopShell: boolean;
 }, locale: { readText(text: string, values?: Record<string, string | number>): string; htmlLang(): string; desktop: WorkbenchRendererPorts["desktop"] }): string {
   const { readText } = locale, membership = input.membership;
-  const members = membership ? [...new Set([...membership.plugins, ...membership.hidden])].map(pluginId => {
+  const members = membership ? membership.plugins.map(pluginId => {
     const entry = SHIPPED_WORKBENCH_PARTS.find(entry => entry.project_plugin_id === pluginId);
-    const hidden = membership.hidden.includes(pluginId);
-    return `<li data-stored-project-plugin="${escapeHtml(pluginId)}" data-plugin-hidden="${hidden}">${escapeHtml((entry?.manifest.name ?? pluginId))}${hidden ? ` · ${escapeHtml(uiText.text("workbench.plugin-store-unavailable.hidden"))}` : ""}</li>`;
+    return `<li data-stored-project-plugin="${escapeHtml(pluginId)}">${escapeHtml(entry?.manifest.name ?? pluginId)}</li>`;
   }).join("") : "";
   // These are failure/status entries, not derived project members. Never invoke a running contribution while its ledger is unreadable.
   const statuses = membership ? SHIPPED_WORKBENCH_PARTS.filter(entry => entry.manifest.runtime?.scope === "home").map(entry =>

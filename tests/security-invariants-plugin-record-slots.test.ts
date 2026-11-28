@@ -17,7 +17,7 @@ const BEARER_VALUE = "fixture-bearer-value-for-record-slots";
 test("RAC-2518 S-71 opaque pages cannot bind accounts; the trusted picker retains page/project authority and returns only its chosen account", async t => {
   const probe = connectionsProbe("recordslotmount", { binding: "per_record" });
   const f = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
-  const { install } = await grantConnections(f.host, probe), project = await f.project("Picker authority"), other = await f.project("Other picker project");
+  const { install } = await grantConnections(f.host, probe), project = await f.project("Picker authority", [probe.id]), other = await f.project("Other picker project", [probe.id]);
   const prefix = `/projects/${project.project_id}`;
   const account = withConnectorConnections(f.home, store => store.createToken({ serviceId: "github", displayName: "Selected account", token: BEARER_VALUE }));
   const opened = await f.request(prefix + "/api/host/plugin-pages", { method: "POST", body: { plugin_id: probe.id } });
@@ -42,7 +42,7 @@ test("S-71 RAC-2666 the record-slot path binds and reads a record's account as t
   const f = await serveHomeRuntime(t, { pluginFixtures: { home: [records.definition, whole.definition] } });
   const { install } = await grantConnections(f.host, records);
   const wholeInstall = (await grantConnections(f.host, whole)).install;
-  const one = await f.project("Record slots one"), two = await f.project("Record slots two");
+  const one = await f.project("Record slots one", [records.id, whole.id]), two = await f.project("Record slots two", [records.id, whole.id]);
   const connection = withConnectorConnections(f.home, store => store.createToken({ serviceId: "github", displayName: "Work GitHub", token: BEARER_VALUE }));
   const body = { plugin_id: records.id, slot_id: "github", service_id: "github", record_key: "src-1", connection_id: connection.connection_id };
   const query = (project: string, extra: Record<string, string> = {}) => new URLSearchParams({ project, plugin_id: records.id, slot_id: "github", record_key: "src-1", ...extra });
@@ -109,7 +109,7 @@ test("S-71 RAC-2666 a project with two live installations of the plugin is refus
   const records = connectionsProbe("recordslottwice", { binding: "per_record" });
   const f = await serveHomeRuntime(t, { pluginFixtures: { home: [records.definition] } });
   const { install } = await grantConnections(f.host, records);
-  const project = await f.project("Record slots twice");
+  const project = await f.project("Record slots twice", [records.id]);
   await f.host.withProject(project.reference, runtime => {
     const repository = new SqlitePluginRuntimeRepository(runtime.store.db);
     for (const install_id of ["record-slot-twice-a", "record-slot-twice-b"]) repository.save({ ...install, install_id });

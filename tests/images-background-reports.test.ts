@@ -58,7 +58,7 @@ test("AP-14 writeImagesOverview bounds plugin_overview_rows to OVERVIEW_ROW_LIMI
       insert.run(id, `req-${id}`, `hash-${id}`, `画 ${id}`, new Date(baseMs + i * 100).toISOString());
     }
     const service = new ImagesService({
-      projectId: "p", database, connections: {} as never, files: {} as never, imageGeneration: {} as never, background: {} as never,
+      projectId: "p", installationGeneration: "images-test-generation", database, connections: {} as never, files: {} as never, imageGeneration: {} as never, background: {} as never,
     });
     await service.recover({ beforeEffect: async () => {} });
     const rows = database.raw.prepare(`SELECT row_id FROM ${OVERVIEW_TABLE} WHERE kind = 'background_task' ORDER BY row_id`).all() as Array<{ row_id: string }>;

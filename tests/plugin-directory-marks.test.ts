@@ -6,14 +6,14 @@ import { projectPluginRevisionAt } from "./fixtures/project-plugin-settings.js";
 
 installHostUiText();
 
-// W5-02 B1 (specs/archive/repository-anti-corruption/slices/w5-02-registry.md §3.0 Q3): which built-in is personal, which one is 常开 and what
+// W5-02 B1 (specs/archive/repository-anti-corruption/slices/w5-02-registry.md §3.0 Q3): which built-in is 常开 and what
 // a plugin brings along are the Host's facts. It writes them on the directory the page is drawn with, from its own registration; the
 // page only reads them, and what the page sends back is never read as one of them.
 
-test("RAC-711 the Host marks each built-in from its own registration: personal, what it brings along, and 常开 only from what this Home agreed to", () => {
+test("RAC-711 the Host marks each built-in from its own registration: what it brings along, and 常开 only from what this Home agreed to", () => {
   const market = builtinMarketDirectory();
   assert.deepEqual(market.map(entry => entry.id), PLATFORM_PLUGIN_REGISTRATIONS.map(entry => entry.project_plugin_id), "every built-in, in the registration's order");
-  assert.deepEqual(market.filter(entry => entry.personal === true).map(entry => entry.id), [], "no built-in is a personal plugin since batch 108");
+  assert.ok(market.every(entry => !Object.hasOwn(entry, "personal")), "the market exposes the current member contract");
   for (const entry of market) {
     const companions = BUILTIN_PLUGIN_REGISTRY.companions(entry.id);
     assert.deepEqual(entry.companions ?? [], companions, `${entry.id} brings along what the registration says`);
@@ -59,16 +59,16 @@ test("RAC-710 forged marks are refused: honest changes still bring companions an
   // The page claims Feed is personal and brings nothing along; the Host adds Inbox with it, as its registration says.
   const added = await change("POST", "feed", { personal: true, companions: [] });
   assert.equal(added.status, 200);
-  const membership = await added.json() as { plugins: string[]; hidden: string[] };
+  const membership = await added.json() as { plugins: string[] };
   assert.ok(membership.plugins.includes("feed") && membership.plugins.includes("inbox"), "Inbox comes along whatever the page says");
-  assert.deepEqual(membership.hidden, []);
+  assert.equal(Object.hasOwn(membership, "hidden"), false);
 
   // No built-in is personal since batch 108: whatever the page claims, taking Feed out takes it out, and nothing is listed as hidden.
   const removed = await change("DELETE", "feed", { personal: true });
   assert.equal(removed.status, 200);
-  const after = await removed.json() as { plugins: string[]; hidden: string[] };
+  const after = await removed.json() as { plugins: string[] };
   assert.ok(!after.plugins.includes("feed"));
-  assert.deepEqual(after.hidden, []);
+  assert.equal(Object.hasOwn(after, "hidden"), false);
 
   // Shelf is a platform part (44B): whatever the page claims, there is no project plugin of that name to remove.
   const forged = await change("DELETE", "shelf", { personal: true });

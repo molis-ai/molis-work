@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
+import { addProjectPlugin } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { pluginInstallActions, type MolisWorkProjectRuntime } from "@molis-ai/molis-work-app-local-host";
 import { LOCAL_PERSON_ACTOR_ID, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -63,6 +64,7 @@ async function fixture(t: TestContext, scope: "project" | "home", delegated: rea
     await client.invoke(caller, ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: "Homepage fixture" });
   };
   await install();
+  if (scope === "home") await addProjectPlugin(f.web, project.project_id, owner);
   const post = (path: string, value: unknown, headers?: Record<string, string>) => f.request(prefix + path, { method: "POST", body: value, headers });
   const description = () => post(endpoint, {}).then(answer => body<SurfaceDescription>(answer));
   const card = async (): Promise<SurfacePluginCard> => {

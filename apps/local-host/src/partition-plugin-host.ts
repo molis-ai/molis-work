@@ -1,20 +1,23 @@
+import { OVERVIEW_REFRESH_ENTRY_KEY } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { existsSync, realpathSync } from "node:fs";
 import path from "node:path";
 import { PERSONAL_SPACE_DIRECTORY, ProjectsModule, partitionRootsOnDisk } from "@molis-ai/molis-work-module-projects";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { installIdentity, isHostTrust, registerPluginOffHere, resolveManifestText } from "@molis-ai/molis-work-plugin-runtime";
+import { installedLocalePacks } from "./installed-action-registration.js";
+import { manifestWordResolver } from "./ui-text-provider.js";
 import type { PluginDueReminder, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { installIdentity, isHostTrust, registerPluginOffHere } from "@molis-ai/molis-work-plugin-runtime";
 import { LocalSqliteStorage } from "@molis-ai/molis-work-storage";
 import type { OverviewLibrary } from "@molis-ai/molis-work-service-search";
 import { isHomePluginStoreRefusal, openHomePluginStore, readHomePluginInstallations } from "./home-plugin-store.js";
 import { homePluginsOutsideBuild } from "./home-registration.js";
 import { hostLog } from "./host-log.js";
 import { assembledPerPartition, PartitionPluginAssembly, type PartitionPluginLease, type PartitionWakeReason } from "./partition-plugin-assembly.js";
-import { notePartitionInstalls } from "./plugin-install-records.js";
+import { notePartitionInstalls, pluginInstallRecords } from "./plugin-install-records.js";
 import { BUILTIN_PLUGIN_REGISTRY, builtinPluginByManifestId, PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import {
   ATTENTION_OVERVIEW_SOURCE, attentionOverviewLibrary, forgetInstallationPlatformRecords, forgetPartitionMainOverviewRows,
-  markPartitionChanged, partitionOverviewLibraries, PartitionPlatformServices, type OverviewInstallation,
+  markPartitionChanged, partitionOverviewLibraries, PartitionPlatformServices, registerPartitionDue, type OverviewInstallation,
 } from "./partition-platform-services.js";
 import { onAttentionChangeOf } from "./attention-changes.js";
 import type { PluginPlatform, PluginPlatformEntry } from "./plugin-platform.js";
@@ -93,25 +96,23 @@ export async function releasePartitionPlugins(store: LocalProjectDatabase, parti
  * running services when the Host has them, else straight to the overview index (a restore runs without a Host).
  */
 export function partitionChanged(home: string, partitionId: string, installId?: string): void {
-  const host = existingPartitionPluginHost(home);
-  if (host?.services) host.services.partitionChanged(partitionId, installId);
+  const services = existingPartitionPluginHost(home)?.services;
+  if (services) services.partitionChanged(partitionId, installId);
   else markPartitionChanged(home, partitionId, installId);
 }
 
 /**
- * A membership write took a plugin out of a partition: its due entries and overview rows there go now, whether or not the partition is open
- * (an open one also stops its instance on the refresh that follows). Covers both per-partition plugins (`databases.partition`) and main-DB
- * plugins declaring `overview_projection` (clearing `plugin_overview_rows` in `<partition>/molis-work.db` as well).
+ * Reconcile one changed member with its retained library. Enabling reads only its projection to arm reminders, even in a closed partition.
+ * Disabling clears its due entries and cached rows, including the projection owned in the shared project database.
  */
-export function partitionPluginRemoved(home: string, pluginId: string, partitionId: string): void {
+export function partitionPluginMembershipChanged(home: string, pluginId: string, partitionId: string, enabled: boolean): void {
   const host = existingPartitionPluginHost(home);
   const declared = host?.manifestOf(pluginId);
   const builtin = builtinPluginByManifestId(pluginId)?.manifest;
   let installed: { readonly install_id: string; readonly manifest: PluginManifest } | undefined;
   if (!declared && !builtin) {
     try {
-      const found = readHomePluginInstallations(home, id => builtinPluginByManifestId(id)?.manifest)
-        .find(entry => entry.manifest.plugin_id === pluginId);
+      const found = readHomePluginInstallations(home, id => builtinPluginByManifestId(id)?.manifest, { pluginId })[0];
       if (found) installed = { install_id: found.install_id, manifest: found.manifest };
     } catch (error) {
       if (!isHomePluginStoreRefusal(error)) throw error;
@@ -120,6 +121,17 @@ export function partitionPluginRemoved(home: string, pluginId: string, partition
   const manifest = declared ?? builtin ?? installed?.manifest;
   if (!manifest || (!assembledPerPartition(manifest) && !manifest.overview_projection?.kinds.length)) return;
   const installId = installed?.install_id ?? installIdentity(manifest);
+  if (enabled) {
+    if (manifest.overview_projection?.kinds.length) partitionChanged(home, partitionId, installId);
+    if (manifest.overview_projection?.rolling_window) {
+      const [library] = partitionOverviewLibraries(home, [{ partition_id: partitionId, plugins: [{ install_id: installId, manifest }] }]);
+      if (library && existsSync(library.path)) {
+        registerPartitionDue(home, { partition_id: partitionId, plugin_id: pluginId, install_id: installId },
+          { entry_key: OVERVIEW_REFRESH_ENTRY_KEY, due_at: new Date().toISOString() });
+      }
+    }
+    return;
+  }
   if (host?.services) host.services.pluginDisabled(installId, partitionId);
   else forgetInstallationPlatformRecords(home, installId, partitionId, { dataGoes: false, installedElsewhere: true });
   if (manifest.databases?.project && !manifest.databases.partition && manifest.overview_projection?.kinds.length) {
@@ -132,7 +144,7 @@ function readPartitionReachSync(home: string, partitionId: string): ReadonlySet<
   const catalogPath = path.join(home, "projects", "catalog.db");
   if (!existsSync(catalogPath)) return undefined;
   let storage: LocalSqliteStorage;
-  try { storage = new LocalSqliteStorage(catalogPath, { readonly: true }); } catch { return undefined; }
+  try { storage = new LocalSqliteStorage(catalogPath, { readonly: true }); } catch { return null; }
   try {
     const projects = new ProjectsModule({
       db: storage.db,
@@ -146,7 +158,7 @@ function readPartitionReachSync(home: string, partitionId: string): ReadonlySet<
       homePluginsOutsideBuild(home),
     );
   } catch {
-    return undefined;
+    return null;
   } finally {
     storage.close();
   }
@@ -204,10 +216,27 @@ export class PartitionPluginHost {
     for (const entry of entries) this.entries.set(entry.definition.manifest.plugin_id, entry);
   }
 
+  syncOwner(pluginId: string) {
+    const definition = this.entries.get(pluginId)?.definition;
+    if (!definition?.partitionSync || definition.execution === "sandbox") return null;
+    const installId = installIdentity(definition.manifest);
+    return { definition, bindings: definition.partitionSync, installId,
+      record: () => this.closed ? null : pluginInstallRecords(this.installDatabase()).get(installId) };
+  }
+
   plugins(): readonly string[] { return [...this.entries.keys()]; }
 
   /** The Manifest of a plugin this Host runs per partition, when it was declared here. */
   manifestOf(pluginId: string): PluginPlatformEntry["definition"]["manifest"] | undefined { return this.entries.get(pluginId)?.definition.manifest; }
+
+  /** Reads the original publisher's declared name without opening a partition or starting a plugin. */
+  installationName(pluginId: string, installId: string): string | undefined {
+    const entry = this.entries.get(pluginId);
+    if (!entry || installIdentity(entry.definition.manifest) !== installId) return undefined;
+    const { manifest } = entry.definition;
+    const reader = entry.localePacks?.(entry.definition) ?? installedLocalePacks(entry.definition);
+    return resolveManifestText(pluginId, manifest.name, manifest.name_text, manifestWordResolver(reader));
+  }
 
   /**
    * Every plugin whose installation is this Home's and whose lifecycle is each partition's: the built-in ones that keep a library in each
@@ -254,20 +283,25 @@ export class PartitionPluginHost {
     if (!platform || !manifest) throw new ActionError("actions.plugin_unavailable", "这个插件在这里没有运行");
     const late = Date.now() - Date.parse(entry.due_at) > REMINDER_LATE_MS;
     const outcome = await platform.deliverDue(entry.plugin_id, { entry_key: entry.entry_key, due_at: entry.due_at, source: entry.source, late });
+    if (entry.source === "plugin" && entry.entry_key === OVERVIEW_REFRESH_ENTRY_KEY) return false;
     // An overview reminder the plugin does not speak for shows its overview row; `null` says it no longer stands.
-    const reminder = outcome?.reminder !== undefined ? outcome.reminder : entry.source === "overview" ? this.overviewReminder(entry) : null;
+    const reminder = outcome?.reminder !== undefined ? outcome.reminder : entry.source === "overview" ? this.overviewReminder(entry, manifest) : null;
     if (!reminder) return false;
-    tellPartitionReminder(this.home, { partition_id: entry.partition_id, plugin_id: entry.plugin_id, install_id: entry.install_id, entry_key: entry.entry_key,
-      due_at: entry.due_at, late, source_title: manifest.name, title: reminder.title, open: reminder.open ?? null });
+    await tellPartitionReminder(this.home, { partition_id: entry.partition_id, plugin_id: entry.plugin_id, install_id: entry.install_id, entry_key: entry.entry_key,
+      due_at: entry.due_at, late, source_title: manifest.name, title: reminder.title, open: reminder.open ?? null,
+      ...(reminder.interrupted ? { interrupted: true } : {}) });
     return true;
   }
 
   /** The overview row behind a reminder time (`<kind>:<row_id>`), as the overview index read it from the plugin's table. */
-  private overviewReminder(entry: DueEntryRecord): PluginDueReminder | null {
+  private overviewReminder(entry: DueEntryRecord, manifest: PluginPlatformEntry["definition"]["manifest"]): PluginDueReminder | null {
     const at = entry.entry_key.indexOf(":");
     if (at < 1 || !this.services) return null;
-    const row = this.services.overview.row(entry.partition_id, entry.install_id, entry.entry_key.slice(0, at), entry.entry_key.slice(at + 1));
-    return typeof row?.fields.title === "string" ? { title: row.fields.title } : null;
+    const [library] = partitionOverviewLibraries(this.home, [{ partition_id: entry.partition_id, plugins: [{ install_id: entry.install_id, manifest }] }]);
+    if (!library) throw new ActionError("actions.plugin_unavailable", "暂时无法读取提醒");
+    const row = this.services.overview.row(library, entry.entry_key.slice(0, at), entry.entry_key.slice(at + 1));
+    return typeof row?.fields.title === "string" && typeof row.fields.remind_at === "string" && Date.parse(row.fields.remind_at) === Date.parse(entry.due_at)
+      ? { title: row.fields.title } : null;
   }
 
   /** Resolves enabled read-only overview libraries for one changed partition without waking any plugin or creating any database (V11). */
@@ -294,8 +328,7 @@ export class PartitionPluginHost {
     for (const entry of PLATFORM_PLUGIN_REGISTRATIONS) offer(installIdentity(entry.manifest), entry.manifest);
     for (const entry of this.entries.values()) offer(installIdentity(entry.definition.manifest), entry.definition.manifest);
     try {
-      for (const installed of readHomePluginInstallations(this.home, id => builtinPluginByManifestId(id)?.manifest)) {
-        if (installed.state === "disabled" || installed.state === "quarantined") continue;
+      for (const installed of readHomePluginInstallations(this.home, id => builtinPluginByManifestId(id)?.manifest, { availableOnly: true, installId })) {
         offer(installed.install_id, installed.manifest);
       }
     } catch (error) {
@@ -307,7 +340,7 @@ export class PartitionPluginHost {
     return libraries;
   }
 
-  /** The enabled plugins of a partition: every plugin this Host runs per partition that the partition reaches (lists, or did not hide). */
+  /** Resolve the enabled plugins through the membership policy for this partition. */
   private async members(partitionId: string): Promise<readonly string[]> {
     return partitionPluginMembers(this.home, partitionId, this.plugins());
   }

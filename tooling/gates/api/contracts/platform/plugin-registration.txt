@@ -196,6 +196,7 @@ export interface PluginSearchRow {
 }
 
 export interface PluginWorkbenchRegistration {
+    readonly personalTaskCaptureRoute?: string;
     readonly pageRequests?: readonly {
         readonly method: string;
         readonly path: string;

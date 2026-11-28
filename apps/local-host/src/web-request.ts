@@ -212,8 +212,7 @@ function projectWebView({ options, webViewCache, localHost, hostReference, shown
   { scope = "shell", withMembershipRevision = false }: { scope?: "shell" | "page"; withMembershipRevision?: boolean } = {}) {
   return async (): Promise<MolisWorkWebView> => {
     let view = await cachedMolisWorkWebView(webViewCache, options);
-    // What the project shows is its Catalog's selection now (enabled, minus hidden, with the personal plugins), read per request
-    // and never kept behind the Goals cursor: the page, its refresh and its fragments all read this one view.
+    // The page, its refresh and its fragments use the current membership and the project halves supplied by the Host.
     const { shown, revision } = await shownPluginSelection(options.projectId, withMembershipRevision);
     view = { ...view, shown_plugins: shown, project_plugin_revision: revision };
     // Each shown plugin's stage reads its own data, as the person and with only that read's permissions (T-133).

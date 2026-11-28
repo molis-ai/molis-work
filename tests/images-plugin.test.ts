@@ -21,7 +21,7 @@ test("图片插件通过Manifest进入导航和市场（分区插件），客户
   assert.equal(imagesManifest.databases?.partition?.store_name, "images");
   installHostUiText();
   runWithLocale("zh", () => {
-    assert.notEqual(pluginMarketCards(builtinMarketDirectory()).find((card) => card.id === "images")?.personal, true);
+    assert.equal(pluginMarketCards(builtinMarketDirectory()).find(card => card.id === "images")?.runtime_id, imagesManifest.plugin_id);
     assert.equal(railEntries(["images"]).find(entry => entry.id === "images")?.label, "图片");
   });
   assert.equal(imagesUiContribution.descriptor.navigation_id, "images");

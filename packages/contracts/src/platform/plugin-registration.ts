@@ -40,6 +40,8 @@ export type PluginFrameStyleFeature =
 
 /** What the workbench shell loads for one plugin: its views, styles and browser client. */
 export interface PluginWorkbenchRegistration {
+  /** A declared route accepting a task title from the person's capture control in the current workbench. */
+  readonly personalTaskCaptureRoute?: string;
   /** Exact existing HTTP routes for pages whose backend is registered outside Plugin Runtime. This grants no Runtime services. */
   readonly pageRequests?: readonly { readonly method: string; readonly path: string }[];
   /** Asset cascade/initialization order, independent of navigation order in the Manifest. */

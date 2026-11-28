@@ -49,58 +49,9 @@ export function runtimeSyncRegistration(home: string, spaceId: string, owners: r
       partition: key => JSON.stringify(runtimeSyncKey(key).projectId), projectPartition:id=>JSON.stringify(id),
       withPartition(id, operation) {
         const current = owner(id);
-        const scoped = scopeRuntimeReplica(current.binding.replica, { spaceId, projectId: current.projectId });
-        const projectId = current.projectId;
-        if (projectId === null) return operation(scoped);
-        // Only mutating sync operations dirty this plugin's overview library; read-only polls (next/counts/conflicts/recoveries/inspect) never do.
-        const notify = () => {
-          partitionChanged(home, projectId, installId);
-        };
-        const after = <T>(value: T): T => {
-          if (value instanceof Promise) {
-            return value.then(resolved => {
-              notify();
-              return resolved;
-            }) as T;
-          }
-          notify();
-          return value;
-        };
-        const tracked: typeof scoped = {
-          ...scoped,
-          receive(event, options) {
-            return after(scoped.receive(event, options));
-          },
-          resolve(key, choice, revision, state) {
-            return after(scoped.resolve(key, choice, revision, state));
-          },
-          ...(scoped.restoreRecovery ? {
-            restoreRecovery(recoveryId, choice, revision) {
-              return after(scoped.restoreRecovery!(recoveryId, choice, revision));
-            },
-          } : {}),
-          ...(scoped.retryWaiting ? {
-            retryWaiting() {
-              let waitingBefore = 0;
-              try {
-                waitingBefore = scoped.conflicts().filter(conflict => conflict.waiting).length;
-              } catch {
-                waitingBefore = 0;
-              }
-              if (waitingBefore === 0) {
-                scoped.retryWaiting!();
-                return;
-              }
-              scoped.retryWaiting!();
-              try {
-                if (scoped.conflicts().filter(conflict => conflict.waiting).length < waitingBefore) {
-                  notify();
-                }
-              } catch { /* ignore conflict read error after retry */ }
-            },
-          } : {}),
-        };
-        return operation(tracked);
+        return operation(scopeRuntimeReplica(current.binding.replica, { spaceId, projectId: current.projectId }, () => {
+          if (current.projectId !== null) partitionChanged(home, current.projectId, installId);
+        }));
       },
     }),authorizeKey(key,value){const current=scope(key);if(!current.binding.replica.authorizeKey)throw new ActionError('actions.forbidden','同步主人尚未声明标识授权');current.binding.replica.authorizeKey(current.key,value===undefined?undefined:readRuntimeSyncValue(current,value));},hasProjectChanges(projectId){
       authorize();const target=JSON.stringify(projectId),home=byScope.get('null');

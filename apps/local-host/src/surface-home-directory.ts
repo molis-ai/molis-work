@@ -69,12 +69,11 @@ function homeMembership(ports: DirectoryPorts) {
   const membership = ports.readCatalog(catalog => {
     if (resolve(catalog.getProject(project_id).database_path) !== storage_key || catalog.recycle.isRecycled(project_id))
       throw new ActionError("actions.scope_mismatch", "原项目已关闭或变化");
-    const { plugins, hidden, revision } = catalog.projectPluginMembershipWithRevision(project_id);
-    const shown = plugins.filter(key => !hidden.includes(key));
+    const { plugins: shown, revision } = catalog.projectPluginMembershipWithRevision(project_id);
     const reach = availableProjectPluginIds(shown);
     const removed = new Set(PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => !reach.has(entry.project_plugin_id)
-      && !hidden.includes(entry.project_plugin_id) && catalog.wasProjectPluginRemoved(project_id, entry.project_plugin_id)).map(entry => entry.project_plugin_id));
-    return { shown: new Set(shown), hidden: new Set(hidden), removed, revision };
+      && catalog.wasProjectPluginRemoved(project_id, entry.project_plugin_id)).map(entry => entry.project_plugin_id));
+    return { shown: new Set(shown), removed, revision };
   });
   if (!membership) throw new ActionError("actions.unavailable", "项目目录尚未打开");
   return membership;
@@ -141,10 +140,10 @@ function sample(ports: DirectoryPorts): HomeDirectoryEntry[] {
     const stage = builtin ?? fromHome;
     const key = stage?.project_plugin_id ?? id;
     const sandbox = record.execution === "sandbox" && record.publisher_trust !== "host";
-    if ((!stage && !sandbox) || membership.hidden.has(key) || membership.hidden.has(id)) return [];
-    const wanted = membership.shown.has(key);
+    if (!stage && !sandbox) return [];
+    const wanted = membership.shown.has(key) || (!builtin && home?.providesDualInstance(id) === true);
     const removed = !!builtin?.project_runtime && scope === "project" && !wanted && membership.removed.has(key) && record.state === "disabled";
-    if (builtin && !wanted && !removed || !builtin && !fromHome && !sandbox) return [];
+    if ((builtin || scope === "home") && !wanted && !removed || !builtin && !fromHome && !sandbox) return [];
     const exact = installedManifestMatches(record, manifest) ? manifest : undefined;
     if (exact && exact.kind !== "app" && exact.kind !== "native") return [];
     const platform = scope === "home" ? home?.surfacePlatform() : sandbox ? installed?.platform : project && projectPluginPlatform(project, id);
@@ -167,7 +166,7 @@ function sample(ports: DirectoryPorts): HomeDirectoryEntry[] {
     const contribution = active ? platform?.supervisor.contribution(id) : undefined;
     const slots = contribution?.kind === "app" ? contribution.views?.flatMap(view => view.descriptor.slots) ?? [] : [];
     const directory = { id: route?.shell ?? key, plugin_id: id, name: exact?.name ?? stage?.manifest.name ?? id,
-      chosen: builtin !== undefined, ...(!builtin && scope === "home" && !home?.dualInstance(id) ? { personal: true as const } : {}), ui: { views: exact?.ui.views ?? [] } };
+      chosen: builtin !== undefined, ui: { views: exact?.ui.views ?? [] } };
     return [{ record, installation, route, directory, presentation: exact?.presentation, slots, forms, signedForms, enable, unavailable }];
   });
   const ordered = projectHomeRailOrder(rows.map(row => row.directory));
@@ -190,9 +189,9 @@ export function surfaceHomeDirectory(ports: DirectoryPorts) {
   // A Home read asks this at every step; the catalog only changes from another request, in a turn of its own (`currentTurn`), so within
   // a turn it is sampled once.
   let sampledIn: object | undefined, sampledGeneration = -1;
-  return { entries, plugins: entries.map(entry => entry.plugin), assertVisiblePackage(pluginId: string) {
-    if (homeMembership(ports).hidden.has(pluginId))
-      throw new ActionError("actions.plugin_disabled", "此项目不再显示该插件");
+  return { entries, plugins: entries.map(entry => entry.plugin), assertProjectCurrent() {
+    // Revalidates this project's path and recycling state even after a command changes its own installation.
+    homeMembership(ports);
   }, isShownMember(member: string) {
     return homeMembership(ports).shown.has(member);
   }, assertCurrent() {

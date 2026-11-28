@@ -65,11 +65,13 @@ export const OBSERVATION_COVERAGE_PLAN: readonly CoveragePlanEntry[] = [
   // Every wakeup of a project clock, in its own operation; the action it fired is the exit's record under the same call number.
   { owner: "service:scheduler", fact: "scheduler.wakeup", entries: [SCHEDULE_ENTRY], state: "complete" },
   // Each fallen-due entry of a partition's due registry handed to its (plugin, partition) instance (batch 108): succeeded when it raised a
-  // reminder, no_action when it had none to raise, failed (and tried again) when the instance could not take it (`partition-observation.ts`).
+  // durable reminder, no_action for a rolling-window refresh (including after re-enable), failed and retried for an activation or notification failure.
   { owner: "service:scheduler", fact: "scheduler.due_wakeup", entries: [SCHEDULE_ENTRY], state: "complete" },
   // Each start and stop of a per-partition plugin instance, with why (opened, due, push, sync; idle, switched off, partition gone, Host
   // closing) and the error's code when it failed (`PartitionPluginAssembly` lifecycle, batch 108).
   { owner: "service:home", fact: "home.partition_plugin_lifecycle", entries: ["host"], state: "complete" },
+  // A deferred overview rebuild records how many sources refreshed or failed, without rows, fields or grants.
+  { owner: "service:home", fact: "home.overview_rebuild", entries: ["background"], state: "complete" },
   // The background pass that settles a carry a cut left half done (`placement-actions.ts`): the move that started it is the action exit's
   // record, the carries are the ledger's own history; each pass records how many it found and left (batch 108).
   { owner: "service:home", fact: "home.placement_carry_settle", entries: ["background"], state: "complete" },

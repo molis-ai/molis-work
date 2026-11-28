@@ -38,20 +38,17 @@ export function pluginOverviewFor(manifest: PluginManifest, context: Pick<Plugin
     join: (transaction, write) => joinPluginTransaction(database, transaction, (afterCommit, live) => {
       live();
       const install = installation();
-      let touched = false;
-      // The rows are written synchronously inside the join, which checks the transaction before and after `write`: asking again for every
-      // row would only make a write that sums up many rows ask the caller as many times (Feed lists every source with each write).
-      const touch = () => {
-        if (touched) return;
+      const notify = () => changed(install);
+      // A savepoint can rewind the queued callback. The transaction owns deduplication as well as rollback.
+      const touch = () => afterCommit(notify, true);
+      const beforeWrite = () => {
         live();
         installation();
-        touched = true;
-        afterCommit(() => changed(install));
       };
       const rows: PluginOverviewRows = {
         upsert(kind, row) {
           const checkedKind = kindOf(kind);
-          touch();
+          beforeWrite();
           const values = overviewColumns(checkedKind, row);
           const found = db.prepare(`SELECT 1 AS found FROM ${OVERVIEW_MAIN_TABLE} WHERE install_id = ? AND kind = ? AND row_id = ?`).get(install, checkedKind, values.row_id);
           if (!found) {
@@ -62,17 +59,20 @@ export function pluginOverviewFor(manifest: PluginManifest, context: Pick<Plugin
           db.prepare(`INSERT INTO ${OVERVIEW_MAIN_TABLE} (${columns.join(", ")}) VALUES (${columns.map(() => "?").join(", ")})
             ON CONFLICT (install_id, kind, row_id) DO UPDATE SET ${Object.keys(values).filter(column => column !== "kind" && column !== "row_id").map(column => `${column} = excluded.${column}`).join(", ")}`)
             .run(install, ...Object.values(values));
+          touch();
         },
         remove(kind, rowId) {
           const checkedKind = kindOf(kind);
-          touch();
-          db.prepare(`DELETE FROM ${OVERVIEW_MAIN_TABLE} WHERE install_id = ? AND kind = ? AND row_id = ?`).run(install, checkedKind, rowId);
+          beforeWrite();
+          const result = db.prepare(`DELETE FROM ${OVERVIEW_MAIN_TABLE} WHERE install_id = ? AND kind = ? AND row_id = ? RETURNING 1`).get(install, checkedKind, rowId);
+          if (result) touch();
         },
         removePrefix(kind, prefix) {
           const checkedKind = kindOf(kind);
           if (!prefix) throw new ActionError("actions.input_invalid", "前缀不能为空");
-          touch();
-          db.prepare(`DELETE FROM ${OVERVIEW_MAIN_TABLE} WHERE install_id = ? AND kind = ? AND substr(row_id, 1, ?) = ?`).run(install, checkedKind, prefix.length, prefix);
+          beforeWrite();
+          const result = db.prepare(`DELETE FROM ${OVERVIEW_MAIN_TABLE} WHERE install_id = ? AND kind = ? AND substr(row_id, 1, ?) = ? RETURNING 1`).get(install, checkedKind, prefix.length, prefix);
+          if (result) touch();
         },
       };
       return write(Object.freeze(rows));

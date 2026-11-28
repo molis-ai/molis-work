@@ -15,6 +15,8 @@ export interface AttentionSources {
    * Only on the Home page, whose title bar lists them; a project page reads its own tasks with its line (specs/work-line §4.5).
    */
   backgroundTasks?(): HomeBackgroundTasksReadResult | Promise<HomeBackgroundTasksReadResult>;
+  /** Recheck live project access when every part is ready to send. */
+  currentBackgroundTasks?(result: HomeBackgroundTasksReadResult): HomeBackgroundTasksReadResult;
   /** The Assistant's notices for the surface the person is on. */
   notices(surface: string | null): Promise<unknown[]>;
   /** Plugin deliveries waiting in the market; only where a project's plugins run. */
@@ -66,7 +68,7 @@ export async function handleAttentionHttp(request: IncomingMessage, response: Se
     mainline ? part("line", () => mainline.line(item)) : absent,
     mainline?.summary ? part("mainline_summary", () => mainline.summary!()) : absent]);
   // The task panel's table is the one the line was placed with: read once, sent beside the line it came with.
-  sendLocalWebJson(response, 200, { background_tasks, notices, plugin_events_pending, board_cursor, line, tasks: line ? line.table : null, ...(mainline_summary ? { mainline_summary } : {}) });
+  sendLocalWebJson(response, 200, { background_tasks: background_tasks && sources.currentBackgroundTasks ? sources.currentBackgroundTasks(background_tasks) : background_tasks, notices, plugin_events_pending, board_cursor, line, tasks: line ? line.table : null, ...(mainline_summary ? { mainline_summary } : {}) });
   return true;
 }
 

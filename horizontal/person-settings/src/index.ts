@@ -83,6 +83,18 @@ export class PersonSettingsStore {
    * pages do not overwrite each other. A portable value is checked the way sync checks it before it is kept.
    */
   set(caller: PersonSettingsCaller, owner: PersonSettingsOwner, declarations: PluginPersonSettingsDeclaration | undefined, key: string, value: unknown, options: { expected_revision?: number | null } = {}): PersonSettingRecord {
+    return this.setMany(caller, owner, declarations, [{ key, value, ...options }])[0]!;
+  }
+
+  setMany(caller: PersonSettingsCaller, owner: PersonSettingsOwner, declarations: PluginPersonSettingsDeclaration | undefined,
+    changes: readonly { key: string; value: unknown; expected_revision?: number | null }[]): PersonSettingRecord[] {
+    assertPersonSettingsCaller(caller, owner.install_id);
+    if (new Set(changes.map(item => item.key)).size !== changes.length) throw new ActionError("actions.input_invalid", "设置键重复");
+    return this.write(() => changes.map(({ key, value, expected_revision }) => this.setOne(caller, owner, declarations, key, value, expected_revision)));
+  }
+
+  private setOne(caller: PersonSettingsCaller, owner: PersonSettingsOwner, declarations: PluginPersonSettingsDeclaration | undefined, key: string,
+    value: unknown, expectedRevision?: number | null): PersonSettingRecord {
     const installId = owner.install_id;
     assertPersonSettingsCaller(caller, installId);
     const declaration = declared(declarations, key);
@@ -92,15 +104,13 @@ export class PersonSettingsStore {
     const json = JSON.stringify(value);
     if (json === undefined || Buffer.byteLength(json) > PERSON_SETTING_LIMITS.value_bytes) throw new ActionError("actions.input_invalid", `设置的值要能写成 JSON，且不超过 ${PERSON_SETTING_LIMITS.value_bytes} 字节`);
     if (declaration.portable) assertPortableConfig(value, PERSON_SETTING_LIMITS.value_bytes);
-    return this.write(() => {
-      const current = this.db.prepare("SELECT revision FROM person_settings WHERE install_id = ? AND key = ?").get(installId, key) as { revision: number } | undefined;
-      if (options.expected_revision !== undefined && (current?.revision ?? null) !== options.expected_revision) throw new ActionError("actions.conflict", "这项设置刚被改过，重新打开再改");
-      const revision = (current?.revision ?? 0) + 1;
-      this.db.prepare(`INSERT INTO person_settings (install_id, plugin_id, key, kind, portable, value_json, revision, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT (install_id, key) DO UPDATE SET kind = excluded.kind, portable = excluded.portable, value_json = excluded.value_json, revision = excluded.revision, updated_at = excluded.updated_at`)
-        .run(installId, owner.plugin_id, key, declaration.kind, declaration.portable ? 1 : 0, json, revision, this.now().toISOString());
-      return this.get(caller, installId, declarations, key)!;
-    });
+    const current = this.db.prepare("SELECT revision FROM person_settings WHERE install_id = ? AND key = ?").get(installId, key) as { revision: number } | undefined;
+    if (expectedRevision !== undefined && (current?.revision ?? null) !== expectedRevision) throw new ActionError("actions.conflict", "这项设置刚被改过，重新打开再改");
+    const revision = (current?.revision ?? 0) + 1;
+    this.db.prepare(`INSERT INTO person_settings (install_id, plugin_id, key, kind, portable, value_json, revision, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT (install_id, key) DO UPDATE SET kind = excluded.kind, portable = excluded.portable, value_json = excluded.value_json, revision = excluded.revision, updated_at = excluded.updated_at`)
+      .run(installId, owner.plugin_id, key, declaration.kind, declaration.portable ? 1 : 0, json, revision, this.now().toISOString());
+    return this.get(caller, installId, declarations, key)!;
   }
 
   remove(caller: PersonSettingsCaller, installId: string, declarations: PluginPersonSettingsDeclaration | undefined, key: string): boolean {
@@ -135,10 +145,11 @@ export type PersonSettingsInstallation = (pluginId: string) => { readonly instal
 /**
  * The portable keys as a personal configuration replica (#2231), keyed `<plugin>/<key>`: only rows marked portable go out or come in, and an
  * incoming key must be one the plugin's installation here declares portable, so sync never writes a secret, a connection or a path, and never
- * a setting of a plugin this device does not have. It is kept under that installation.
+ * a setting of a plugin this device does not have. It is kept under that installation. A write schedules a post-transaction read;
+ * the subscriber compares committed state before notifying its plugin.
  */
 export function personSettingsConfigReplica(db: Parameters<typeof personalConfigReplica>[0], spaceId: string, authorize: () => void,
-  installation: PersonSettingsInstallation, now: () => Date = () => new Date()) {
+  installation: PersonSettingsInstallation, now: () => Date = () => new Date(), scheduleRefresh?: (installId: string) => void) {
   const split = (id: string): [string, string] => {
     const at = id.lastIndexOf("/");
     if (at < 1 || at === id.length - 1) throw new ActionError("actions.input_invalid", "本人设置的同步键无效");
@@ -167,6 +178,7 @@ export function personSettingsConfigReplica(db: Parameters<typeof personalConfig
       if (data === null) {
         db.prepare("DELETE FROM person_settings WHERE install_id = ? AND plugin_id = ? AND key = ? AND portable = 1")
           .run(target.install_id, target.plugin_id, target.key);
+        scheduleRefresh?.(target.install_id);
         return;
       }
       const { value } = personalConfigRecord(data, ["value"]);
@@ -175,6 +187,7 @@ export function personSettingsConfigReplica(db: Parameters<typeof personalConfig
       db.prepare(`INSERT INTO person_settings (install_id, plugin_id, key, kind, portable, value_json, revision, updated_at) VALUES (?, ?, ?, 'preference', 1, ?, ?, ?)
         ON CONFLICT (install_id, key) DO UPDATE SET kind = excluded.kind, portable = excluded.portable, value_json = excluded.value_json, revision = excluded.revision, updated_at = excluded.updated_at`)
         .run(target.install_id, target.plugin_id, target.key, JSON.stringify(value), (current?.revision ?? 0) + 1, now().toISOString());
+      scheduleRefresh?.(target.install_id);
     },
     canUpload(id) { return portable(id) !== null; },
   });

@@ -335,7 +335,7 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
       load(body);
       const inner=target&&body.querySelector('[data-side-frame]'),revision=selectionRevision;
       if(inner)ready(inner,()=>{
-        if(open&&current()===id&&selectionRevision===revision)inner.contentWindow?.postMessage({type:'molis:side-target',target},location.origin);
+        if(open&&current()===id&&selectionRevision===revision&&inner.isConnected)inner.contentWindow?.postMessage({type:'molis:side-target',target},location.origin);
       });
     }
     expanded();imVisible();drawUndo();reveal();
@@ -343,8 +343,8 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   const dropHelpTab=()=>{const helpBtn=buttons().find(button=>button.dataset.sideTab==='help');if(helpBtn)helpBtn.hidden=true;const helpRec=tabOf('help');if(helpRec)ops.closeSideTab(getState(),helpRec.id);};
   const choose=id=>{if(!offered(id))return;const state=getState();if(tabOf(id))ops.selectSide(state,id);else{ops.openSide(state,id,views());ops.setSideOpen(state,open);}};
   const select=(id,target,restore=false)=>{
-    selectionRevision++;
-    if(!restore)choose(id);if(id&&id!=='help')dropHelpTab();draw(target);
+    if(!restore){selectionRevision++;choose(id);}
+    if(id&&id!=='help')dropHelpTab();draw(target);
     document.dispatchEvent(new CustomEvent('molis:side-shown',{detail:{tab:current(),target:target??null,open}}));
   };
   const setOpen=(next,options={})=>{
@@ -359,6 +359,7 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
       const inner=options.focus==='content'&&panel.querySelector('[data-side-body="'+current()+'"] iframe');
       if(inner)ready(inner,()=>{if(open&&!inner.closest('[hidden],[inert]')){inner.focus();inner.contentWindow?.focus();}});
     }else if(was){
+      selectionRevision++;
       document.body.dataset.sideOpen='false';panel.inert=true;
       dropHelpTab();
       closing=setTimeout(()=>{if(!open)panel.hidden=true;},matchMedia('(prefers-reduced-motion:reduce)').matches?0:420);
@@ -540,7 +541,7 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   // The workspace read another state (a reload's, a reset): the side shows what that one says, without saving it again. A
   // narrow window (760 and under, where only the focused pane shows: the side is a sheet over half the work) loads with the
   // side collapsed, its tabs, current tab and width as kept; the saved open stays, so a wide window opens it again.
-  const restore=()=>{settle();paint();const show=side().open&&!matchMedia('(max-width:760px)').matches;if(show!==open)setOpen(show,{restore:true});else draw();};
+  const restore=(changedItem=false)=>{if(changedItem)selectionRevision++;settle();paint();const show=side().open&&!matchMedia('(max-width:760px)').matches;if(show!==open)setOpen(show,{restore:true});else draw();};
   return {open:(key,target)=>request({tab:key,target}),restore,toggle,isOpen:()=>open};
 }`.replace(/^[ \t]*\/\/.*\n/gm, "");
 

@@ -403,6 +403,9 @@ const pages: Record<string, Draw> = {
 // Batch 108 (#2348): the Issues side capture lives in the personal space, so the 16 page-* records' side tab names
 // `/projects/personal/side/issues/capture` instead of the project's (+2 each). Token-diffed against a draw of the code before batch 108:
 // that address is the only batch 108 change; re-recorded with MOLIS_WORK_GOLDEN_RECORD=1 and re-verified with RECORD unset.
+// B2R-08 (#2358, base 8a47e73f): the personal Todo disclosure and the declared planning group change the 16 full pages
+// (+666 zh / +694 en). Compared with the rendered base, Lingguang, Todo, Jelly and Cognia retain their original tiles.
+// The remaining page markup and all 36 fragment and settings records match the base byte for byte.
 // 44C PSD-06: the 16 full shells carry the Shelf receiver's own locale entry in data-ui-page-text. Their expected bytes
 // were derived from #2357's verified markup by inserting that one JSON script after the page-session meta tag.
 // 3-day audit platformization (PLAT-24, PR #2363): `apps/workbench/src/shell-page-renderer.ts` renamed `goal-tree-pane` -> `shell-directory-pane`

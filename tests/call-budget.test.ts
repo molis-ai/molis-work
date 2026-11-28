@@ -1,3 +1,6 @@
+import { refreshedOverview } from "./fixtures/overview-read.js";
+import type { OverviewReadResult } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { MolisWorkProjectCatalog } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
 import { projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { readFileSync } from "node:fs";
@@ -34,8 +37,8 @@ async function callMeter(t: TestContext) {
     if (url !== owner && url !== registration) return result;
     const source = typeof result.source === "string" ? result.source : new TextDecoder().decode(result.source!);
     if (url === owner) {
-      const entry = "export function reachEntry(homeDirectory, pluginId) {";
-      assert.ok(source.includes(entry), "the loaded Host contains the measured reach resolver");
+      const entry = /^export function reachEntry\([^)]*\) \{/mu.exec(source)?.[0];
+      assert.ok(entry, "the loaded Host contains the measured reach resolver");
       return { ...result, source: source.replace(entry, `${entry} ${probe}.owner();`) };
     }
     const declaration = "export const PLATFORM_PLUGIN_REGISTRATIONS = [";
@@ -231,18 +234,35 @@ test("BCC-02 to BCC-06 · Host requests stay within budget and incomplete previe
   const { existingPartitionPluginHost } = await import("@molis-ai/molis-work-app-local-host");
   const overviewRead = { ...overviewReadAction, provider_id: OVERVIEW_PROVIDER_ID };
   const overviewPerson = { actor_id: "web-user", audience: "user", permissions: [], project_id: null } as const;
-  const readOverview = async () => { assert.ok(Array.isArray((await home.host.homeActionClient().invoke(overviewPerson, overviewRead, {})).rows)); };
+  const readPage = () => home.host.homeActionClient().invoke(overviewPerson, overviewRead, {}) as Promise<OverviewReadResult>;
+  const readOverview = async () => { assert.ok(Array.isArray((await readPage()).rows)); };
   const overviewCounts = async () => {
-    await readOverview(); // what changed since the last read is read once, read-only; the measured reads find it clean
+    await refreshedOverview(readPage);
     const runs: Counts[] = [];
     for (let sample = 0; sample < samples; sample++) { t.mock.timers.setTime(now += 60_000); runs.push(await measure(readOverview)); }
     return median(runs);
   };
+  const { todoManifest } = await import("@molis-ai/molis-work-plugin-todo");
+  const { openTodoStore } = await import("./fixtures/plugin-home-stores.js");
+  const { openMolisWorkProjectCatalog } = await import("@molis-ai/molis-work-app-desktop");
+  const { installIdentity } = await import("@molis-ai/molis-work-plugin-runtime");
+  const { execFileSync } = await import("node:child_process");
+  const dormantIds: string[] = [];
   const withFew = await overviewCounts();
-  for (let index = 0; index < 18; index++) {
-    const dormant = await home.createProject(`Dormant ${index}`, ["todo"]);
-    await home.host.closeProject(dormant.reference);
-  }
+  // Seed the real owner databases while the projects sleep. Bringing up 19 workbenches just to
+  // arrange the sample dominated this read-budget test on Linux runners.
+  await home.host.ensureWebCatalog(home.home, openMolisWorkProjectCatalog).withCatalog({ homeDirectory: home.home }, async (catalog: MolisWorkProjectCatalog) => {
+    for (let index = 0; index < 19; index++) {
+      const { project_id } = await catalog.createProject({ display_name: `Dormant ${index}`, actor_id: overviewPerson.actor_id });
+      catalog.addProjectPlugin({ project_id, plugin_id: "todo", actor_id: overviewPerson.actor_id });
+      const todo = openTodoStore(home.home, undefined, project_id);
+      try { todo.create({ title: "G4 " + index }, { actor: "user", actorId: overviewPerson.actor_id }); }
+      finally { todo.close(); }
+      dormantIds.push(project_id);
+    }
+  });
+  const service = existingPartitionPluginHost(home.home)!;
+  await service.assembly.stopPlugin(todoManifest.plugin_id);
   assert.equal((await home.host.partitions()).length >= 20, true, "twenty projects, the personal space besides");
   const open = home.host.projects().length, instances = existingPartitionPluginHost(home.home)?.assembly.instances().length ?? 0;
   measured.personalOverview = await overviewCounts();
@@ -257,6 +277,29 @@ test("BCC-02 to BCC-06 · Host requests stay within budget and incomplete previe
   assert.equal(measured.personalOverview.sqliteOpens, 0, "the measured reads open no database: the index is read on the Host's own connection");
   assert.equal(home.host.projects().length, open, "reading the overview opens no sleeping project");
   assert.equal(existingPartitionPluginHost(home.home)?.assembly.instances().length ?? 0, instances, "and starts no plugin instance in one");
+  const children = () => execFileSync("ps", ["-axo", "pid=,ppid=,comm="], { encoding: "utf8" }).split("\n")
+    .map(line => line.trim().split(/\s+/u)).filter(([, parent, command]) => parent === String(process.pid) && !/(?:^|\/)ps$/u.test(command)).map(([pid]) => pid).sort();
+  const initialChildren = children(), install = installIdentity(todoManifest);
+  for (const dirty of [1, dormantIds.length]) {
+    for (const id of dormantIds.slice(0, dirty)) service.services!.overview.markDirty(id, install);
+    const populated = () => home.host.homeActionClient().invoke(overviewPerson, overviewRead, { kinds: ["task"], limit: 100 }) as Promise<OverviewReadResult>;
+    const countTasks = (result: OverviewReadResult) => result.rows.filter(row => String(row.fields.title).startsWith("G4 ")).length;
+    const first = await measure(async () => {
+      const page = await populated();
+      assert.equal(countTasks(page), dirty === 1 ? dormantIds.length : dormantIds.length - dirty);
+      assert.equal(Boolean(page.updating), dirty > 1);
+    });
+    assert.equal(first.sqliteOpens, dirty === 1 ? 1 : 0, "a backlog opens no source in the foreground");
+    const background = await measure(async () => {
+      assert.equal(countTasks(await refreshedOverview(populated)), dormantIds.length);
+    });
+    assert.equal(background.sqliteOpens, dirty === 1 ? 0 : dirty, "each dirty source is rebuilt exactly once");
+    const cached = await measure(async () => { assert.equal(countTasks(await populated()), dormantIds.length); });
+    assert.equal(cached.sqliteOpens, 0);
+    assert.equal(home.host.projects().length, open);
+    assert.equal(service.assembly.instances().length, instances);
+    assert.deepEqual(children(), initialChildren);
+  }
   assert.ok(measured.projectBrief!.actionDirectoryRows > 0 && measured.projectBrief!.sceneDirectoryRows > 0, "the measured brief uses both directories");
   // The brief resolves each provider's owner; since 44B it reads no catalog row of its own (no always-on stamp), so the row probe is
   // checked on the requests that enumerate the catalog.
@@ -269,7 +312,7 @@ test("BCC-02 to BCC-06 · Host requests stay within budget and incomplete previe
   // function (which calls reachEntry) with a catalog that says the project shows Goals.
   const { projectActionAvailability } = await import("@molis-ai/molis-work-app-local-host");
   const withCatalog = async (_settings: unknown, operation: (catalog: unknown) => unknown) => operation({
-    projectPluginMembership: () => ({ plugins: ["goals"], hidden: [] }),
+    projectPluginMembership: () => ({ plugins: ["goals"] }),
   });
   const live = projectActionAvailability(withCatalog as never, "/tmp/call-budget-bcc-06");
   const extra = await measure(async () => {

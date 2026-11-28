@@ -486,7 +486,6 @@
     "feed.permission.sources-read-repository.reason": "GitHub リポジトリで公開された内容を読み取るため",
     "feed.permission.schedule-read.reason": "ソースの定期取得が設定されているか確認するため",
     "feed.permission.schedule-write.reason": "期限の来たソースを自動で定期取得するよう設定するため",
-    "feed.permission.actions-invoke.reason": "ローカルに保存した記事原文の参照を登録・解除するため",
     "feed.permission.scenes-use.reason": "振り分けルールの判断を紐付けて実行するため",
     "feed.permission.judgments-read.reason": "振り分けルールの判断履歴を読み取るため",
     "feed.permission.judgments-write.reason": "振り分けルールの判断結果を保存するため",
@@ -597,13 +596,6 @@
     "feed.actions.presentation-values.title": "Feed の表示情報",
     "feed.actions.presentation-values.description": "現在の権限の範囲で指定された Feed 項目の表示情報を読み取ります。取得できない項目や削除済み項目はそのまま示し、データは変更しません。",
     "feed.actions.presentation-overview.title": "Feed のホーム概要",
-    "feed.actions.presentation-overview.description": "Feed の概要、主な記事、開始入口を読み取ります。読み取り専用で、モデルは呼び出しません。",
-    "feed.actions.content-hold.title": "ソースが保持する原文を登録",
-    "feed.actions.content-hold.description": "本文を保存する前に、このプロジェクトのソースが参照する原文を登録して誤削除を防ぎます。",
-    "feed.actions.content-release.title": "ソースが保持する原文を解放",
-    "feed.actions.content-release.description": "ソース削除後に参照していた原文の登録を解除し、どこからも参照されなくなった原文を整理します。",
-    "feed.actions.content-reclaim.title": "不要な原文登録を回収",
-    "feed.actions.content-reclaim.description": "取得の失敗・キャンセル・中断後に残った未参照の原文登録を回収し、不要な原文を整理します。",
-    "feed.project-deletion.data": "Feed が保持する本文の参照記録"
+    "feed.actions.presentation-overview.description": "Feed の概要、主な記事、開始入口を読み取ります。読み取り専用で、モデルは呼び出しません。"
   }
 }

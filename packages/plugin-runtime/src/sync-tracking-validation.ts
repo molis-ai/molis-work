@@ -24,7 +24,10 @@ export function validateSyncTracking(tracking: readonly SyncTrackedTable[], tabl
     if(row.existsAny){
       if(!Array.isArray(row.existsAny)||!row.existsAny.length||row.existsAny.length>100)denied();
       for(const relation of row.existsAny){
-        if(!Array.isArray(relation.match)||!relation.match.length)denied();columns(relation.table,[]);
+        // An empty match means any row of that table: in a partition's own library every row is the partition's, so it is allowed only where
+        // neither table has a partition column to bind (the rule below refuses it where both have one).
+        if(!Array.isArray(relation.match))denied();columns(relation.table,[]);
+        if(!relation.match.length&&(tables.get(row.table)!.has('project_id')||tables.get(relation.table)!.has('project_id')))denied();
         for(const pair of relation.match){columns(relation.table,[pair.column]);columns(row.table,[pair.rowColumn]);Object.freeze(pair);}
         if(tables.get(row.table)!.has('project_id')&&tables.get(relation.table)!.has('project_id')&&!relation.match.some((pair:{column:string;rowColumn:string})=>pair.column==='project_id'&&pair.rowColumn==='project_id'))denied();
         Object.freeze(relation.match);Object.freeze(relation);

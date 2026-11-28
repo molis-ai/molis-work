@@ -4,6 +4,7 @@ import type { PluginSyncBinding, SyncSectionsDefinition } from '@molis-ai/molis-
 import type { ProjectReplicaDefinition, ProjectReplicaRows, SyncReplicaAdapter } from '@molis-ai/molis-work-contracts/platform/sync-transport';
 import { relationEdgesReplicationDefinition, relationEdgesTriggerCondition, CONTEXT_LEDGER_SCHEMA } from '@molis-ai/molis-work-module-context-ledger';
 import { LOCAL_JOURNAL_SCHEMA_SQL, PROJECT_SECTIONS_INLINE_ENCODING, createProjectReplicaSection, createProjectReplicaJournal, mapReplicaSequences, createSqliteReplica, replicaMarkSql } from '@molis-ai/molis-work-storage';
+import { SINGLE_PROJECT_ROOT_SQL } from '@molis-ai/molis-work-module-projects';
 import { createProjectChunkedContent } from './project-chunked-content.js';
 import { pluginSyncAuthority } from './plugin-sync-authority.js';
 import { createProjectEvidenceContent } from './project-replication-content.js';
@@ -23,7 +24,9 @@ function definitions(manifest: PluginManifest, value: SyncSectionsDefinition): P
     tables:owner.tables.map(table=>({ name:table.name, columns:table.columns, keys:table.keys, keepRoot:table.keepRoot,
       ...(table.projectColumn?{projectColumn:table.projectColumn}:{}),
       ...(table.parent?{where:`${table.parent.column} IN (SELECT ${table.parent.key} FROM ${table.parent.table} WHERE ${table.parent.projectColumn??'project_id'}=?)`,
-        projectExpression:`(SELECT ${table.parent.projectColumn??'project_id'} FROM ${table.parent.table} WHERE ${table.parent.key}=$row.${table.parent.column})`}:{}) })) }));
+        projectExpression:`(SELECT ${table.parent.projectColumn??'project_id'} FROM ${table.parent.table} WHERE ${table.parent.key}=$row.${table.parent.column})`}:{}),
+      // A table that names no partition holds only its library's (U3, batch 109-1): read whole, journaled under the library's one root.
+      ...(!table.parent&&!table.columns.includes(table.projectColumn??'project_id')?{where:`? = ${SINGLE_PROJECT_ROOT_SQL.id}`,projectExpression:SINGLE_PROJECT_ROOT_SQL.id}:{}) })) }));
   for(const platform of value.platform){if(platform==='relation-edges')result.push(relationEdgesReplicationDefinition(value.kind,manifest.plugin_id));}
   return result;
 }

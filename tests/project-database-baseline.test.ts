@@ -32,9 +32,13 @@ const ledgerOf = (path: string) => { const db = new DatabaseSync(path, { readOnl
 const declaring = BUILTIN_PLUGIN_CATALOG.filter(entry => (entry.manifest.runtime?.scope !== "home" || entry.runtime?.dual_instance === true) && entry.manifest.databases?.project).map(entry => entry.manifest);
 /** What a library is once the Host has opened it: the baseline, then each declaring plugin's own statements. */
 const opened = shape([PROJECT_DATABASE_BASELINE.schema, ...declaring.map(manifest => pluginSyncDatabaseDeclaration(manifest, manifest.databases!.project!).schema)].join("\n"));
-/** The tables of the baseline and the plugins (other than Goals' board) whose rows belong to the project (PLIB-09); since batch 44 the project's guidance and acceptance subjects too. */
-const ROOTED = ["acceptance_subjects", "coding_sessions", "events", "feed_items", "feed_materials", "feed_out_rules", "feed_source_runs", "feed_sources", "guidance_entries", "guidance_revisions",
-  "idempotency_records", "attention_entries", "library_artifacts", "process_items", "project_approval_rules", "project_review_decisions"];
+/**
+ * The tables whose rows belong to the project and point at its root row (PLIB-09): the baseline's own; since batch 44 the project's guidance
+ * and acceptance subjects too. Since batch 109 (109-1) no plugin table does: a partition's library holds one project, so the plugins'
+ * tables (Goals' board, Coding, Feed, Inbox, Risk) carry no `project_id` and point at nothing of the platform's.
+ */
+const ROOTED = ["acceptance_subjects", "attention_entries", "events", "guidance_entries", "guidance_revisions", "idempotency_records", "library_artifacts", "process_items",
+  "project_approval_rules", "project_review_decisions"];
 
 // A project's database (repository-anti-corruption §4.1) has one current schema, made of the platform's and the Modules'
 // creation statements; the plugins' own tables, Goals' among them (S8), are theirs (PG-020) and come with their declarations.
@@ -149,18 +153,21 @@ test("RAC-2362 PLIB-02: every plugin's declared tables match the complete curren
   }
 });
 
-test("PLIB-09: the project is one root row; the eleven tables and Goals' board, which Goals declares, point at it, and Goals' other tables point at the board", () => {
+test("PLIB-09: the project is one root row; the platform's tables point at it and no plugin table does, Goals' board included", () => {
   const tables = opened.tables;
   assert.deepEqual(tables.project_root!.columns.map(column => column.name), ["project_id", "created_at"]);
   const pointing = (target: string) => Object.entries(tables).filter(([, table]) => table.foreign_keys.some(key => key.table === target)).map(([name]) => name).sort();
-  assert.deepEqual(pointing("project_root"), [...ROOTED, "boards", "inbox_scene_bindings", "risk_items"].sort(),
-    "and Inbox's scene binding table (FI-6 P3), declared since version 7, and Risk's records (batch 17)");
+  assert.deepEqual(pointing("project_root"), [...ROOTED].sort());
+  const pluginTables = declaring.flatMap(manifest => Object.keys(shape(manifest.databases!.project!.schema).tables));
+  assert.deepEqual(pointing("project_root").filter(name => pluginTables.includes(name)), [], "no plugin table points at the root row (G3)");
+  for (const name of pluginTables) assert.equal(tables[name]?.columns.some(column => column.name === "project_id"), false, `${name} carries no project_id (G3)`);
   const goals = declaring.find(manifest => manifest.plugin_id === GOALS_PLUGIN_ID)!;
   const declared = Object.keys(shape(goals.databases!.project!.schema).tables);
   assert.ok(declared.includes("boards"), "the board is a table Goals declares, no longer one of the baseline's");
   assert.equal("boards" in shape(PROJECT_DATABASE_BASELINE.schema).tables, false);
-  const underBoard = pointing("boards");
-  assert.ok(underBoard.length > 0 && underBoard.every(name => declared.includes(name) && !ROOTED.includes(name)), "and everything that still points at the board is Goals' own");
+  // Since batch 109-1 the board is the library's one row (`id` 1) and Goals' other tables no longer carry a board column to point at it with.
+  assert.match(tables.boards!.columns.map(column => column.name).join(","), /^id,/u);
+  assert.deepEqual(pointing("boards"), [], "nothing hangs off the board: the library itself is the board's");
 });
 
 test("a new project database is made at the baseline, its plugins' tables made and recorded when the Host opens it, and starting the plugins adds nothing", async t => {

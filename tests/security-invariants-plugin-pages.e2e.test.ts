@@ -3,6 +3,7 @@ import { createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
 import test from "node:test";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { homeProbe } from "./fixtures/home-runtime.js";
 import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-frame-browser.js";
 import { homePagePlugin, serveHomePageBundle } from "./fixtures/home-page-plugin.js";
 
@@ -220,10 +221,11 @@ test("SYS-15-U7 S-47 embedded content is host owned, confined to the page and ca
 
 // W2-18-HOME-LOCALE-01: the standalone Home settings host consumes the same restricted request.
 test("SYS-15 S-47 standalone Home settings reject invalid addresses and accept the existing connection pages", { timeout: 60_000 }, async t => {
-  const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
-  // Work Brief's is the built-in standalone Home page left after Issues and Jelly moved to the partitions (batch 108). Its Home half draws no
-  // view of its own, so the page's settings host is all there is to wait for.
-  await b.navigate(() => b.command("Page.navigate", { url: `${b.origin}/locale?lang=en&next=%2Fplugins%2Fwork-brief` }, b.sessionId));
+  // Since batch 109-1 the build ships no Home plugin (Work Brief's was the last standalone Home page), so a Host fixture stands for one
+  // until the page goes in 109-3. It draws no view of its own, so the page's settings host is all there is to wait for.
+  const standalone = homeProbe("settingspage");
+  const b = await openGoalBrowser(t, "empty", undefined, null, undefined, undefined, {}, { home: [standalone.definition] }); if (!b) return;
+  await b.navigate(() => b.command("Page.navigate", { url: `${b.origin}/locale?lang=en&next=${encodeURIComponent(`/plugins/${standalone.id}`)}` }, b.sessionId));
   await b.waitFor("document.readyState === 'complete' && !!document.querySelector('[data-home-model-settings]')", 20_000);
   const address = await b.evaluate("location.href");
   const refuse = () => b.evaluate(`(async () => {

@@ -53,14 +53,14 @@ function checked(fields: RiskFields): RiskFields {
  * one step inside the caller's transaction (`services.project_database.transaction`), so a write and its history row commit together.
  */
 export class RiskStore {
-  constructor(private readonly db: PluginDatabaseReader, private readonly projectId: string) {}
+  constructor(private readonly db: PluginDatabaseReader) {}
 
   /**
    * One page of the overview: one statement for the risks and one for their links, never one request per risk (N42–N56). Newest
    * change first; `cursor` is the last row of the page before (`next_cursor`), so a page stays put while risks are added.
    */
   list(filter: RiskListFilter = {}, page: { limit?: number; cursor?: string } = {}): { risks: RiskRow[]; next_cursor: string | null } {
-    const where = ["project_id = ?"], parameters: (string | number)[] = [this.projectId];
+    const where: string[] = [], parameters: (string | number)[] = [];
     const status = filter.status ?? "open";
     if (status === "open") where.push("status <> 'closed'");
     else if (status === "closed") where.push("status = 'closed'");
@@ -77,7 +77,7 @@ export class RiskStore {
       where.push("(updated_at < ? OR (updated_at = ? AND risk_id > ?))"); parameters.push(updatedAt, updatedAt, riskId);
     }
     const limit = Math.min(RISK_PAGE.max, Math.max(1, Math.trunc(page.limit ?? RISK_PAGE.default)));
-    const rows = this.db.all(`SELECT ${ITEM_COLUMNS} FROM risk_items WHERE ${where.join(" AND ")} ORDER BY updated_at DESC, risk_id LIMIT ?`, [...parameters, limit + 1]).map(recordOf);
+    const rows = this.db.all(`SELECT ${ITEM_COLUMNS} FROM risk_items ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY updated_at DESC, risk_id LIMIT ?`, [...parameters, limit + 1]).map(recordOf);
     const more = rows.length > limit, shown = rows.slice(0, limit);
     if (shown.length === 0) return { risks: [], next_cursor: null };
     const links = new Map<string, ActionSubject[]>();
@@ -93,17 +93,17 @@ export class RiskStore {
 
   /** Every risk of the project, closed ones too, for the search source (which pages them itself). */
   all(): RiskRecord[] {
-    return this.db.all(`SELECT ${ITEM_COLUMNS} FROM risk_items WHERE project_id = ? ORDER BY updated_at DESC, risk_id`, [this.projectId]).map(recordOf);
+    return this.db.all(`SELECT ${ITEM_COLUMNS} FROM risk_items ORDER BY updated_at DESC, risk_id`).map(recordOf);
   }
 
   /** The names people have given as owners in this project, for the overview's filter. */
   owners(): string[] {
-    return this.db.all("SELECT DISTINCT owner_name FROM risk_items WHERE project_id = ? AND owner_name IS NOT NULL ORDER BY owner_name", [this.projectId])
+    return this.db.all("SELECT DISTINCT owner_name FROM risk_items WHERE owner_name IS NOT NULL ORDER BY owner_name")
       .map(row => text(row, "owner_name"));
   }
 
   find(riskId: string, reader: PluginDatabaseReader = this.db): RiskRecord | null {
-    const row = reader.get(`SELECT ${ITEM_COLUMNS} FROM risk_items WHERE project_id = ? AND risk_id = ?`, [this.projectId, riskId]);
+    const row = reader.get(`SELECT ${ITEM_COLUMNS} FROM risk_items WHERE risk_id = ?`, [riskId]);
     return row ? recordOf(row) : null;
   }
 
@@ -127,8 +127,8 @@ export class RiskStore {
   create(tx: PluginDatabaseTransaction, input: RiskFields & { links: readonly ActionSubject[] }, actorId: string, now: string): RiskRecord {
     const fields = checked(input);
     const riskId = `risk-${randomUUID()}`;
-    tx.run(`INSERT INTO risk_items (${ITEM_COLUMNS}, project_id) VALUES (?, ?, ?, ?, ?, ?, ?, 'open', 1, ?, ?, ?, NULL, ?)`,
-      [riskId, fields.title, fields.statement, fields.impact, fields.likelihood, fields.treatment, fields.owner_name, actorId, now, now, this.projectId]);
+    tx.run(`INSERT INTO risk_items (${ITEM_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, 'open', 1, ?, ?, ?, NULL)`,
+      [riskId, fields.title, fields.statement, fields.impact, fields.likelihood, fields.treatment, fields.owner_name, actorId, now, now]);
     this.event(tx, riskId, "created", {}, actorId, now);
     for (const subject of unique(input.links)) this.link(tx, riskId, subject, actorId, now, false);
     return this.get(riskId, tx);
@@ -142,7 +142,7 @@ export class RiskStore {
     const fields = RISK_EDIT_FIELDS.filter(key => next[key] !== current[key]);
     if (fields.length === 0) return current;
     tx.run(`UPDATE risk_items SET title = ?, statement = ?, impact = ?, likelihood = ?, treatment = ?, owner_name = ?, revision = revision + 1, updated_at = ?
-      WHERE project_id = ? AND risk_id = ?`, [next.title, next.statement, next.impact, next.likelihood, next.treatment, next.owner_name, now, this.projectId, riskId]);
+      WHERE risk_id = ?`, [next.title, next.statement, next.impact, next.likelihood, next.treatment, next.owner_name, now, riskId]);
     this.event(tx, riskId, "updated", { fields }, actorId, now);
     return this.get(riskId, tx);
   }
@@ -150,8 +150,8 @@ export class RiskStore {
   setStatus(tx: PluginDatabaseTransaction, riskId: string, expectedRevision: number, status: RiskStatus, note: string | null, actorId: string, now: string): RiskRecord {
     const current = this.current(tx, riskId, expectedRevision);
     if (current.status === status) return current;
-    tx.run("UPDATE risk_items SET status = ?, closed_at = ?, revision = revision + 1, updated_at = ? WHERE project_id = ? AND risk_id = ?",
-      [status, status === "closed" ? now : null, now, this.projectId, riskId]);
+    tx.run("UPDATE risk_items SET status = ?, closed_at = ?, revision = revision + 1, updated_at = ? WHERE risk_id = ?",
+      [status, status === "closed" ? now : null, now, riskId]);
     this.event(tx, riskId, "status", { status, previous_status: current.status, ...(note ? { text: limitedNote(note) } : {}) }, actorId, now);
     return this.get(riskId, tx);
   }
@@ -162,7 +162,7 @@ export class RiskStore {
     const text = limitedNote(note);
     if (!text.trim()) throw riskErrors.invalid("进展不能是空的");
     const eventId = this.event(tx, riskId, "note", { text }, actorId, now);
-    tx.run("UPDATE risk_items SET revision = revision + 1, updated_at = ? WHERE project_id = ? AND risk_id = ?", [now, this.projectId, riskId]);
+    tx.run("UPDATE risk_items SET revision = revision + 1, updated_at = ? WHERE risk_id = ?", [now, riskId]);
     return { event_id: eventId, kind: "note", detail: { text }, actor_id: actorId, at: now };
   }
 
@@ -175,7 +175,7 @@ export class RiskStore {
     tx.run("INSERT INTO risk_links (risk_id, subject_kind, subject_id, added_by, added_at) VALUES (?, ?, ?, ?, ?)", [riskId, subject.kind, subject.id, actorId, now]);
     if (!touch) return;
     this.event(tx, riskId, "linked", { subject }, actorId, now);
-    tx.run("UPDATE risk_items SET revision = revision + 1, updated_at = ? WHERE project_id = ? AND risk_id = ?", [now, this.projectId, riskId]);
+    tx.run("UPDATE risk_items SET revision = revision + 1, updated_at = ? WHERE risk_id = ?", [now, riskId]);
   }
 
   unlink(tx: PluginDatabaseTransaction, riskId: string, subject: ActionSubject, actorId: string, now: string): void {
@@ -184,7 +184,7 @@ export class RiskStore {
     const removed = tx.run("DELETE FROM risk_links WHERE risk_id = ? AND subject_kind = ? AND subject_id = ?", [riskId, subject.kind, subject.id]).changes;
     if (Number(removed) === 0) return;
     this.event(tx, riskId, "unlinked", { subject }, actorId, now);
-    tx.run("UPDATE risk_items SET revision = revision + 1, updated_at = ? WHERE project_id = ? AND risk_id = ?", [now, this.projectId, riskId]);
+    tx.run("UPDATE risk_items SET revision = revision + 1, updated_at = ? WHERE risk_id = ?", [now, riskId]);
   }
 
   private current(tx: PluginDatabaseTransaction, riskId: string, expectedRevision: number): RiskRecord {

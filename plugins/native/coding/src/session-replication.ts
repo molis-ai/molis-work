@@ -10,7 +10,7 @@ import {validateCodingInputs} from './inputs.js';
 
 export const CODING_CONTENT_REPLICA_ID='coding_content';
 const errors=defineErrorCodes('coding',{sync_invalid:'invalid',sync_active:'unavailable'});
-const sessionColumns=['project_id','session_id','title','state','archived','goal_id','runtime_id','runtime_session_id','created_at','updated_at','steps_json','background_json'];
+const sessionColumns=['session_id','title','state','archived','goal_id','runtime_id','runtime_session_id','created_at','updated_at','steps_json','background_json'];
 const privateColumns=['state','runtime_id','runtime_session_id','steps_json','background_json'] as const;
 const invalid=():never=>{throw errors.sync_invalid('编码会话同步内容或归属无效');};
 const text=(value:unknown,max=200):value is string=>typeof value==='string'&&!!value.trim()&&value.length<=max;
@@ -28,30 +28,30 @@ function nextRevision(value:number):number{if(!Number.isSafeInteger(value)||valu
 export function codingContentReplicationDefinition(validateHistory?:(json:string)=>{sessionId:string}):ProjectReplicaDefinition{
   return {id:CODING_CONTENT_REPLICA_ID,assetKind:CODING_CONTENT_REPLICA_ID,
     tables:[
-      {name:'coding_plan_versions',columns:['project_id','session_id','revision'],keys:['project_id','session_id'],keepRoot:true,journalCondition:'0'},
-      {name:'coding_input_versions',columns:['project_id','session_id','revision'],keys:['project_id','session_id'],keepRoot:true,journalCondition:'0'},
-      {name:'coding_sessions',columns:sessionColumns,keys:['project_id','session_id'],journalColumns:['title','archived','goal_id','state'],journalUpdateCondition:"$new.title IS NOT $old.title OR $new.archived IS NOT $old.archived OR $new.goal_id IS NOT $old.goal_id OR ($new.state IS NOT $old.state AND $new.state IN ('done','failed','stopped','cancelled') AND $new.runtime_session_id IS NOT NULL)"},
-      {name:'coding_plan_drafts',columns:['project_id','session_id','revision','draft_json'],keys:['project_id','session_id']},
-      {name:'coding_saved_history',columns:['project_id','session_id','source_id','archive_json'],keys:['project_id','session_id','source_id']},
-      {name:'coding_inputs',columns:['project_id','session_id','revision','draft','questions_json'],keys:['project_id','session_id']},
+      {name:'coding_plan_versions',columns:['session_id','revision'],keys:['session_id'],keepRoot:true,journalCondition:'0'},
+      {name:'coding_input_versions',columns:['session_id','revision'],keys:['session_id'],keepRoot:true,journalCondition:'0'},
+      {name:'coding_sessions',columns:sessionColumns,keys:['session_id'],journalColumns:['title','archived','goal_id','state'],journalUpdateCondition:"$new.title IS NOT $old.title OR $new.archived IS NOT $old.archived OR $new.goal_id IS NOT $old.goal_id OR ($new.state IS NOT $old.state AND $new.state IN ('done','failed','stopped','cancelled') AND $new.runtime_session_id IS NOT NULL)"},
+      {name:'coding_plan_drafts',columns:['session_id','revision','draft_json'],keys:['session_id']},
+      {name:'coding_saved_history',columns:['session_id','source_id','archive_json'],keys:['session_id','source_id']},
+      {name:'coding_inputs',columns:['session_id','revision','draft','questions_json'],keys:['session_id']},
     ],journalTypes:[],receiptOperations:[],sequenceFields:[],
     project(rows){for(const row of rows.coding_sessions!)if(row.runtime_session_id!==null&&['done','failed','stopped','cancelled'].includes(String(row.state))&&!rows.coding_saved_history!.some(archive=>archive.session_id===row.session_id&&archive.source_id===row.runtime_session_id))throw errors.sync_active('原 SDK 历史尚未导出，完整记录和队列已保留',{sync_waiting:true});return {coding_saved_history:rows.coding_saved_history!,coding_plan_versions:[],coding_input_versions:[],coding_sessions:rows.coding_sessions!.map(row=>({...row,state:'idle',runtime_session_id:null,steps_json:null,background_json:null})),
       coding_plan_drafts:rows.coding_plan_drafts!.map(row=>({...row,revision:0,draft_json:JSON.stringify(portablePlan(String(row.draft_json)))})),coding_inputs:rows.coding_inputs!.map(row=>({...row,revision:0}))};},
-    validate(rows,projectId){
+    validate(rows){
       if(rows.coding_plan_versions!.length||rows.coding_input_versions!.length)invalid();const ids=new Set<string>();
       for(const row of rows.coding_sessions!){
-        if(row.project_id!==projectId||!text(row.session_id)||!text(row.title,1000)||row.state!=='idle'||!text(row.runtime_id)
+        if(!text(row.session_id)||!text(row.title,1000)||row.state!=='idle'||!text(row.runtime_id)
           ||row.runtime_session_id!==null||row.steps_json!==null||row.background_json!==null||row.archived!==0&&row.archived!==1
           ||row.goal_id!==null&&!text(row.goal_id)||!stamp(row.created_at)||!stamp(row.updated_at))invalid();ids.add(String(row.session_id));
       }
-      for(const row of rows.coding_saved_history!){if(row.project_id!==projectId||!ids.has(String(row.session_id))||typeof row.archive_json!=='string'||!text(row.source_id,500)||!validateHistory)invalid();if(validateHistory!(String(row.archive_json)).sessionId!==row.source_id)invalid();}
+      for(const row of rows.coding_saved_history!){if(!ids.has(String(row.session_id))||typeof row.archive_json!=='string'||!text(row.source_id,500)||!validateHistory)invalid();if(validateHistory!(String(row.archive_json)).sessionId!==row.source_id)invalid();}
       for(const row of rows.coding_plan_drafts!){
-        if(row.project_id!==projectId||!ids.has(String(row.session_id))||row.revision!==0||typeof row.draft_json!=='string')invalid();
+        if(!ids.has(String(row.session_id))||row.revision!==0||typeof row.draft_json!=='string')invalid();
         const plan=portablePlan(String(row.draft_json));
         if(plan.source.session_id!==row.session_id||JSON.stringify(plan)!==row.draft_json)invalid();
       }
       for(const row of rows.coding_inputs!){
-        if(row.project_id!==projectId||!ids.has(String(row.session_id))||row.revision!==0||typeof row.questions_json!=='string')invalid();
+        if(!ids.has(String(row.session_id))||row.revision!==0||typeof row.questions_json!=='string')invalid();
         const questions=JSON.parse(String(row.questions_json));validateCodingInputs(row.draft,questions);if(JSON.stringify(questions)!==row.questions_json)invalid();
       }
     },
@@ -61,29 +61,29 @@ export function codingContentReplicationDefinition(validateHistory?:(json:string
           throw errors.sync_active('此项目的编码执行或后台命令尚未结束，内容已保留',{sync_waiting:true});
       }
     },
-    restore(rows,local,projectId){return restore(rows,local,projectId);},
+    restore(rows,local){return restore(rows,local);},
   };
 }
-function restore(rows:ProjectReplicaRows,local:ProjectReplicaRows,projectId:string):ProjectReplicaRows{
+function restore(rows:ProjectReplicaRows,local:ProjectReplicaRows):ProjectReplicaRows{
   const sessions=new Map(local.coding_sessions!.map(row=>[row.session_id,row]));
-  const plans=restoreDrafts(rows,local,projectId,'coding_plan_drafts','coding_plan_versions',(row,revision)=>({...row,revision,draft_json:JSON.stringify({...portablePlan(String(row.draft_json)),revision})}));
-  const inputs=restoreDrafts(rows,local,projectId,'coding_inputs','coding_input_versions',(row,revision)=>({...row,revision}));
+  const plans=restoreDrafts(rows,local,'coding_plan_drafts','coding_plan_versions',(row,revision)=>({...row,revision,draft_json:JSON.stringify({...portablePlan(String(row.draft_json)),revision})}));
+  const inputs=restoreDrafts(rows,local,'coding_inputs','coding_input_versions',(row,revision)=>({...row,revision}));
   return {coding_saved_history:rows.coding_saved_history!,coding_sessions:rows.coding_sessions!.map(row=>{const old=sessions.get(row.session_id);return old?{...row,...Object.fromEntries(privateColumns.map(key=>[key,old[key]]))}:row;}),
     coding_plan_drafts:plans.drafts,coding_plan_versions:plans.versions,coding_inputs:inputs.drafts,coding_input_versions:inputs.versions};
 }
-function restoreDrafts(rows:ProjectReplicaRows,local:ProjectReplicaRows,projectId:string,table:string,clock:string,project:(row:ProjectReplicaRow,revision:number)=>ProjectReplicaRow){
+function restoreDrafts(rows:ProjectReplicaRows,local:ProjectReplicaRows,table:string,clock:string,project:(row:ProjectReplicaRow,revision:number)=>ProjectReplicaRow){
  const prior=new Map(local[table]!.map(row=>[row.session_id,row]));
  const versions=new Map(local[clock]!.map(row=>[String(row.session_id),Number(row.revision)]));
  for(const row of local[table]!)versions.set(String(row.session_id),nextRevision(Math.max(versions.get(String(row.session_id))??0,Number(row.revision))));
  const drafts=rows[table]!.map(row=>{const id=String(row.session_id),revision=prior.has(id)?versions.get(id)!:nextRevision(versions.get(id)??0);versions.set(id,revision);return project(row,revision);});
- return {drafts,versions:[...versions].map(([session_id,revision]):ProjectReplicaRow=>({project_id:projectId,session_id,revision}))};
+ return {drafts,versions:[...versions].map(([session_id,revision]):ProjectReplicaRow=>({session_id,revision}))};
 }
 
 export function codingSections(validateHistory?:(json:string)=>{sessionId:string}):SyncSectionsDefinition {
  return {kind:CODING_CONTENT_REPLICA_ID,business:[syncSection(codingContentReplicationDefinition(validateHistory))],platform:[],journal:false};
 }
 export const codingTracking:readonly SyncTrackedTable[] = ['coding_sessions','coding_plan_drafts','coding_saved_history','coding_inputs'].map(table=>({
- table,key:[{column:'project_id'},{literal:CODING_CONTENT_REPLICA_ID},{column:'project_id'}],
+ table,key:[{scope:'projectId'},{literal:CODING_CONTENT_REPLICA_ID},{scope:'projectId'}],
  ...(table==='coding_sessions'?{updateAny:[{changed:['title','archived','goal_id']},{changed:['state'],where:[{column:'state',op:'in' as const,values:['done','failed','stopped','cancelled']},{column:'runtime_session_id',op:'not-null' as const}]}]}:{}),
 }));
 export const codingSync:PluginSyncDeclaration={protocol_version:/* @version sync.protocol */ 1,collections:[{id:'sessions',title:'编码会话与草稿',schema_version: /* @version sync.collection.coding.sessions */ 1,requires:[],tracking:codingTracking,sections:syncSectionsDeclaration(codingSections()),database:'project'}]};

@@ -19,7 +19,6 @@ const signalErrors = defineErrorCodes("signals", { not_found: "invalid", invalid
 /** The signal tables, as one current schema; the host composes them into the project database baseline. */
 export const SIGNALS_SCHEMA_SQL = `
     CREATE TABLE IF NOT EXISTS signals (
-      project_id TEXT NOT NULL,
       signal_id TEXT NOT NULL,
       source_id TEXT NOT NULL,
       provider_dedupe_id TEXT NOT NULL,
@@ -39,25 +38,23 @@ export const SIGNALS_SCHEMA_SQL = `
       withdrawn_at TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
-      PRIMARY KEY (project_id, signal_id),
-      UNIQUE (project_id, source_id, provider_dedupe_id)
+      PRIMARY KEY (signal_id),
+      UNIQUE (source_id, provider_dedupe_id)
     );
     CREATE INDEX IF NOT EXISTS signals_project_source_observed_idx
-      ON signals(project_id, source_id, observed_at DESC, signal_id);
+      ON signals(source_id, observed_at DESC, signal_id);
 
     CREATE TABLE IF NOT EXISTS signal_revisions (
-      project_id TEXT NOT NULL,
       signal_id TEXT NOT NULL,
       revision INTEGER NOT NULL,
       content_hash TEXT NOT NULL,
       draft_json TEXT NOT NULL,
       accepted_at TEXT NOT NULL,
-      PRIMARY KEY (project_id, signal_id, revision)
+      PRIMARY KEY (signal_id, revision)
     );
 
     CREATE TABLE IF NOT EXISTS signal_events (
       event_id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL,
       signal_id TEXT NOT NULL,
       source_id TEXT NOT NULL,
       type TEXT NOT NULL CHECK (type IN ('signal.accepted', 'signal.changed')),
@@ -65,7 +62,7 @@ export const SIGNALS_SCHEMA_SQL = `
       at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS signal_events_project_source_idx
-      ON signal_events(project_id, source_id, at, event_id);
+      ON signal_events(source_id, at, event_id);
 `;
 
 export class SignalsModule implements SignalsApi {
@@ -89,25 +86,25 @@ export class SignalsModule implements SignalsApi {
   ) {}
 
   /** D0117: revisions contain the old payloads too; remove all three tables in the caller's history transaction. */
-  private deleteBySource(projectId: string, sourceId: string): void {
+  private deleteBySource(_projectId: string, sourceId: string): void {
     this.db.transaction(() => {
-      this.db.run("DELETE FROM signal_revisions WHERE project_id = ? AND signal_id IN (SELECT signal_id FROM signals WHERE project_id = ? AND source_id = ?)", projectId, projectId, sourceId);
-      this.db.run("DELETE FROM signal_events WHERE project_id = ? AND source_id = ?", projectId, sourceId);
-      this.db.run("DELETE FROM signals WHERE project_id = ? AND source_id = ?", projectId, sourceId);
+      this.db.run("DELETE FROM signal_revisions WHERE signal_id IN (SELECT signal_id FROM signals WHERE source_id = ?)", sourceId);
+      this.db.run("DELETE FROM signal_events WHERE source_id = ?", sourceId);
+      this.db.run("DELETE FROM signals WHERE source_id = ?", sourceId);
     });
   }
 
   private get(projectId: string, signalId: string): SignalRecord {
-    const row = this.db.get("SELECT * FROM signals WHERE project_id = ? AND signal_id = ?", projectId, signalId) as Row | undefined;
+    const row = this.db.get("SELECT * FROM signals WHERE signal_id = ?", signalId) as Row | undefined;
     if (!row) throw signalErrors.not_found("找不到这个 Signal");
-    return mapSignal(row);
+    return mapSignal(row, projectId);
   }
 
   private list(projectId: string, sourceId?: string, page: SignalPage = {}): SignalRecord[] {
     const rows = sourceId == null
-      ? this.db.all("SELECT * FROM signals WHERE project_id = ? ORDER BY observed_at DESC, signal_id LIMIT ? OFFSET ?", projectId, Math.min(200, Math.max(1, Math.floor(page.limit ?? 100))), Math.max(0, Math.floor(page.offset ?? 0)))
-      : this.db.all("SELECT * FROM signals WHERE project_id = ? AND source_id = ? ORDER BY observed_at DESC, signal_id LIMIT ? OFFSET ?", projectId, sourceId, Math.min(200, Math.max(1, Math.floor(page.limit ?? 100))), Math.max(0, Math.floor(page.offset ?? 0)));
-    return (rows as Row[]).map(mapSignal);
+      ? this.db.all("SELECT * FROM signals ORDER BY observed_at DESC, signal_id LIMIT ? OFFSET ?", Math.min(200, Math.max(1, Math.floor(page.limit ?? 100))), Math.max(0, Math.floor(page.offset ?? 0)))
+      : this.db.all("SELECT * FROM signals WHERE source_id = ? ORDER BY observed_at DESC, signal_id LIMIT ? OFFSET ?", sourceId, Math.min(200, Math.max(1, Math.floor(page.limit ?? 100))), Math.max(0, Math.floor(page.offset ?? 0)));
+    return (rows as Row[]).map(row => mapSignal(row, projectId));
   }
 
   private submitDraft(draft: SignalDraft): SignalReceipt {
@@ -117,11 +114,11 @@ export class SignalsModule implements SignalsApi {
     return this.db.transaction(() => {
       const existingRow = this.db.get(`
         SELECT * FROM signals
-        WHERE project_id = ? AND source_id = ? AND provider_dedupe_id = ?
-      `, normalized.project_id, normalized.source_id, normalized.provider_dedupe_id) as Row | undefined;
+        WHERE source_id = ? AND provider_dedupe_id = ?
+      `, normalized.source_id, normalized.provider_dedupe_id) as Row | undefined;
       const acceptedAt = this.now().toISOString();
       if (existingRow) {
-        const existing = mapSignal(existingRow);
+        const existing = mapSignal(existingRow, normalized.project_id);
         if (existing.content_hash === contentHash) {
           return { signal: existing, created: false, changed: false, deduped: true };
         }
@@ -132,8 +129,8 @@ export class SignalsModule implements SignalsApi {
             content_refs_json = ?, raw_event_id = ?, adapter_plugin_id = ?,
             adapter_version = ?, provenance_json = ?, revision = ?,
             content_hash = ?, updated_at = ?
-          WHERE project_id = ? AND signal_id = ?
-        `, normalized.kind, normalized.occurred_at, normalized.observed_at, JSON.stringify(normalized.payload), JSON.stringify(normalized.content_refs ?? []), normalized.raw_event_id, normalized.adapter.plugin_id, normalized.adapter.version, JSON.stringify(normalized.provenance), revision, contentHash, acceptedAt, normalized.project_id, existing.signal_id);
+          WHERE signal_id = ?
+        `, normalized.kind, normalized.occurred_at, normalized.observed_at, JSON.stringify(normalized.payload), JSON.stringify(normalized.content_refs ?? []), normalized.raw_event_id, normalized.adapter.plugin_id, normalized.adapter.version, JSON.stringify(normalized.provenance), revision, contentHash, acceptedAt, existing.signal_id);
         this.insertRevision(existing.signal_id, revision, contentHash, normalized, acceptedAt);
         this.insertEvent(existing.signal_id, normalized.source_id, revision, "signal.changed", acceptedAt, normalized.project_id);
         return {
@@ -147,13 +144,13 @@ export class SignalsModule implements SignalsApi {
       const signalId = `signal-${sha256(`${normalized.project_id}\u0000${normalized.source_id}\u0000${normalized.provider_dedupe_id}`).slice(0, 32)}`;
       this.db.run(`
         INSERT INTO signals (
-          project_id, signal_id, source_id, provider_dedupe_id, kind,
+          signal_id, source_id, provider_dedupe_id, kind,
           occurred_at, observed_at, payload_json, content_refs_json,
           raw_event_id, adapter_plugin_id, adapter_version, provenance_json,
           revision, content_hash, validation, superseded_by, withdrawn_at,
           created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, 'accepted', NULL, NULL, ?, ?)
-      `, normalized.project_id, signalId, normalized.source_id, normalized.provider_dedupe_id, normalized.kind, normalized.occurred_at, normalized.observed_at, JSON.stringify(normalized.payload), JSON.stringify(normalized.content_refs ?? []), normalized.raw_event_id, normalized.adapter.plugin_id, normalized.adapter.version, JSON.stringify(normalized.provenance), contentHash, acceptedAt, acceptedAt);
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, 'accepted', NULL, NULL, ?, ?)
+      `, signalId, normalized.source_id, normalized.provider_dedupe_id, normalized.kind, normalized.occurred_at, normalized.observed_at, JSON.stringify(normalized.payload), JSON.stringify(normalized.content_refs ?? []), normalized.raw_event_id, normalized.adapter.plugin_id, normalized.adapter.version, JSON.stringify(normalized.provenance), contentHash, acceptedAt, acceptedAt);
       this.insertRevision(signalId, 1, contentHash, normalized, acceptedAt);
       this.insertEvent(signalId, normalized.source_id, 1, "signal.accepted", acceptedAt, normalized.project_id);
       return {
@@ -174,18 +171,18 @@ export class SignalsModule implements SignalsApi {
   ): void {
     this.db.run(`
       INSERT INTO signal_revisions (
-        project_id, signal_id, revision, content_hash, draft_json, accepted_at
-      ) VALUES (?, ?, ?, ?, ?, ?)
-    `, draft.project_id, signalId, revision, contentHash, JSON.stringify(draft), acceptedAt);
+        signal_id, revision, content_hash, draft_json, accepted_at
+      ) VALUES (?, ?, ?, ?, ?)
+    `, signalId, revision, contentHash, JSON.stringify(draft), acceptedAt);
   }
 
   private listEvents(projectId: string, sourceId?: string, page: SignalPage = {}): SignalEvent[] {
     const rows = sourceId == null
-      ? this.db.all("SELECT * FROM signal_events WHERE project_id = ? ORDER BY at, event_id LIMIT ? OFFSET ?", projectId, Math.min(200, Math.max(1, Math.floor(page.limit ?? 100))), Math.max(0, Math.floor(page.offset ?? 0)))
-      : this.db.all("SELECT * FROM signal_events WHERE project_id = ? AND source_id = ? ORDER BY at, event_id LIMIT ? OFFSET ?", projectId, sourceId, Math.min(200, Math.max(1, Math.floor(page.limit ?? 100))), Math.max(0, Math.floor(page.offset ?? 0)));
+      ? this.db.all("SELECT * FROM signal_events ORDER BY at, event_id LIMIT ? OFFSET ?", Math.min(200, Math.max(1, Math.floor(page.limit ?? 100))), Math.max(0, Math.floor(page.offset ?? 0)))
+      : this.db.all("SELECT * FROM signal_events WHERE source_id = ? ORDER BY at, event_id LIMIT ? OFFSET ?", sourceId, Math.min(200, Math.max(1, Math.floor(page.limit ?? 100))), Math.max(0, Math.floor(page.offset ?? 0)));
     return (rows as Row[]).map((row) => ({
       event_id: text(row.event_id),
-      project_id: text(row.project_id),
+      project_id: projectId,
       signal_id: text(row.signal_id),
       source_id: text(row.source_id),
       type: text(row.type) as SignalEvent["type"],
@@ -200,19 +197,19 @@ export class SignalsModule implements SignalsApi {
     revision: number,
     type: SignalEvent["type"],
     at: string,
-    projectId: string,
+    _projectId: string,
   ): void {
     this.db.run(`
       INSERT INTO signal_events (
-        event_id, project_id, signal_id, source_id, type, revision, at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
-    `, `signal-event-${randomUUID()}`, projectId, signalId, sourceId, type, revision, at);
+        event_id, signal_id, source_id, type, revision, at
+      ) VALUES (?, ?, ?, ?, ?, ?)
+    `, `signal-event-${randomUUID()}`, signalId, sourceId, type, revision, at);
   }
 }
 
-function mapSignal(row: Row): SignalRecord {
+function mapSignal(row: Row, projectId: string): SignalRecord {
   return {
-    project_id: text(row.project_id),
+    project_id: projectId,
     signal_id: text(row.signal_id),
     source_id: text(row.source_id),
     provider_dedupe_id: text(row.provider_dedupe_id),

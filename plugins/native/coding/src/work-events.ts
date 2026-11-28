@@ -19,7 +19,7 @@ export const codingWorkEventsAction = { ...rawCodingWorkEventsAction, action: { 
 const MAX_ENDED = 20;
 
 export function codingWorkEvents(sessions: CodingSessionStore, projectId: string, window: WorkEventWindow): WorkEvent[] {
-  const held = new Set(sessions.backgroundSessions(projectId).map(session => session.session_id));
+  const held = new Set(sessions.backgroundSessions().map(session => session.session_id));
   const events: WorkEvent[] = [];
   let ended = 0;
   for (const session of sessions.list(projectId)) {

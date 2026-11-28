@@ -131,21 +131,21 @@ export class GoalArchiveCommands {
       if (input.trashed) {
         const activeRelations = this.context.repository.db.prepare(`
           SELECT relation_id FROM goal_relations
-          WHERE project_id = ? AND state = 'active'
+          WHERE state = 'active'
             AND (from_goal_id = ? OR to_goal_id = ?)
           ORDER BY relation_id
-        `).all(projectId, input.goal_id, input.goal_id) as Row[];
+        `).all(input.goal_id, input.goal_id) as Row[];
         const trashRecordId = `trash-${randomUUID()}`;
         this.context.repository.db.prepare(`
           INSERT INTO goal_trash_records (
-            trash_record_id, project_id, goal_id, trashed_at, trashed_by, trash_reason,
+            trash_record_id, goal_id, trashed_at, trashed_by, trash_reason,
             restored_at, restored_by, restore_reason
-          ) VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, NULL)
-        `).run(trashRecordId, projectId, input.goal_id, now, write.actor_id, reasonText);
+          ) VALUES (?, ?, ?, ?, ?, NULL, NULL, NULL)
+        `).run(trashRecordId, input.goal_id, now, write.actor_id, reasonText);
         this.context.repository.db.prepare(`
           UPDATE goals SET trashed_at = ?, trashed_by = ?, updated_at = ?
-          WHERE project_id = ? AND goal_id = ?
-        `).run(now, write.actor_id, now, projectId, input.goal_id);
+          WHERE goal_id = ?
+        `).run(now, write.actor_id, now, input.goal_id);
         const deactivatedRelationIds: string[] = [];
         for (const relation of activeRelations) {
           const relationId = rowText(relation.relation_id);
@@ -190,16 +190,16 @@ export class GoalArchiveCommands {
 
       const trashRecord = this.context.repository.db.prepare(`
         SELECT trash_record_id FROM goal_trash_records
-        WHERE project_id = ? AND goal_id = ? AND restored_at IS NULL
+        WHERE goal_id = ? AND restored_at IS NULL
         ORDER BY trashed_at DESC, trash_record_id DESC LIMIT 1
-      `).get(projectId, input.goal_id) as Row | undefined;
+      `).get(input.goal_id) as Row | undefined;
       if (!trashRecord) {
         throw goalErrors["goals.goal.trash_record_missing"]("回收站 Goal 缺少可恢复的删除记录");
       }
       this.context.repository.db.prepare(`
         UPDATE goals SET trashed_at = NULL, trashed_by = NULL, updated_at = ?
-        WHERE project_id = ? AND goal_id = ?
-      `).run(now, projectId, input.goal_id);
+        WHERE goal_id = ?
+      `).run(now, input.goal_id);
       this.context.repository.db.prepare(`
         UPDATE goal_trash_records
         SET restored_at = ?, restored_by = ?, restore_reason = ?
@@ -240,21 +240,20 @@ export class GoalArchiveCommands {
       SELECT DISTINCT relation.relation_id, relation.from_goal_id, relation.to_goal_id
       FROM goal_relations relation
       JOIN goal_trash_relation_records record ON record.relation_id = relation.relation_id
-      WHERE relation.project_id = ?
-        AND (relation.from_goal_id = ? OR relation.to_goal_id = ?)
+      WHERE (relation.from_goal_id = ? OR relation.to_goal_id = ?)
         AND relation.state = 'inactive'
         AND record.prior_state = 'active'
         AND record.restored_at IS NULL
       ORDER BY relation.relation_id
-    `).all(projectId, goalId, goalId) as Row[];
+    `).all(goalId, goalId) as Row[];
     const restoredRelationIds: string[] = [];
     const pendingRelationIds: string[] = [];
     for (const relation of recoverableRelations) {
       const relationId = rowText(relation.relation_id);
       const availableEndpoints = this.context.repository.db.prepare(`
         SELECT goal_id FROM goals
-        WHERE project_id = ? AND goal_id IN (?, ?) AND trashed_at IS NULL
-      `).all(projectId, rowText(relation.from_goal_id), rowText(relation.to_goal_id)) as Row[];
+        WHERE goal_id IN (?, ?) AND trashed_at IS NULL
+      `).all(rowText(relation.from_goal_id), rowText(relation.to_goal_id)) as Row[];
       if (availableEndpoints.length !== 2) {
         pendingRelationIds.push(relationId);
         continue;

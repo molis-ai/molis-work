@@ -28,19 +28,19 @@ export class GoalEventConcernRecords {
   }): void {
     this.db.prepare(`
       INSERT INTO goal_event_concerns (
-        concern_id, project_id, goal_id, event_id, title, statement, scope_json,
+        concern_id, goal_id, event_id, title, statement, scope_json,
         blocks_closure, status, cited_subjects_json, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?)
     `).run(
-      input.concernId, input.projectId, input.goalId, input.eventId, input.title, input.statement,
+      input.concernId, input.goalId, input.eventId, input.title, input.statement,
       sqliteJson(input.scope), input.blocksClosure ? 1 : 0, sqliteJson(input.citedSubjects), input.at, input.at,
     );
   }
 
-  getConcern(projectId: string, goalId: string, concernId: string): GoalEventConcernView | null {
+  getConcern(_projectId: string, goalId: string, concernId: string): GoalEventConcernView | null {
     const row = this.db.prepare(
-      "SELECT *, rowid AS stored_row FROM goal_event_concerns WHERE concern_id = ? AND project_id = ? AND goal_id = ?",
-    ).get(concernId, projectId, goalId) as Row | undefined;
+      "SELECT *, rowid AS stored_row FROM goal_event_concerns WHERE concern_id = ? AND goal_id = ?",
+    ).get(concernId, goalId) as Row | undefined;
     return row ? mapConcern(row) : null;
   }
 
@@ -64,11 +64,11 @@ export class GoalEventConcernRecords {
     );
   }
 
-  listConcerns(projectId: string, goalId: string): GoalEventConcernView[] {
+  listConcerns(_projectId: string, goalId: string): GoalEventConcernView[] {
     return (this.db.prepare(`
-      SELECT *, rowid AS stored_row FROM goal_event_concerns WHERE project_id = ? AND goal_id = ?
+      SELECT *, rowid AS stored_row FROM goal_event_concerns WHERE goal_id = ?
       ORDER BY created_at ASC, concern_id ASC
-    `).all(projectId, goalId) as Row[]).map(mapConcern);
+    `).all(goalId) as Row[]).map(mapConcern);
   }
 
   openBlockingConcerns(projectId: string, goalId: string): GoalEventConcernView[] {

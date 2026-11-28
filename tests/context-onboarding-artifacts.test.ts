@@ -7,7 +7,9 @@ import { GoalProjectApplication } from "./fixtures/goal-application.js";
 
 test("original file snapshots retain bytes in exact project versions, retry is idempotent, invalid originals never persist", async () => {
   const storage = new LocalProjectDatabase(":memory:"), project = new GoalProjectApplication(storage);
-  for (const project_id of ["project-a", "project-b"]) project.initializeBoard({ project_id, actor_id: "fixture", idempotency_key: project_id });
+  // The library holds one Goals board (batch 109-1); the Artifacts versions still name their project, so project-b is only a root row.
+  project.initializeBoard({ project_id: "project-a", actor_id: "fixture", idempotency_key: "project-a" });
+  storage.db.prepare("INSERT INTO project_root (project_id, created_at) VALUES (?, ?)").run("project-b", new Date().toISOString());
   const artifacts = openProjectVersionStores(storage).artifacts;
   const ports = { projectId: "project-a", actorId: "fixture", ownerActorId: LOCAL_PERSON_ACTOR_ID, routePrefix: "", artifacts,
     readExternal: async (): Promise<never> => { throw Error("unexpected external request"); }, readHtml: () => ({ title: "", content: "" }) };

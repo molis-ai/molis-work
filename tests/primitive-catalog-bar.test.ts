@@ -19,7 +19,8 @@ installHostUiText();
 // personal plugin is added.
 const BACKBONE = railEntries(builtinPluginDirectory().map(entry => entry.id)).filter(entry => entry.rail === "core").map(entry => entry.id);
 
-const PARTITION_LIBRARY_PLUGINS = ["pages", "ppt", "form", "dataset", "lingguang", "workflows", "todo", "issues", "cognia", "images", "jelly"];
+// Work Brief joins them in batch 109-1 (`databases.partition`).
+const PARTITION_LIBRARY_PLUGINS = ["pages", "ppt", "form", "dataset", "lingguang", "workflows", "todo", "issues", "cognia", "images", "jelly", "work-brief"];
 
 const tiles = (html: string) => [...html.matchAll(/data-plugin-tile="([^"]+)"/g)].map(match => match[1]!);
 const toggles = (html: string) => [...html.matchAll(/data-plugin-toggle="([^"]+)"[^>]*data-state="(added|available)"/g)]
@@ -30,7 +31,7 @@ test("RAC-80/81: the bar specimen draws the plugin directory with the sample pro
   const states = toggles(html);
   const bright = states.filter(toggle => toggle.state === "added").map(toggle => toggle.id);
   const grey = states.filter(toggle => toggle.state === "available").map(toggle => toggle.id);
-  // Batches 107 and 108: the partition-library plugins are not personal; the sample project has them added, as the personal space does.
+  // Batches 107, 108 and 109-1: the partition-library plugins are not personal; the sample project has them added, as the personal space does.
   const enabled = new Set([...BACKBONE, ...PARTITION_LIBRARY_PLUGINS]);
   const directory = pluginMarketCards().map(card => card.id);
 

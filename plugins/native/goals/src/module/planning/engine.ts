@@ -91,10 +91,10 @@ export class GoalsPlanningEngine implements GoalsPlanningApi {
     return validatePlanningGraph(goals, relations);
   }
 
-  private currentWork(projectId: string): Map<string, PlanningWorkStatus> {
+  private currentWork(_projectId: string): Map<string, PlanningWorkStatus> {
     const rows = this.context.repository.db.prepare(
-      "SELECT goal_id, work_status FROM goal_event_work_status WHERE project_id = ?",
-    ).all(projectId) as Array<{ goal_id: string; work_status: string }>;
+      "SELECT goal_id, work_status FROM goal_event_work_status",
+    ).all() as Array<{ goal_id: string; work_status: string }>;
     return new Map(rows.map((row) => [row.goal_id, row.work_status as PlanningWorkStatus]));
   }
 }

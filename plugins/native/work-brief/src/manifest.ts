@@ -1,5 +1,5 @@
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { workBriefActions, workBriefPersonalActions } from "./actions.js";
+import { workBriefActions } from "./actions.js";
 import { WORK_BRIEF_DATABASE } from "./database.js";
 import { briefArtifactPreview } from "./fix.js";
 import { BRIEF_ARTIFACT_SCHEMA_VERSION, BRIEF_ARTIFACT_TYPE_ID, WORK_BRIEF_PLUGIN_ID } from "./identity.js";
@@ -9,13 +9,13 @@ import { WORK_BRIEF_VIEW_ID, workBriefPresentation, workBriefPresentationActions
 import { WORK_BRIEF_UI_CONTRIBUTION_ID } from "./ui.js";
 
 const PROJECT_ACTIONS = [...Object.values(workBriefActions), ...workBriefPresentationActions, briefArtifactPreview];
-const HOME_ACTIONS = Object.values(workBriefPersonalActions);
 
 /**
- * Work Brief: a project's brief (how each source stands, sentences with what they stand on, what waits for the person, next steps),
- * its versions and revisions, and a personal brief across the person's projects. One plugin in two halves of this one Manifest: each
- * project's half owns the project briefs and the page; the Home half owns the personal brief. It names no other plugin: sources are
- * whatever the action directory offers the caller (a home overview, an object reader), so a project without Goals is complete.
+ * Work Brief: a partition's brief (how each source stands, sentences with what they stand on, what waits for the person, next steps), its
+ * versions and revisions. One instance per partition it is enabled in, the personal space as well as each project, each with its own library
+ * (`databases.partition`); the partition's own brief keeps a `brief` row in the platform's overview table, which is how the personal space
+ * sees every partition's brief (`overview.read@1`). It names no other plugin: sources are whatever the action directory offers the caller (a
+ * home overview, an object reader), so a partition without Goals is complete.
  */
 export const workBriefManifest: PluginManifest = {
   schema_version: /* @version manifest.schema */ 1,
@@ -34,16 +34,15 @@ export const workBriefManifest: PluginManifest = {
     { permission: "actions:delegate", required: true, reason: "按你的权限读取各来源概况与依据，并在你点击下一步时执行对应操作", reason_text: { key: "work-brief.permission.actions-delegate.reason" } },
     { permission: "artifact:write", required: true, reason: "把固定下来的简报版本存为成果", reason_text: { key: "work-brief.permission.artifact-write.reason" } },
     { permission: "artifact:read", required: true, reason: "核对固定简报版本对应的成果", reason_text: { key: "work-brief.permission.artifact-read.reason" } },
-    { permission: "projects:reach", required: false, reason: "在个人简报里汇总各个项目需要你处理的事；关闭时只包含个人范围事项", reason_text: { key: "work-brief.permission.projects-reach.reason" } },
   ],
   presentation: workBriefPresentation,
-  // Runs in the Home, and also as each project's instance (the registration says so). Each instance redeems only the actions it owns.
-  runtime: { scope: "home" },
-  actions: localizeManifestActions([...PROJECT_ACTIONS, ...HOME_ACTIONS]),
+  actions: localizeManifestActions(PROJECT_ACTIONS),
   read_groups: [{ group_id: "work-brief", title: "简报", title_text: { key: "work-brief.read-group.work-brief.title" },
     description: "项目的简报、它的版本与依据", description_text: { key: "work-brief.read-group.work-brief.description" },
     actions: [workBriefActions.list.capability_id, workBriefActions.get.capability_id, "work-brief.subject.read", "work-brief.search.entries"] }],
-  databases: { home: WORK_BRIEF_DATABASE },
+  databases: { partition: WORK_BRIEF_DATABASE },
+  // The partition's own brief, as the personal space's overview shows it across partitions (§6.1).
+  overview_projection: { kinds: ["brief"] },
   sync: workBriefSync,
   capabilities: { provides: [], consumes: ["search.references"] },
   artifacts: {

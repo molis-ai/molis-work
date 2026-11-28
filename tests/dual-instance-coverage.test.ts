@@ -1,11 +1,4 @@
 import { HOST_STAND_IN_IDS, ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, runningProjectPlatform } from "@molis-ai/molis-work-app-local-host";
-import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { createFeedHomePlugin, createFeedPlugin, FEED_PLUGIN_ID } from "@molis-ai/molis-work-plugin-feed";
-import { createHomeWorkBriefPlugin, createWorkBriefPlugin, WORK_BRIEF_PLUGIN_ID } from "@molis-ai/molis-work-plugin-work-brief";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
@@ -19,15 +12,6 @@ import { dualPlugin } from "./fixtures/dual-plugin.js";
 // offered" is relaxed for a marked half), so this test is where "nothing left out, nothing offered twice" holds: every action and
 // consumption scene, route, view and the input and event handlers come from exactly one half. Each half starts
 // the way its supervisor starts it, in its own Runtime with the redemption the Host gives it, the two sharing one action service.
-
-/**
- * Every dual-instance plugin the Host ships, with its two halves. A catalog registration marked `runtime.dual_instance` that is not
- * here fails the first test, so a newly marked plugin is covered from the PR that marks it (Shelf from its S2, Feed from its flip).
- */
-const SHIPPED: ReadonlyArray<{ readonly plugin_id: string; home(): PluginDefinition; project(): PluginDefinition }> = [
-  { plugin_id: FEED_PLUGIN_ID, home: createFeedHomePlugin, project: createFeedPlugin },
-  { plugin_id: WORK_BRIEF_PLUGIN_ID, home: createHomeWorkBriefPlugin, project: createWorkBriefPlugin },
-];
 
 const PROJECT = "coverage-project";
 type Shares = Record<"home" | "project", PluginAppContribution>;
@@ -98,25 +82,11 @@ function without(definition: PluginDefinition, drop: (share: PluginAppContributi
   } };
 }
 
-test("DUAL-03 DUAL-14 every dual-instance registration the Host ships is listed here, and its halves offer its Manifest exactly once", async t => {
+// Batch 109-1: Feed's evidence holds went to the platform evidence service and Work Brief moved into each partition, so the Host ships no
+// dual-instance plugin any more; the mechanism itself is deleted with batch 109-3 (G2). Until then a newly marked registration fails here.
+test("DUAL-03 DUAL-14 the Host ships no dual-instance registration", () => {
   const marked = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.runtime?.dual_instance === true).map(entry => entry.manifest.plugin_id).sort();
-  assert.deepEqual(SHIPPED.map(entry => entry.plugin_id).sort(), marked, "a registration marked dual_instance needs its two halves listed in SHIPPED");
-  const directory = await mkdtemp(join(tmpdir(), "dual-coverage-"));
-  const project = await withMolisWorkProjectCatalog({ homeDirectory: directory }, catalog => catalog.createProject({ display_name: "Shipped dual coverage", actor_id: "owner" }));
-  const host = new MolisWorkLocalHost({ homeDirectory: directory, completeText: null });
-  t.after(async () => { await host.close(); await rm(directory, { recursive: true, force: true }); });
-  const platform = await host.homePlugins!.ready();
-  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
-  await host.actionClient(reference).discover(await host.localPersonContext(reference));
-  const projectPlatform = await host.withProject(reference, runtime => runningProjectPlatform(runtime.store, project.project_id));
-  assert.ok(projectPlatform, "the real project Runtime started");
-  for (const entry of SHIPPED) {
-    const home = platform.supervisor.contribution(entry.plugin_id);
-    const currentProject = projectPlatform.supervisor.contribution(entry.plugin_id);
-    assert.ok(home?.kind === "app", entry.plugin_id + " Home half started");
-    assert.ok(currentProject?.kind === "app", entry.plugin_id + " project half started");
-    assert.deepEqual(await coverage(entry.home(), entry.project(), home, currentProject), [], entry.plugin_id);
-  }
+  assert.deepEqual(marked, [], "no shipped registration has a Home half since batch 109-1");
 });
 
 test("DUAL-03 DUAL-14 the fixture's halves offer every action, route, view and the input handler of its Manifest exactly once", async () => {

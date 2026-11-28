@@ -10,9 +10,9 @@ import {
 } from "@molis-ai/molis-work-storage";
 
 // The stores a source's local history is given back through. Deleting the history itself was the Host's (a scan of every project of the
-// Home) until FI-6 deleted it; it is the Runtime Feed's now, through the Home's reference ledger, and proven there:
+// Home) until FI-6 deleted it; it is the Runtime Feed's now, through the platform's evidence ledger (batch 109), and proven there:
 // tests/feed-runtime-plugin.test.ts (RAC-518: deleting with the history gives back the bodies and the search records of its pulls and records
-// it; keeping the history keeps both; FI-C-06: a release the ledger fails) and tests/feed-content-ledger.test.ts (a body another source or
+// it; keeping the history keeps both; FI-C-06: a release the ledger fails) and tests/feed-evidence-holds.test.ts (a body another source or
 // another project holds stays; the holds a failed pull left go; a ledger that cannot tell keeps every body and says so).
 
 function memorySecrets(): SecretStore {

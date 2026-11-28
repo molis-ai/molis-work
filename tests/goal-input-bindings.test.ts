@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openTestSqlite, type SqliteDatabase } from "@molis-ai/molis-work-test-kit/sqlite";
+import { withLibraryPartition } from "./fixtures/governance-sqlite.js";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -9,6 +10,9 @@ import { GOALS_PROJECT_DATABASE } from "@molis-ai/molis-work-plugin-goals";
 import type { GoalInputBindingRecord } from "@molis-ai/molis-work-plugin-goals/contract";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { PROJECT_ROOT_SCHEMA_SQL, writeProjectRoot } from "@molis-ai/molis-work-module-projects";
+
+/** A library this test made, with its partition bound as the Goals plugin binds it at start (batch 109-1). */
+const bound = (db: SqliteDatabase) => withLibraryPartition(db, db);
 
 // The tables are the ones Goals declares for a project's library; the rows only fill their required columns. The board is keyed to the
 // project's root row, which the platform's baseline makes (PLIB-13), so a project's root goes in before its board.
@@ -19,22 +23,24 @@ function createLibrary(db: SqliteDatabase): void {
 
 function insertBoard(db: SqliteDatabase, projectId: string): void {
   writeProjectRoot(db, projectId, "2026-09-01T00:00:00Z");
-  db.prepare("INSERT INTO boards (project_id, created_at, updated_at) VALUES (?, '2026-09-01T00:00:00Z', '2026-09-01T00:00:00Z')").run(projectId);
+  db.prepare("INSERT INTO boards (id, created_at, updated_at) VALUES (1, '2026-09-01T00:00:00Z', '2026-09-01T00:00:00Z')").run();
 }
 
-function insertGoal(db: SqliteDatabase, goalId: string, projectId: string): void {
-  db.prepare(`INSERT INTO goals (goal_id, project_id, title, outcome, why, business_logic, definition_state, decomposition_state,
-    validity_state, fulfillment_state, created_at, updated_at) VALUES (?, ?, 'Goal', 'Outcome', 'Why', 'Logic', 'draft', 'abstract',
-    'valid', 'unmet', '2026-09-01T00:00:00Z', '2026-09-01T00:00:00Z')`).run(goalId, projectId);
+/** A Goal of the library's one partition (batch 109-1: Goals' tables carry no project column). */
+function insertGoal(db: SqliteDatabase, goalId: string): void {
+  db.prepare(`INSERT INTO goals (goal_id, title, outcome, why, business_logic, definition_state, decomposition_state,
+    validity_state, fulfillment_state, created_at, updated_at) VALUES (?, 'Goal', 'Outcome', 'Why', 'Logic', 'draft', 'abstract',
+    'valid', 'unmet', '2026-09-01T00:00:00Z', '2026-09-01T00:00:00Z')`).run(goalId);
 }
 
-test("Goal input receipts retain opaque locators and snapshots, isolate Projects, and share rollback", () => {
-  const db = openTestSqlite(":memory:");
+// Since batch 109-1 a library holds one partition, so another Project's receipts are in another library: a receipt for a Goal this
+// library does not hold is refused.
+test("Goal input receipts retain opaque locators and snapshots, refuse a Goal of another library, and share rollback", () => {
+  const db = bound(openTestSqlite(":memory:"));
   db.pragma("foreign_keys = ON");
   createLibrary(db);
   insertBoard(db, "project-a");
-  insertBoard(db, "project-b");
-  insertGoal(db, "goal-a", "project-a");
+  insertGoal(db, "goal-a");
   try {
     const inputs = new GoalInputBindings(db, createContextLedger(db, { authorize: () => true }));
     const record: GoalInputBindingRecord = { binding_id: "binding-a", project_id: "project-a", goal_id: "goal-a",
@@ -43,12 +49,10 @@ test("Goal input receipts retain opaque locators and snapshots, isolate Projects
       created_by: "user-a", created_at: "2026-09-05T00:00:00Z" };
     inputs.register(record);
     assert.deepEqual(inputs.list("project-a"), [record]);
-    assert.deepEqual(inputs.list("project-b"), []);
-    assert.throws(() => inputs.register({ ...record, binding_id: "wrong-project", project_id: "project-b" }), /不属于这个 Project/);
+    assert.throws(() => inputs.register({ ...record, binding_id: "wrong-project", project_id: "project-b", goal_id: "goal-of-project-b" }), /不属于这个 Project/);
     assert.deepEqual(inputs.list("project-a"), [record]);
-    assert.deepEqual(inputs.list("project-b"), []);
     assert.throws(() => db.transaction(() => {
-      insertGoal(db, "goal-new", "project-a");
+      insertGoal(db, "goal-new");
       inputs.register({ ...record, binding_id: "rolled-back", goal_id: "goal-new" });
       throw new Error("later action failed");
     }).immediate(), /later action failed/);
@@ -66,21 +70,21 @@ const feedReceipt: GoalInputBindingRecord = {
 function seedGoal(db: SqliteDatabase): void {
   createLibrary(db);
   insertBoard(db, "project-a");
-  insertGoal(db, "goal-a", "project-a");
+  insertGoal(db, "goal-a");
 }
 
 test("Feed input provenance is recorded once and survives reopen independently of current Feed links", () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-input-ledger-"));
   const path = join(directory, "test.db");
-  let db = openTestSqlite(path);
+  let db = bound(openTestSqlite(path));
   try {
     seedGoal(db);
     let ledger = createContextLedger(db, { authorize: () => true });
     let inputs = new GoalInputBindings(db, ledger);
     inputs.register(feedReceipt);
     const access = { actor_id: "reader", scope: { kind: "personal" as const, id: "project-a" } };
+    // One library is one partition (batch 109-1): another Project's receipts are never in this library to be listed.
     assert.deepEqual(inputs.list("project-a"), [feedReceipt]);
-    assert.deepEqual(inputs.list("project-b"), []);
     assert.deepEqual(db.prepare("SELECT source_ref, source_edge_key FROM input_bindings").get(), {
       source_ref: "", source_edge_key: "goal.input:binding-feed",
     });
@@ -94,7 +98,7 @@ test("Feed input provenance is recorded once and survives reopen independently o
     ledger.commands.remove(access, "feed.goal:item-a", "feed.item_deleted");
     assert.deepEqual(inputs.list("project-a"), [feedReceipt]);
     db.close();
-    db = openTestSqlite(path);
+    db = bound(openTestSqlite(path));
     ledger = createContextLedger(db, { authorize: () => true });
     inputs = new GoalInputBindings(db, ledger);
     assert.deepEqual(inputs.list("project-a"), [feedReceipt]);
@@ -108,7 +112,7 @@ test("Feed input provenance is recorded once and survives reopen independently o
 });
 
 test("Source registration rolls back ledger writes and receipt changes on failure", () => {
-  const db = openTestSqlite(":memory:");
+  const db = bound(openTestSqlite(":memory:"));
   try {
     seedGoal(db);
     const ledger = createContextLedger(db, { authorize: () => true });

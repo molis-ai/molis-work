@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
-import { captureHostLog, LocalProjectDatabase, molisWorkHostProjectReference, seedDemoGoals, type HostLogEntry, type MolisWorkProjectCatalog } from "@molis-ai/molis-work-app-local-host";
+import { captureHostLog, LocalProjectDatabase, molisWorkHostProjectReference, type HostLogEntry, type MolisWorkProjectCatalog } from "@molis-ai/molis-work-app-local-host";
+import { seedDemoGoals } from "./fixtures/demo-seed.js";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PLACEMENT_READ_PERMISSION, PLACEMENT_WRITE_PERMISSION, placementActions } from "@molis-ai/molis-work-contracts/services/placement";
 import { PAGES_ACTION_PERMISSIONS, PAGES_SUBJECT_KIND } from "@molis-ai/molis-work-plugin-pages";

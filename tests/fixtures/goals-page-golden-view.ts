@@ -1,7 +1,8 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DEMO_PROJECT_ID, LocalProjectDatabase, installHostUiText, registeredBuiltinText, runWithLocale, runWithRegisteredText, seedDemoGoals, type WebLocale } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, LocalProjectDatabase, installHostUiText, registeredBuiltinText, runWithLocale, runWithRegisteredText, type WebLocale } from "@molis-ai/molis-work-app-local-host";
+import { seedDemoGoals } from "./demo-seed.js";
 import assert from "node:assert/strict";
 import { goalsManifest } from "@molis-ai/molis-work-plugin-goals";
 import { GoalProjectApplication } from "./goal-application.js";

@@ -43,30 +43,28 @@ export const SCHEDULE_TASKS_SCHEMA_SQL = `
 /** Plugin reminders. */
 const SCHEDULE_REMINDERS_SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS schedule_plugin_reminders (
-    id TEXT PRIMARY KEY, project_id TEXT NOT NULL, plugin_id TEXT NOT NULL, installation_id TEXT,
+    id TEXT PRIMARY KEY, plugin_id TEXT NOT NULL, installation_id TEXT,
     record_json TEXT NOT NULL
   );
-  CREATE INDEX IF NOT EXISTS schedule_plugin_reminders_owner ON schedule_plugin_reminders(project_id, plugin_id, installation_id);
+  CREATE INDEX IF NOT EXISTS schedule_plugin_reminders_owner ON schedule_plugin_reminders(plugin_id, installation_id);
 `;
 
 /** Scheduled operations and their occurrences. */
 const SCHEDULED_OPERATIONS_SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS schedule_operations (
-    project_id TEXT NOT NULL, id TEXT NOT NULL, job_id TEXT NOT NULL UNIQUE, record_json TEXT NOT NULL,
-    PRIMARY KEY (project_id, id)
+    id TEXT PRIMARY KEY, job_id TEXT NOT NULL UNIQUE, record_json TEXT NOT NULL
   );
   CREATE TABLE IF NOT EXISTS schedule_operation_occurrences (
-    project_id TEXT NOT NULL, operation_id TEXT NOT NULL, due_at TEXT NOT NULL, record_json TEXT NOT NULL,
-    PRIMARY KEY (project_id, operation_id, due_at)
+    operation_id TEXT NOT NULL, due_at TEXT NOT NULL, record_json TEXT NOT NULL,
+    PRIMARY KEY (operation_id, due_at)
   );
 `;
 
 /** What Schedule missed while Molis Work was not running, and the person's decision on each (missed-runs.ts). */
 const SCHEDULE_MISSED_RUNS_COLUMNS = `schedule_missed_runs (
-    project_id TEXT NOT NULL, run_id TEXT NOT NULL, kind TEXT NOT NULL CHECK (kind IN ('task', 'operation', 'reminder')),
+    run_id TEXT PRIMARY KEY, kind TEXT NOT NULL CHECK (kind IN ('task', 'operation', 'reminder')),
     ref TEXT NOT NULL, title TEXT NOT NULL, due_at TEXT NOT NULL, missed_at TEXT NOT NULL,
-    decision TEXT CHECK (decision IN ('run_now', 'skip')), decided_at TEXT,
-    PRIMARY KEY (project_id, run_id)
+    decision TEXT CHECK (decision IN ('run_now', 'skip')), decided_at TEXT
   )`;
 const SCHEDULE_MISSED_RUNS_SCHEMA_SQL = `CREATE TABLE IF NOT EXISTS ${SCHEDULE_MISSED_RUNS_COLUMNS};`;
 

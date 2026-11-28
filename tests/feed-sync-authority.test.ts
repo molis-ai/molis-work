@@ -14,6 +14,7 @@ import { DEMO_PROJECT_ID, seedDemoBoard, LocalProjectDatabase, scheduleServiceFo
 import { nextScheduleDueAt } from "@molis-ai/molis-work-service-scheduler";
 import { sourceContentReplicationDefinition } from '@molis-ai/molis-work-plugin-feed/store';
 import {createProjectReplicaSection,replicaTransaction} from '@molis-ai/molis-work-storage';
+import { SINGLE_PROJECT_ROOT_SQL } from '@molis-ai/molis-work-module-projects';
 import { accountSourceRecord } from "./fixtures/feed-account-source.js";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { authorizeMcpActions } from "../apps/local-host/dist/mcp-action-client.js";
@@ -201,7 +202,9 @@ for (const mode of ["grant-revoked", "disabled", "paused", "reconfigured", "dele
       if(mode.startsWith('replica-restored')){
         // Same visible description/configuration and numeric business state, but a newly adopted source branch.
         // The owner restore invalidates the old read even when its provider subsequently fails.
-        const section=createProjectReplicaSection(store.replicationDatabase,sourceContentReplicationDefinition(),PROJECT),wire=section.validate(section.read());
+        // Feed's source tables hold only this library's project (batch 109-1); read them as the platform's sync sections do, by the library's one root.
+        const owner=sourceContentReplicationDefinition(),definition={...owner,tables:owner.tables.map(table=>({...table,where:`? = ${SINGLE_PROJECT_ROOT_SQL.id}`}))};
+        const section=createProjectReplicaSection(store.replicationDatabase,definition,PROJECT),wire=section.validate(section.read());
         replicaTransaction(store.replicationDatabase,()=>{section.clear();section.write(wire);});
       }
       const before = sources.feed.snapshot(PROJECT);
@@ -312,8 +315,8 @@ for (const mode of ["revoked", "paused", "cancelled", "disconnected", "rebound",
       handlers: createFeedSourceHandlers(DEMO_PROJECT_ID, { feed: () => feed, sources: () => sources, connectorSync: () => connectorSync }) });
     const context: ActionCallContext = { ...caller, validate_authority: () => { if (!allowed) throw new ActionError("actions.revoked", "Revoked"); } };
     const snapshot = () => ({ feed: feed.snapshot(DEMO_PROJECT_ID), signals: signals.query.list(DEMO_PROJECT_ID, source.source_id),
-      checkpoint: store.db.prepare("SELECT cursor_json, state, attempt, retry_at, last_error_code, updated_at FROM listener_instances WHERE project_id = ? AND source_id = ?").get(DEMO_PROJECT_ID, source.source_id),
-      deliveries: store.db.prepare("SELECT * FROM listener_deliveries WHERE project_id = ? AND source_id = ?").all(DEMO_PROJECT_ID, source.source_id),
+      checkpoint: store.db.prepare("SELECT cursor_json, state, attempt, retry_at, last_error_code, updated_at FROM listener_instances WHERE source_id = ?").get(source.source_id),
+      deliveries: store.db.prepare("SELECT * FROM listener_deliveries WHERE source_id = ?").all(source.source_id),
       events: store.db.prepare("SELECT * FROM events WHERE project_id = ? AND object_id = ? ORDER BY event_id").all(DEMO_PROJECT_ID, source.source_id) });
     t.signal.addEventListener("abort", () => { controller.abort(); release.resolve(); }, { once: true });
     try {
@@ -335,7 +338,7 @@ for (const mode of ["revoked", "paused", "cancelled", "disconnected", "rebound",
       const before = snapshot(); release.resolve(); await rejected;
       assert.deepEqual(snapshot(), before, "even interrupted-run and failure-Inbox bookkeeping may not write after refusal");
       assert.equal(requests, 1);
-      assert.equal((store.db.prepare("SELECT lease_owner FROM listener_instances WHERE project_id = ? AND source_id = ?").get(DEMO_PROJECT_ID, source.source_id) as { lease_owner: string | null }).lease_owner, null, "the owned lease is released even after refusal");
+      assert.equal((store.db.prepare("SELECT lease_owner FROM listener_instances WHERE source_id = ?").get(source.source_id) as { lease_owner: string | null }).lease_owner, null, "the owned lease is released even after refusal");
       allowed = true; fails = false;
       if (mode === "paused") sources.setEnabled(source.source_id, true);
       if (mode === "disconnected") recoveryAccount = selectReplacement();

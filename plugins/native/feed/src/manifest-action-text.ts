@@ -53,9 +53,6 @@ const ACTION_TEXT: Readonly<Record<string, { readonly title_text: TextRef; reado
   "feed.information.plan": { title_text: { key: "feed.actions.information-plan.title" }, description_text: { key: "feed.actions.information-plan.description" } },
   "feed.presentation.values": { title_text: { key: "feed.actions.presentation-values.title" }, description_text: { key: "feed.actions.presentation-values.description" } },
   "feed.presentation.overview": { title_text: { key: "feed.actions.presentation-overview.title" }, description_text: { key: "feed.actions.presentation-overview.description" } },
-  "feed.content.hold": { title_text: { key: "feed.actions.content-hold.title" }, description_text: { key: "feed.actions.content-hold.description" } },
-  "feed.content.release": { title_text: { key: "feed.actions.content-release.title" }, description_text: { key: "feed.actions.content-release.description" } },
-  "feed.content.reclaim": { title_text: { key: "feed.actions.content-reclaim.title" }, description_text: { key: "feed.actions.content-reclaim.description" } },
 };
 
 export function localizeManifestActions(definitions: readonly ActionDefinition[]): ActionDefinition[] {

@@ -35,9 +35,13 @@ test("S-49 UPP-37 services.overview stamps the installation, writes only declare
   await write(rows => rows.upsert("background_task", ROW));
   assert.deepEqual(rows(), [{ install_id: installId, kind: "background_task", row_id: "s1", state: "running" }], "the platform stamps the installation; the plugin names none");
   assert.deepEqual(changed, [installId], "the overview is read again after the commit");
+  // B2R-07: routine sweeps of absent rows never request a new read of the partition database.
+  await write(rows => { rows.remove("background_task", "absent"); rows.removePrefix("background_task", "absent:"); });
+  assert.deepEqual(changed, [installId]);
   // Another installation's rows in the same table are not this one's to change.
   store.db.prepare("INSERT INTO plugin_overview_rows (install_id, kind, row_id, title, state, waiting, updated_at) VALUES ('someone-else', 'background_task', 's1', 'x', 'running', 0, ?)").run(ROW.updated_at);
   await write(rows => rows.removePrefix("background_task", "s"));
+  assert.deepEqual(changed, [installId, installId], "removing an existing row refreshes the index");
   assert.deepEqual(rows(), [{ install_id: "someone-else", kind: "background_task", row_id: "s1", state: "running" }], "it reaches only its own rows");
 
   await assert.rejects(write(rows => rows.upsert("scheduled_run", { row_id: "r", title: "r", due_at: ROW.updated_at, updated_at: ROW.updated_at })), { code: "actions.forbidden" },

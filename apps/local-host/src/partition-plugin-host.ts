@@ -102,11 +102,10 @@ export function partitionChanged(home: string, partitionId: string, installId?: 
 }
 
 /**
- * A membership write took a plugin out of a partition: its due entries and overview rows there go now, whether or not the partition is open
- * (an open one also stops its instance on the refresh that follows). Covers both per-partition plugins (`databases.partition`) and main-DB
- * plugins declaring `overview_projection` (clearing `plugin_overview_rows` in `<partition>/molis-work.db` as well).
+ * Reconcile one changed member with its retained library. Enabling reads only its projection to arm reminders, even in a closed partition.
+ * Disabling clears its due entries and cached rows, including the projection owned in the shared project database.
  */
-export function partitionPluginRemoved(home: string, pluginId: string, partitionId: string): void {
+export function partitionPluginMembershipChanged(home: string, pluginId: string, partitionId: string, enabled: boolean): void {
   const host = existingPartitionPluginHost(home);
   const declared = host?.manifestOf(pluginId);
   const builtin = builtinPluginByManifestId(pluginId)?.manifest;
@@ -122,6 +121,10 @@ export function partitionPluginRemoved(home: string, pluginId: string, partition
   const manifest = declared ?? builtin ?? installed?.manifest;
   if (!manifest || (!assembledPerPartition(manifest) && !manifest.overview_projection?.kinds.length)) return;
   const installId = installed?.install_id ?? installIdentity(manifest);
+  if (enabled) {
+    if (manifest.overview_projection?.kinds.length) partitionChanged(home, partitionId, installId);
+    return;
+  }
   if (host?.services) host.services.pluginDisabled(installId, partitionId);
   else forgetInstallationPlatformRecords(home, installId, partitionId, { dataGoes: false, installedElsewhere: true });
   if (manifest.databases?.project && !manifest.databases.partition && manifest.overview_projection?.kinds.length) {

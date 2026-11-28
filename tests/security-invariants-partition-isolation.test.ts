@@ -1173,6 +1173,20 @@ test("UPP-34 V11 AP-03 AP-17 AP-06 AP-10 AP-11 Host partitionChanged arms synced
   assert.deepEqual(services.due.entries(a.project_id).map(entry => [entry.entry_key, entry.due_at]), [["task:synced-dormant-1", remindAt]],
     "V11: synced reminder in dormant partition immediately populates due-registry without opening Overview");
 
+  // B2R-03: disabling clears the timer. A later explicit enable restores the same future reminder before any overview read.
+  const { LocalHostHttpClient, projectPluginRevision } = await import("@molis-ai/molis-work-test-kit/local-host-http");
+  const web = new LocalHostHttpClient({ origin: f.origin, controlToken: f.token });
+  for (const method of ["DELETE", "POST"]) {
+    const expected_revision = await projectPluginRevision(web, a.project_id);
+    const result = await f.request(`/api/settings/projects/${encodeURIComponent(a.project_id)}/plugins`, {
+      method, body: { plugin_id: "todo", expected_revision },
+    });
+    assert.equal(result.status, 200);
+    assert.deepEqual(services.due.entries(a.project_id).map(entry => [entry.entry_key, entry.due_at]),
+      method === "POST" ? [["task:synced-dormant-1", remindAt]] : []);
+  }
+  assert.deepEqual(host.assembly.instances(), [], "reading the retained projection never starts a plugin");
+
   // AP-17: dormant third-party partition plugin installed in Home plugin-runtime.db is discovered read-only by overviewRowsFor.
   const thirdPartyId = "com.example.dormant-tasks";
   const thirdPartyDecl: PartitionPluginDatabaseDeclaration = { store_name: "dormant-tasks", version: 1, schema: `CREATE TABLE items (id TEXT PRIMARY KEY);\n${OVERVIEW_TABLE_SQL}`,
@@ -1242,8 +1256,6 @@ test("UPP-34 V11 AP-03 AP-17 AP-06 AP-10 AP-11 Host partitionChanged arms synced
   partitionChanged(f.home, a.project_id, codingInstallId);
   const beforeDisable = await overviewRowsFor(overviewSource, localPerson, [{ project_id: a.project_id, display_name: "A" }], () => [], { kinds: ["background_task"], limit: 50 });
   assert.ok(beforeDisable?.rows.some(row => row.install_id === codingInstallId && row.row_id === "stale-coding-1"));
-  const { LocalHostHttpClient, projectPluginRevision } = await import("@molis-ai/molis-work-test-kit/local-host-http");
-  const web = new LocalHostHttpClient({ origin: f.origin, controlToken: f.token });
   const revision = await projectPluginRevision(web, a.project_id);
   const activeProjects = [{ project_id: a.project_id, display_name: "A" }];
   const afterDisable = await overviewRowsFor(overviewSource, localPerson, activeProjects, () => [], { kinds: ["background_task"], limit: 50 }, {

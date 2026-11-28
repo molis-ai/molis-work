@@ -402,13 +402,14 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     this.#detachApprovalAnswers?.();
     await Promise.all([...this.#store.runs.values()].map(record => record.timingCommit));
     try {
+      // A refused shutdown leaves the runtime alive. Keep consuming late receipts until a retry drains it.
       await this.#runtime.shutdown();
-    } finally {
       for (const record of this.#store.runs.values()) {
         clearNotifyTimer(record);
         record.unsubscribe();
         record.listeners.clear();
       }
+    } finally {
       await Promise.all([...this.#store.runs.values()].map(record => record.timingCommit));
       await this.#memoryUsage.flush();
     }

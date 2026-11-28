@@ -23,7 +23,7 @@ import { agentDefinitionsFor } from '../apps/local-host/dist/agent-definitions/a
 import { builtinRegistrations } from '../apps/local-host/dist/agent-definitions/builtin-agents.js';
 import { builderInstructions, builderPrompts, handleAgentStudioHttp, releaseAgentStudio } from '../apps/local-host/dist/plugin-builder/agent-surface.js';
 import { pluginControlActions, pluginInstallActions, handleInstalledPluginHttp } from '@molis-ai/molis-work-app-local-host';
-import { ensureInstalledPlugins, releaseInstalledPlugins } from '../apps/local-host/dist/installed-plugin-host.js';
+import { currentInstalledPluginHost, ensureInstalledPlugins, releaseInstalledPlugins } from '../apps/local-host/dist/installed-plugin-host.js';
 import { imagesActions, IMAGES_ACTION_PERMISSIONS } from '@molis-ai/molis-work-plugin-images';
 import { signedImageService } from './fixtures/signed-image-service.js';
 import { person as installPerson, ref as actionRef } from './fixtures/home-sandbox.js';
@@ -120,7 +120,6 @@ async function startStudioFixture(t: TestContext, setup: { plugins?: readonly st
   const coded: Array<{ id: string; before: string }> = [];
   let firstRoot = '';
   const actions = f.host.actionRegistry(project.reference);
-  const actionClient = f.host.actionClient(project.reference);
   let reverseDirectory = false;
   const options: Parameters<typeof handleAgentStudioHttp>[3] = {
     store, projectId: project.project_id, homeDirectory: f.home, actorId: LOCAL_PERSON_ACTOR_ID,
@@ -128,7 +127,7 @@ async function startStudioFixture(t: TestContext, setup: { plugins?: readonly st
     models: async () => [{ provider_id: 'scripted', model_id: 'scripted', label: 'Scripted' }],
     // This existing executable rejects Chrome flags; BuilderBrowser cannot fall back to a personal browser.
     browserExecutable: setup.browserExecutable ?? process.execPath,
-    actions: { registry: actions, client: actionClient, inspect: async caller => { const rows = await f.host.inspectActions(caller, project.reference); return reverseDirectory ? [...rows].reverse() : rows; }, project_id: project.project_id },
+    actions: { registry: actions, client: f.host.actionClient(project.reference), inspect: async caller => { const rows = await f.host.inspectActions(caller, project.reference); return reverseDirectory ? [...rows].reverse() : rows; }, project_id: project.project_id },
     choice: { selectionAvailable: () => false, choose: async question => ({ choice: question.candidates[0]!.key, model: 'scripted', elapsedMs: 0 }) },
     agents: async build => ({ close: async () => {}, records: async () => [], async run(request) {
       const task = JSON.parse(request.task);
@@ -196,7 +195,7 @@ async function startStudioFixture(t: TestContext, setup: { plugins?: readonly st
     }
     throw new Error('revision fixture did not settle');
   };
-  return { f, project, actionClient, answer, words, coded, helper, nested, send, wait, trialKeys, origin,
+  return { f, project, answer, words, coded, helper, nested, send, wait, trialKeys, origin,
     reverseDirectory() { reverseDirectory = !reverseDirectory; }, restartStudio: () => releaseAgentStudio(store, project.project_id),
     image: (build: string, candidate: string) => fetch(origin + options.routePrefix + '/api/plugin-builder/studio/builds/' + build + '/mockups/' + candidate),
     rootFor: (build: AgentBuild) => join(dirname(firstRoot), build.design!.contract.revision),
@@ -887,8 +886,11 @@ test('Studio offers an enabled image connection requiring role permissions after
   const offered = (await choices()).choices.find(choice => choice.title.endsWith(' · ' + connection.id));
   assert.ok(offered, 'the configured Images connection is available on the Studio endpoint');
   await studio.restartStudio();
-  const batch = t.mock.method(studio.actionClient, 'discoverMatching');
-  const single = t.mock.method(studio.actionClient, 'discoverOne');
+  const active = await f.host.withProject(project.reference, runtime =>
+    currentInstalledPluginHost(runtime.store, project.project_id)?.actions.client);
+  assert.ok(active && 'discoverMatching' in active && typeof active.discoverMatching === 'function');
+  const batch = t.mock.method(active, 'discoverMatching');
+  const single = t.mock.method(active, 'discoverOne');
   assert.ok((await choices()).choices.some(choice => choice.key === offered.key), 'the same binding remains selectable after restart');
   assert.equal(batch.mock.callCount(), 1, 'all image roles use one availability snapshot');
   assert.equal(single.mock.callCount(), 0, 'Studio does not rediscover each role separately');

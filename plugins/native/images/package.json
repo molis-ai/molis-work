@@ -35,8 +35,7 @@
   },
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*",
-    "@molis-ai/molis-work-plugin-sdk": "workspace:*",
-    "@molis-ai/molis-work-storage": "workspace:*"
+    "@molis-ai/molis-work-plugin-sdk": "workspace:*"
   },
   "devDependencies": {
     "esbuild": "^0.28.2"
@@ -49,8 +48,7 @@
     ],
     "registration": "./registration",
     "extraWorkspaceDependencies": [
-      "@molis-ai/molis-work-plugin-sdk",
-      "@molis-ai/molis-work-storage"
+      "@molis-ai/molis-work-plugin-sdk"
     ],
     "extraDependencies": {}
   }

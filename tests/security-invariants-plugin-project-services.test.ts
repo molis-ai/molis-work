@@ -194,7 +194,7 @@ async function platform(t: TestContext) {
   // The edge is stored under its plugin's id: `<plugin_id>:edge-<name>`.
   const edge = (name: string) => store.db.prepare("SELECT actor_id FROM context_edges WHERE edge_key LIKE ?").get(`%:edge-${name}`) as { actor_id: string } | undefined;
   const keys = () => (store.db.prepare("SELECT edge_key FROM context_edges ORDER BY edge_key").all() as Array<{ edge_key: string }>).map(row => row.edge_key);
-  const events = (name: string) => store.db.prepare("SELECT actor_id, type, project_id FROM events WHERE object_type = 'inbox_entry' AND json_extract(payload_json, '$.subject_id') = ? ORDER BY seq")
+  const events = (name: string) => store.db.prepare("SELECT actor_id, type, project_id FROM events WHERE object_type = 'attention_entry' AND json_extract(payload_json, '$.subject_id') = ? ORDER BY seq")
     .all(name) as Array<{ actor_id: string; type: string; project_id: string }>;
   /** Nothing of this name in the plugin's table, the entries, the edges or the events. */
   const nothing = (short: string, name: string) => !noted(short, name) && entry(name) === undefined && edge(name) === undefined && events(name).length === 0;
@@ -222,7 +222,7 @@ const ownedWrite = (client: ReturnType<typeof pluginActions>["client"], item: Re
 const attentionState = (store: LocalProjectDatabase) => ({
   entries: store.db.prepare("SELECT * FROM attention_entries ORDER BY entry_id").all(),
   events: store.db.prepare("SELECT * FROM attention_events ORDER BY event_id").all(),
-  journal: store.db.prepare("SELECT * FROM events WHERE object_type = 'inbox_entry' ORDER BY seq").all(),
+  journal: store.db.prepare("SELECT * FROM events WHERE object_type = 'attention_entry' ORDER BY seq").all(),
 });
 
 // ATTN-OWNER-01

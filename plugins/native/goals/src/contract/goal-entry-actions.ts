@@ -81,9 +81,10 @@ const goalEventDecisionRef = { capability_id: "goals.decisions.record", version:
 
 const treeDecide = goalAction<Business<GoalTreeProposalDecideInput>, GoalTreeProposalDecisionResult<never>>(goalTreeDecisionRef.capability_id, goalTreeDecisionRef.version, "审批结构提案",
   "保存用户通过受保护入口作出的逐项或整组决定；整组确认全有或全无。实际用户和操作出处由 Host 提供", "command", tree.treeDecideInputSchema, tree.treeDecisionResultSchema);
+const goalIdField = { ...identifier, title: "目标" };
 const decide = goalAction<GoalDecisionActionInput, GoalEventDecisionResult>(goalEventDecisionRef.capability_id, goalEventDecisionRef.version, "记录用户决定",
   "保存用户本人通过受保护入口作出的决定；模型只能请求或引用决定。作者及操作出处由 Host 注入，仍核对原请求和当前承诺", "command",
-  object({ goal_id: identifier, idempotency_key: identifier, request_id: identifier, selected_option_id: identifier,
+  object({ goal_id: goalIdField, idempotency_key: identifier, request_id: identifier, selected_option_id: identifier,
     conclusion: identifier, accepts_requirements: boolean, effects: array({ ...effect, properties: { ...effect.properties as Record<string, unknown>, action: identifier } }), authorized_change: change,
     scope: { ...scope, required: [] } }, ["goal_id", "idempotency_key", "conclusion"]),
   object({ event_id: identifier, observed_event_cursor: count, replayed: boolean, recorded: { const: true }, decision }));
@@ -94,7 +95,7 @@ export type GoalSourceReviewOffer = Omit<TrustedReviewOffer, "request"> & { requ
 } };
 const inputSourceReview = reviewReader<GoalSourceReviewOffer>("goals.inputs.review_source", /* @version action.goals.inputs.review_source */ 1, "goal", "查看待复核的来源版本");
 const inputReviewFields = {
-  goal_id: { ...identifier, type: "string" }, binding_id: { ...identifier, type: "string" },
+  goal_id: { ...identifier, type: "string", title: "目标" }, binding_id: { ...identifier, type: "string" },
   expected_old_digest: { ...snapshotDigest, type: "string" }, observed_new_digest: { ...snapshotDigest, type: "string" },
   note: { type: "string", maxLength: 200 },
 } as const;
@@ -142,7 +143,7 @@ export const goalEntryActions = {
   treeReview,
   active: goalAction<{ goal_id: string; reason: string; idempotency_key: string }, ReturnType<GoalsCommandApi["setActiveGoal"]>>("goals.active.set", /* @version action.goals.active.set */ 1, "设为当前目标",
     "选择当前未完成且不在归档/回收站的目标；不启动工作，不改变完成状态", "command",
-    object({ goal_id: identifier, reason: identifier, idempotency_key: identifier }), object({ active_goal_id: text, observed_event_cursor: count, replayed: boolean })),
+    object({ goal_id: goalIdField, reason: identifier, idempotency_key: identifier }), object({ active_goal_id: text, observed_event_cursor: count, replayed: boolean })),
   /** The board in the snapshot no longer carries a name. */
   snapshot: goalAction<Record<string, never>, BoardSnapshot>("goals.snapshot.read", /* @version action.goals.snapshot.read */ 1, "读取项目目标完整快照",
     "读取当前项目的目标资料：全部目标、关系和结构提案；不含事件正文，需要时用 goals.events.list 或 goals.history.list 读取", "query", object({}), boardSnapshotSchema),
@@ -150,19 +151,19 @@ export const goalEntryActions = {
   eventReview,
   create: withPromotionRole(goalAction<GoalCreateActionInput, CreateGoalIntentResult>("goals.create", /* @version action.goals.create */ 1, "创建目标", "保存目标原始意图、要求及关系；创建本身不会完成目标。重试须保留相同 idempotency_key", "command",
     object({ title: identifier, outcome: text, why: text, business_logic: text, priority: { type: "number", minimum: 0, maximum: 100 },
-      goal_id: text, parent_goal_id: text, dependency_goal_ids: { type: "array", items: text },
+      goal_id: { ...text, title: "目标" }, parent_goal_id: text, dependency_goal_ids: { type: "array", items: text },
       requirements: { type: "array", items: object({ requirement_id: text, statement: identifier, human_decision_required: boolean }, ["statement"]) },
       source_kind: { enum: [...goalIntentSourceKinds] }, idempotency_key: identifier }, ["title", "idempotency_key"]),
     object({ goal: object({ goal_id: text, project_id: text, title: text, outcome: text }), replayed: boolean, observed_event_cursor: count,
       recorded: { const: true }, completion_effect: { const: false } }), false, GOALS_START_INTAKE), "create"),
   directoryItem: withPromotionRole(goalAction<{ goal_id: string }, GoalEventDirectoryItem | null>("goals.directory.read", /* @version action.goals.directory.read */ 1, "读取目标目录项", "按目标 ID 读取目录摘要；不存在、已归档或已丢弃时返回 null", "query",
-    object({ goal_id: identifier }), nullable(goalDirectoryItemSchema)), "directory.read"),
+    object({ goal_id: goalIdField }), nullable(goalDirectoryItemSchema)), "directory.read"),
   inputsReviewSource: { ...inputSourceReview, action: { ...inputSourceReview.action, scheduling: "concurrent" as const,
     required_actions: [{ capability_id: materialsActions.read.capability_id, version: materialsActions.read.version, provider_id: MATERIALS_PROVIDER_ID }] } },
   inputsReviewChange: { ...protectedInputReview, action: { ...protectedInputReview.action, scheduling: "concurrent" as const } },
   inputsConfirm: withPromotionRole(goalAction<{ goal_id: string; source: { kind: "feed_item"; id: string }; name: string; snapshot_digest: string; reason: string }, { binding: GoalConfirmedInput; replayed: boolean }>("goals.inputs.confirm", /* @version action.goals.inputs.confirm */ 1,
     "确认来源材料为目标的输入", "把一条来源材料（目前是 Feed 消息）按确认时内容的摘要记为目标的输入；用户调用记为已确认，助理、Agent、工作流和外部工具调用只记为待确认，等用户在目标的输入里认可或移除；不复制、不移动原材料，重复确认返回原记录，来源已被提议、还在等用户认可时用户的确认被拒绝（先认可）", "command",
-    object({ goal_id: identifier, source: confirmedSource, name: { ...identifier, maxLength: 200 }, snapshot_digest: snapshotDigest, reason: { ...identifier, maxLength: 300 } }),
+    object({ goal_id: goalIdField, source: confirmedSource, name: { ...identifier, maxLength: 200 }, snapshot_digest: snapshotDigest, reason: { ...identifier, maxLength: 300 } }),
     object({ binding: goalConfirmedInputSchema, replayed: boolean })), "inputs.confirm"),
 } as const;
 

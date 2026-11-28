@@ -362,6 +362,12 @@ test("44C-2 PSD-08 the Host does not start on two integrations that declare the 
     { order: 1, integrations: () => [docDef("io.example.a", "source-a")], documents: docA },
     { order: 2, integrations: () => [docDef("io.example.b", "source-a")], documents: docB },
   ]), /two integrations declare the document driver of source-a/u);
+  const mailB: MailboxDriver = { service: "mail-b", title: "Mail B", account_title: "Mail B account", origin: "https://mail-b.example.com/", readRecent: async () => [] };
+  const multiMail = integrationDriverDirectory([{ order: 2, mailbox: mailB }, { order: 1, mailbox }]);
+  assert.deepEqual(multiMail.mailboxes().map(driver => driver.service), ["mail-a", "mail-b"]);
+  assert.equal(multiMail.mailboxDriver("mail-a"), mailbox);
+  assert.equal(multiMail.mailboxDriver("mail-b"), mailB);
+  assert.equal(multiMail.mailboxDriver("mail-c"), undefined);
   assert.throws(() => integrationDriverDirectory([
     { order: 1, cli: { "service-a": { ...cli, managed_environment: { SHARED_VAR: "1" } } } },
     { order: 2, cli: { "service-b": { ...cli, managed_environment: { SHARED_VAR: "2" } } } },

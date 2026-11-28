@@ -1,7 +1,7 @@
 import { platformErrorKind, type ActionErrorKind } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { TextArg } from "@molis-ai/molis-work-contracts/platform/ui";
 import { actionErrorResponse, type ActionErrorBody } from "@molis-ai/molis-work-plugin-sdk";
-import { createTextReader, say } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { createTextReader, say, textArgs } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { hasHostUiText, workbenchPlatformText } from "./ui-text-provider.js";
 import { activeLocale, DEFAULT_WEB_LOCALE, pageLocale, webLanguage } from "./web-locale.js";
 
@@ -453,9 +453,39 @@ export function sanitizeGatewayErrorBody(status: number, value: unknown, localeO
   return value;
 }
 
+function workbenchHasKey(key: string): boolean {
+  const messages = workbenchPlatformText.pack(workbenchPlatformText.default)?.messages;
+  return Boolean(messages && Object.hasOwn(messages, key));
+}
+
+function actionErrorTextArgs(raw: unknown): TextArg[] | undefined {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return undefined;
+  const entries: Record<string, string | number> = {};
+  for (const [name, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof value === "string" || typeof value === "number") {
+      entries[name] = value;
+    }
+  }
+  return Object.keys(entries).length ? textArgs(entries) : undefined;
+}
+
+/** Resolve an optional structured `text_key` (+ `text_args`) carried by an `ActionError` (or cross-realm error shape). */
+export function resolveActionErrorText(error: unknown, localeOverride?: string | null): string | null {
+  if (typeof error !== "object" || error === null) return null;
+  const candidate = error as { text_key?: unknown; text_args?: unknown };
+  if (typeof candidate.text_key !== "string" || !candidate.text_key.trim()) return null;
+  const key = candidate.text_key.trim();
+  if (!workbenchHasKey(key)) return null;
+  return readWorkbenchText(key, localeOverride, actionErrorTextArgs(candidate.text_args));
+}
+
 /** Build a localized, sanitized `{ status, body }` from any thrown failure, preserving `code` and `details`. */
 export function localizeActionErrorResponse(error: unknown, localeOverride?: string | null): { status: number; body: ActionErrorBody } {
   const response = actionErrorResponse(error);
+  const keyed = resolveActionErrorText(error, localeOverride);
+  if (keyed !== null) {
+    return { status: response.status, body: { ...response.body, error: keyed } };
+  }
   const localized = localizeWebErrorBody(response.status, response.body, localeOverride) as ActionErrorBody;
   return { status: response.status, body: localized };
 }
@@ -473,6 +503,8 @@ export function localizeWebErrorMessage(
     if (locale && isWrongLanguageForLocale(error, locale)) return readErrorWord(fallbackKey, locale);
     return error.trim() || readErrorWord(fallbackKey, locale);
   }
+  const keyed = resolveActionErrorText(error, localeOverride);
+  if (keyed !== null) return keyed;
   const response = actionErrorResponse(error);
   const raw = response.body.error;
   const code = response.body.code;

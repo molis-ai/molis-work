@@ -14,6 +14,7 @@ import {
   type ContextJourney,
   type ContextReference,
 } from "./context-onboarding-store.js";
+import { expiredMailOAuthMessage } from "./connector-oauth-return.js";
 import { codeRoot, contextFilePath, contextSources, type readContextSource } from "./context-onboarding-sources.js";
 import {
   classifyContextModelFailure,
@@ -91,8 +92,9 @@ export function readContextJourney(home: string, id: string, expectedProject?: s
     return journey;
   }
   if (journey.oauth_status === "pending" && Date.now() > (journey.oauth_expires_at ?? Date.parse(journey.updated_at) + 10 * 60_000)) {
-    journey.oauth_status = "failed"; journey.auto_start = false;
-    journey.error = "Google 授权已过期，已选材料仍在。请重新连接，或跳过 Gmail。";
+    journey.oauth_status = "failed";
+    journey.auto_start = false;
+    journey.error = expiredMailOAuthMessage(journey);
     withContextJourneys(home, store => store.save(journey));
   }
   if (["reading", "adopting"].includes(journey.phase) && !running.has(key(home, id))) {
@@ -147,8 +149,9 @@ export function selectContextSources(home: string, id: string, input: Record<str
   journey.previewed = input.previewed === true;
   // Which plugin drafts, when several declare it (contract-design §2.5); kept by its id and checked against the takers when the round runs.
   if (typeof input.drafts_taker === "string" && input.drafts_taker.length <= 200) journey.drafts_taker = input.drafts_taker;
-  if (journey.oauth_status === "pending" && !journey.sources.some(s => s.kind === "gmail" && s.selected)) {
-    journey.oauth_status = "cancelled"; journey.auto_start = false;
+  if (journey.oauth_status === "pending" && !journey.sources.some(s => s.kind === "mail" && s.selected)) {
+    journey.oauth_status = "cancelled";
+    journey.auto_start = false;
   }
   return withContextJourneys(home, store => store.save(journey));
 }

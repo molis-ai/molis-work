@@ -6,11 +6,20 @@
 export const ACTION_ERROR_KIND_NAMES = ["invalid", "forbidden", "not_found", "conflict", "too_large", "rate_limited", "cancelled", "internal", "upstream", "unavailable", "timeout"] as const;
 export type ActionErrorKind = (typeof ACTION_ERROR_KIND_NAMES)[number];
 
+export interface ActionErrorText {
+  readonly key: string;
+  readonly args?: Readonly<Record<string, string | number>>;
+}
+
 export interface ActionErrorOptions {
   /** Without one, the platform table (`ACTION_ERROR_KINDS`) says what a code is; a code nobody classified is a caller mistake (`invalid`). */
   readonly kind?: ActionErrorKind;
   /** Owner data the caller may need, e.g. the current version of a record that was changed under it. Shown to the caller as is. */
   readonly details?: Readonly<Record<string, unknown>>;
+  /** Optional platform/workbench locale key resolved at the Host error edge in the active language. */
+  readonly text_key?: string;
+  /** Optional placeholder values for `text_key` (plain string or number arguments). */
+  readonly text_args?: Readonly<Record<string, string | number>>;
   readonly cause?: unknown;
 }
 
@@ -18,14 +27,20 @@ export class ActionError extends Error {
   // `declare`: no own field unless the error was given one, so a plain error stays `{ name, code, message }`.
   declare readonly kind?: ActionErrorKind;
   declare readonly details?: Readonly<Record<string, unknown>>;
+  declare readonly text_key?: string;
+  declare readonly text_args?: Readonly<Record<string, string | number>>;
 
   constructor(readonly code: string, message: string, options: ActionErrorOptions = {}) {
     super(message, options.cause === undefined ? undefined : { cause: options.cause });
     this.name = "ActionError";
     if (options.kind) this.kind = options.kind;
     if (options.details) this.details = options.details;
+    if (options.text_key) this.text_key = options.text_key;
+    if (options.text_args) this.text_args = options.text_args;
   }
 }
+
+const [K_INVALID, K_FORBIDDEN, K_NOT_FOUND, K_CONFLICT, K_TOO_LARGE, K_RATE_LIMITED, K_CANCELLED, K_INTERNAL, K_UPSTREAM, K_UNAVAILABLE, K_TIMEOUT] = ACTION_ERROR_KIND_NAMES;
 
 /**
  * The platform's own codes (`actions.*`, and the protocol codes the helpers in this package raise) and what sort of failure each is.
@@ -34,44 +49,44 @@ export class ActionError extends Error {
  */
 export const ACTION_ERROR_KINDS = {
   // The caller may not do this, here or at all.
-  "actions.forbidden": "forbidden", "actions.scope_mismatch": "forbidden", "actions.owner_mismatch": "forbidden", "actions.plugin_permission": "forbidden",
-  "actions.home_mismatch": "forbidden", "actions.plugin_disabled": "forbidden", "actions.unauthenticated": "forbidden",
+  "actions.forbidden": K_FORBIDDEN, "actions.scope_mismatch": K_FORBIDDEN, "actions.owner_mismatch": K_FORBIDDEN, "actions.plugin_permission": K_FORBIDDEN,
+  "actions.home_mismatch": K_FORBIDDEN, "actions.plugin_disabled": K_FORBIDDEN, "actions.unauthenticated": K_FORBIDDEN,
   // The thing asked for is not there (any more).
-  "actions.missing": "not_found", "actions.binding_missing": "not_found", "actions.scene_missing": "not_found",
-  "actions.recommendation_missing": "not_found", "actions.subject_unavailable": "not_found",
+  "actions.missing": K_NOT_FOUND, "actions.binding_missing": K_NOT_FOUND, "actions.scene_missing": K_NOT_FOUND,
+  "actions.recommendation_missing": K_NOT_FOUND, "actions.subject_unavailable": K_NOT_FOUND,
   // It changed under the caller, or two things claim the same place: read again and decide again. The whole `actions.event_*` and
   // `actions.offer_*` families are here because the Home dock has always answered 409 for them.
-  "actions.conflict": "conflict", "actions.subject_changed": "conflict", "actions.binding_changed": "conflict", "actions.provider_changed": "conflict", "actions.host_replaced": "conflict",
-  "actions.provider_replaced": "conflict", "actions.definition_changed": "conflict", "actions.configuration_changed": "conflict", "actions.expired": "conflict",
-  "actions.offer_changed": "conflict", "actions.offer_invalid": "conflict", "actions.offer_source_changed": "conflict",
-  "actions.event_changed": "conflict", "actions.event_invalid": "conflict", "actions.event_source_changed": "conflict",
-  "actions.mcp_name_conflict": "conflict", "actions.scene_duplicate": "conflict",
+  "actions.conflict": K_CONFLICT, "actions.subject_changed": K_CONFLICT, "actions.binding_changed": K_CONFLICT, "actions.provider_changed": K_CONFLICT, "actions.host_replaced": K_CONFLICT,
+  "actions.provider_replaced": K_CONFLICT, "actions.definition_changed": K_CONFLICT, "actions.configuration_changed": K_CONFLICT, "actions.expired": K_CONFLICT,
+  "actions.offer_changed": K_CONFLICT, "actions.offer_invalid": K_CONFLICT, "actions.offer_source_changed": K_CONFLICT,
+  "actions.event_changed": K_CONFLICT, "actions.event_invalid": K_CONFLICT, "actions.event_source_changed": K_CONFLICT,
+  "actions.mcp_name_conflict": K_CONFLICT, "actions.scene_duplicate": K_CONFLICT,
   // The input or the declaration is wrong.
-  "actions.input_invalid": "invalid", "actions.version_required": "invalid", "actions.project_required": "invalid", "actions.reference_invalid": "invalid",
-  "actions.binding_invalid": "invalid", "actions.transport_invalid": "invalid", "actions.usage_invalid": "invalid", "actions.schema_invalid": "invalid",
-  "actions.definition_invalid": "invalid", "actions.provider_invalid": "invalid", "actions.target_invalid": "invalid", "actions.scene_incompatible": "invalid",
-  "actions.scene_ambiguous": "invalid", "actions.subject_incompatible": "invalid", "actions.subject_mismatch": "invalid", "actions.subject_ambiguous": "invalid",
-  "actions.recommendation_incompatible": "invalid", "actions.gateway_mismatch": "invalid", "actions.home_required": "invalid", "actions.dependency_cycle": "invalid",
-  "actions.function_unpublished": "invalid", "actions.provider_ambiguous": "invalid",
-  "actions.input_too_large": "too_large",
-  "actions.rate_limited": "rate_limited",
-  "actions.cancelled": "cancelled",
-  "actions.timeout": "timeout",
+  "actions.input_invalid": K_INVALID, "actions.version_required": K_INVALID, "actions.project_required": K_INVALID, "actions.reference_invalid": K_INVALID,
+  "actions.binding_invalid": K_INVALID, "actions.transport_invalid": K_INVALID, "actions.usage_invalid": K_INVALID, "actions.schema_invalid": K_INVALID,
+  "actions.definition_invalid": K_INVALID, "actions.provider_invalid": K_INVALID, "actions.target_invalid": K_INVALID, "actions.scene_incompatible": K_INVALID,
+  "actions.scene_ambiguous": K_INVALID, "actions.subject_incompatible": K_INVALID, "actions.subject_mismatch": K_INVALID, "actions.subject_ambiguous": K_INVALID,
+  "actions.recommendation_incompatible": K_INVALID, "actions.gateway_mismatch": K_INVALID, "actions.home_required": K_INVALID, "actions.dependency_cycle": K_INVALID,
+  "actions.function_unpublished": K_INVALID, "actions.provider_ambiguous": K_INVALID,
+  "actions.input_too_large": K_TOO_LARGE,
+  "actions.rate_limited": K_RATE_LIMITED,
+  "actions.cancelled": K_CANCELLED,
+  "actions.timeout": K_TIMEOUT,
   // Not available now: something it needs is off, not set up, not running, or not reachable.
-  "actions.connection_required": "unavailable", "actions.unredeemed": "unavailable", "actions.plugin_unavailable": "unavailable",
-  "actions.service_unavailable": "unavailable", "actions.host_closed": "unavailable", "actions.connection_unavailable": "unavailable",
-  "actions.configuration_unavailable": "unavailable", "actions.dependency_unknown": "unavailable", "actions.dependency_missing": "unavailable",
-  "actions.provider_stopped": "unavailable", "actions.stopped": "unavailable", "actions.source_unavailable": "unavailable",
-  "actions.recommendation_unavailable": "unavailable", "actions.schema_unsupported": "unavailable", "actions.unavailable": "unavailable",
-  "actions.reauthorize": "unavailable", "actions.mcp_unavailable": "unavailable", "actions.binding_disabled": "unavailable",
-  "actions.binding_required": "unavailable", "actions.discovery_required": "unavailable", "actions.host_context_missing": "unavailable",
+  "actions.connection_required": K_UNAVAILABLE, "actions.unredeemed": K_UNAVAILABLE, "actions.plugin_unavailable": K_UNAVAILABLE,
+  "actions.service_unavailable": K_UNAVAILABLE, "actions.host_closed": K_UNAVAILABLE, "actions.connection_unavailable": K_UNAVAILABLE,
+  "actions.configuration_unavailable": K_UNAVAILABLE, "actions.dependency_unknown": K_UNAVAILABLE, "actions.dependency_missing": K_UNAVAILABLE,
+  "actions.provider_stopped": K_UNAVAILABLE, "actions.stopped": K_UNAVAILABLE, "actions.source_unavailable": K_UNAVAILABLE,
+  "actions.recommendation_unavailable": K_UNAVAILABLE, "actions.schema_unsupported": K_UNAVAILABLE, "actions.unavailable": K_UNAVAILABLE,
+  "actions.reauthorize": K_UNAVAILABLE, "actions.mcp_unavailable": K_UNAVAILABLE, "actions.binding_disabled": K_UNAVAILABLE,
+  "actions.binding_required": K_UNAVAILABLE, "actions.discovery_required": K_UNAVAILABLE, "actions.host_context_missing": K_UNAVAILABLE,
   // Something we called did not answer completely.
-  "actions.delivery_unknown": "upstream",
+  "actions.delivery_unknown": K_UPSTREAM,
   // Our own failure, or an outcome we cannot tell.
-  "actions.execution_failed": "internal", "actions.judgment_failed": "internal",
-  "actions.async_required": "internal", "actions.output_invalid": "internal", "actions.output_invalid_after_effect": "internal", "actions.outcome_unknown": "internal",
+  "actions.execution_failed": K_INTERNAL, "actions.judgment_failed": K_INTERNAL,
+  "actions.async_required": K_INTERNAL, "actions.output_invalid": K_INTERNAL, "actions.output_invalid_after_effect": K_INTERNAL, "actions.outcome_unknown": K_INTERNAL,
   // The protocol codes the helpers in this package raise.
-  "placement.same_location": "invalid", "search.entry_duplicate": "invalid", "files.entry_duplicate": "invalid", "files.too_large": "too_large",
+  "placement.same_location": K_INVALID, "search.entry_duplicate": K_INVALID, "files.entry_duplicate": K_INVALID, "files.too_large": K_TOO_LARGE,
 } as const satisfies Readonly<Record<string, ActionErrorKind>>;
 
 /** `<prefix>.<reason>`: lower-case words joined by dots, the owner's name first. */
@@ -90,7 +105,11 @@ export function platformErrorKind(code: string): ActionErrorKind | undefined {
 
 /** What `defineErrorCodes` gives back: one function per declared reason, each raising that code's `ActionError`. */
 export type ErrorCodeRaisers<Reasons extends Readonly<Record<string, ActionErrorKind>>> = {
-  readonly [Reason in keyof Reasons & string]: (message: string, details?: Readonly<Record<string, unknown>>) => ActionError;
+  readonly [Reason in keyof Reasons & string]: (
+    message: string,
+    details?: Readonly<Record<string, unknown>>,
+    text?: ActionErrorText,
+  ) => ActionError;
 };
 
 function declaredCode(prefix: string, reason: string, kind: unknown): string {
@@ -109,7 +128,10 @@ function declaredCode(prefix: string, reason: string, kind: unknown): string {
 export function defineErrorCodes<const Reasons extends Readonly<Record<string, ActionErrorKind>>>(prefix: string, reasons: Reasons): ErrorCodeRaisers<Reasons> {
   if (!OWNER_PREFIX.test(prefix)) throw new TypeError(`错误码前缀 ${JSON.stringify(prefix)} 不合规：写主人的名字，小写字母开头，可含数字和下划线，用点接子段（prefix）`);
   if (prefix.split(".")[0] === "actions") throw new TypeError(`错误码前缀 ${JSON.stringify(prefix)} 不合规：actions 是平台自己的，主人要用自己的名字开头`);
-  const raise = (code: string, kind: ActionErrorKind) => (message: string, details?: Readonly<Record<string, unknown>>) =>
-    new ActionError(code, message, { kind, ...(details ? { details } : {}) });
+  const raise = (code: string, kind: ActionErrorKind) => (
+    message: string,
+    details?: Readonly<Record<string, unknown>>,
+    text?: ActionErrorText,
+  ) => new ActionError(code, message, { kind, details, text_key: text?.key, text_args: text?.args });
   return Object.fromEntries(Object.entries(reasons).map(([reason, kind]) => [reason, raise(declaredCode(prefix, reason, kind), kind)])) as ErrorCodeRaisers<Reasons>;
 }

@@ -711,8 +711,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/storage
       '@prologue/sdk':
-        specifier: file:../../vendor/prologue-sdk/prologue-sdk-0.1.0-rc.3.tgz
-        version: file:vendor/prologue-sdk/prologue-sdk-0.1.0-rc.3.tgz
+        specifier: file:../../vendor/prologue-sdk/prologue-sdk-0.1.0-rc.4.tgz
+        version: file:vendor/prologue-sdk/prologue-sdk-0.1.0-rc.4.tgz
 
   horizontal/appearance:
     dependencies:
@@ -1292,9 +1292,6 @@ importers:
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
-      '@molis-ai/molis-work-storage':
-        specifier: workspace:*
-        version: link:../../../packages/storage
     devDependencies:
       esbuild:
         specifier: ^0.28.2
@@ -1887,9 +1884,9 @@ packages:
     resolution: {integrity: sha512-QviPdJImDi/jMAvBfqaw+19BndMd/sizXVW3NnpMd3VJGz++QXkOHcP9kWR/smHG0hNjHeyuHFyrx/5lD0oNcQ==}
     engines: {node: '>= 10'}
 
-  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.1.0-rc.3.tgz':
-    resolution: {integrity: sha512-YdWhJyn87+Kf8Yd77TH8UrVEt13ceiX4VACRGAs+WtpM4flc2m2r+glT37hXNEhZF94SztsOKgCnm/2pXvSjLg==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.1.0-rc.3.tgz}
-    version: 0.1.0-rc.3
+  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.1.0-rc.4.tgz':
+    resolution: {integrity: sha512-AN+zUioZdV4uRbjJDoVB75NNALddVtHbuCExe6fI984QPefN/zbyCc7mUwsVF5CjopWJZ+oX/zeYvphsrdXlAg==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.1.0-rc.4.tgz}
+    version: 0.1.0-rc.4
     peerDependencies:
       '@tauri-apps/api': '>=2.0.0 <3.0.0'
     peerDependenciesMeta:
@@ -3366,7 +3363,7 @@ snapshots:
       '@napi-rs/canvas-win32-x64-msvc': 1.0.9
     optional: true
 
-  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.1.0-rc.3.tgz': {}
+  '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.1.0-rc.4.tgz': {}
 
   '@protobufjs/aspromise@1.1.2': {}
 

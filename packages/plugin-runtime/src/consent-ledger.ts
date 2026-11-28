@@ -12,9 +12,7 @@ import { consentGranter, consentSubject } from "./trust-rules.js";
 // anything else reads them through this port.
 
 /**
- * The two tables as one current schema; the Host composes it into the Home Runtime store's baseline. The `kind` CHECK still lists
- * `always_on` only so the library's structure (version 1) is unchanged since 44B removed always-on plugins: nothing writes it,
- * and `newRows` refuses it.
+ * The two tables as one current v1 schema; the Host composes it into the Home Runtime store's baseline.
  */
 export const PLUGIN_TRUST_SCHEMA_SQL = `
     CREATE TABLE IF NOT EXISTS plugin_publishers (
@@ -29,7 +27,7 @@ export const PLUGIN_TRUST_SCHEMA_SQL = `
       consent_id TEXT PRIMARY KEY,
       plugin_id TEXT NOT NULL,
       publisher_signature TEXT NOT NULL,
-      kind TEXT NOT NULL CHECK (kind IN ('always_on', 'default_wiring', 'default_group', 'local_directory', 'project_reach')),
+      kind TEXT NOT NULL CHECK (kind IN ('default_wiring', 'default_group', 'local_directory', 'project_reach')),
       subject TEXT NOT NULL,
       manifest_digest TEXT NOT NULL,
       granted_at TEXT NOT NULL,

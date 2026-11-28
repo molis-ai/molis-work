@@ -3,7 +3,7 @@ import { disclosureHeight } from "@molis-ai/molis-work-plugin-sdk/ui";
 /** The other folds with the shared chevron hold several children, so the one-row grid does not fit them. Where the engine
  * can animate to `auto` (`interpolate-size`), their content opens to its natural height on the same clock as the chevron
  * instead of snapping open under a turning chevron; elsewhere it opens at once, as before. */
-const CHEVRON_FOLDS = ":is(.mw-disclosure,.form-disclosure:not(.mw-collapsible),.record-templates,.characters-location,.artifact-raw,.mw-object-row__fold)";
+const CHEVRON_FOLDS = ":is(.mw-disclosure,.form-disclosure:not(.mw-collapsible),.mw-object-row__fold)";
 /** Native details keep their content box during exit. A region uses a one-row grid as its instant
  * fallback, stays visible through the fade, and excludes its controls from focus as soon as it closes.
  * An empty status line stays in the accessibility tree so it can announce the result when filled. */

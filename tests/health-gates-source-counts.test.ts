@@ -263,8 +263,8 @@ test("what the definitions leave out passes against the merge-base", () => {
   assert.doesNotMatch(run.out, /Lower than/, "nothing went down either");
 });
 
-test("WMD-13 and PG-097 definition: S-75 host-plugin-ids reservation and non-TS helpers behave as documented", () => {
-  assert.equal(countFile("apps/local-host/src/host-plugin-ids.ts", 'export const IDS = new Set(["io.molis.work.files"]);\n', { inSource: true }).oldNames, 0);
+test("WMD-13 and PG-097 definition: retired io.molis.work.files and non-TS helpers behave as documented", () => {
+  assert.equal(countFile("apps/local-host/src/host-plugin-ids.ts", 'export const IDS = new Set(["io.molis.work.files"]);\n', { inSource: true }).oldNames, 1);
   assert.equal(countFile("packages/design-system/src/primitives/catalog-skill-selection.ts", "export const ok = 1;\n", { inSource: true }).oldNames, 0);
   assert.equal(countFile("packages/design-system/src/primitives/catalog-skill-selection.mts", "export const ok = 1;\n", { inSource: true }).oldNames, 0);
   assert.equal(countFile("packages/alpha/src/skill-selection.ts", "export const bad = 1;\n", { inSource: true }).oldNames, 1);
@@ -364,6 +364,12 @@ test("44C PSD-02 G1 named exceptions: an unlisted file, a stale row, a wrong cou
   }
   const real = { read: (file: string) => { try { return readFileSync(path.join(root, file), "utf8"); } catch { return null; } } };
   assert.deepEqual(pluginNameExceptionProblems(real, counts, { required: true }), []);
+
+  // PR #2 PLAT-26: G1 also catches `_`-separated plugin compounds and targeted legacy tokens.
+  const sampleIds = { plugins: ["pages", "goals", "feed", "inbox"], integrations: [] };
+  assert.equal(countPlatformPluginNames("packages/contracts/src/a.ts", 'const k = "pages_document";', sampleIds), 1);
+  assert.equal(countPlatformPluginNames("packages/contracts/src/a.ts", 'const a = "goal_id"; const b = "goal_ids"; const c = "feed_item"; const d = "inbox_entry";', sampleIds), 4);
+  assert.equal(countPlatformPluginNames("packages/plugin-sdk/src/a.ts", 'x.replaceAll("<UNTRUSTED_FEED_ITEM_DATA>", "")', sampleIds), 1);
 });
 
 test("F-TEST-03 testAssertMatcherProblems forbids 2-arg string/undefined assert.throws and assert.rejects in tests/**", () => {

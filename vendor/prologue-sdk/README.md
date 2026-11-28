@@ -1,6 +1,14 @@
 # Prologue SDK 构建来源
 
-## 当前包：official main 65c1722b（2026-11-21，0.1.0-rc.3 策略单调性与破坏性命令/存储代理加固）
+## 当前包：official main 8c80bab3（2026-11-27，0.1.0-rc.4 网络/会话回收、流截断、缓存语义与子任务分叉加固）
+
+运行包为 `prologue-sdk-0.1.0-rc.4.tgz`，**1,514,408 字节**，SHA-256 `6cfa39ce90e2c38f15fce3b90988bbe203778a618986f6162ecf3f97a03d5039`。来自上游 `molis-ai/molis-prologue` 官方 main 提交 `8c80bab37a8c63c3a4bd461c7e67b413322b3179`（[Prologue #146](https://github.com/molis-ai/molis-prologue/pull/146)，树 `4fd58be62d4fa6979e8e08243dc7a11f13592548`，基于 [Prologue #142](https://github.com/molis-ai/molis-prologue/pull/142) `96d2ee91`、[Prologue #143](https://github.com/molis-ai/molis-prologue/pull/143) `18838190`、[Prologue #144](https://github.com/molis-ai/molis-prologue/pull/144) `9859b93f` 与 [Prologue #145](https://github.com/molis-ai/molis-prologue/pull/145) `69f05e12`），无 vendor 补丁。
+
+本包落地 KV 缓存与两区系统提示 / 附件锚点 / 阶梯微压缩默认步长 `microCompaction.stepTurns = 4`（#142–#144），以及全量审计加固（#145–#146）：`NodeNetworkCalls` 与 `prologue-host-tauri` 已结算网络调用不可被晚到的取消改写并释放副本与过期孤立句柄；流式解析在 `max-tokens` 截断空/半截工具调用时严格以 `MODEL_OUTPUT_TRUNCATED` 失败关闭；`Session` 生命周期清除与临时会话回收补齐清理；公开 `ProtocolCapabilities.promptIncludesCache` 与 `UsageReceipt.promptIncludesCache` 供消费方按协议能力读取缓存计数语义；`cacheSafeFork` 仅在同根且 `read-only` 下继承父提示与指令，并升至 `0.1.0-rc.4`。
+
+两份独立官方 `git archive` 使用 Node 24.15.0 与 pnpm 11.9.0 离线构建打包，经 `cmp -s` 核验产物逐字节一致。本地完整 `pnpm quality` 通过（440/440 SDK Vitest 文件 / 5,547 项测试、公开 API 快照、质量棘轮、文档链接检查、干净消费者检查与 Rust fmt/clippy/test 117/117）；[上游 GitHub 作业](https://github.com/molis-ai/molis-prologue/actions/runs/46105289409)因账户付款或额度限制未启动步骤，不声称 GitHub CI 通过。现核查 79 个 Prologue 提交，上一份官方 `0.1.0-rc.3`（`65c1722b`）包可按 `patch-history.json` 的 Git blob 找回。
+
+## 上一份：official main 65c1722b（2026-11-21，0.1.0-rc.3 策略单调性与破坏性命令/存储代理加固）
 
 运行包为 `prologue-sdk-0.1.0-rc.3.tgz`，**1,497,231 字节**，SHA-256 `211d8b032acafa52b8a05f8a227d5283680c3117842d1afcce5b4e42fab5d651`。来自上游 `molis-ai/molis-prologue` 官方 main 提交 `65c1722b14f9c0b18599d2614ddf48e654ae3af0`（[Prologue #141](https://github.com/molis-ai/molis-prologue/pull/141)，基于 [Prologue #140](https://github.com/molis-ai/molis-prologue/pull/140) `ae1639977e73f51114e2dd673ddaf1086142629c`），无 vendor 补丁。
 

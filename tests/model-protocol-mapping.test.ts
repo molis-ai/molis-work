@@ -10,6 +10,8 @@ import {
   prologueModelConfiguration,
   prologueProtocolFacts,
   prologueProtocolFor,
+  promptIncludesCache,
+  reportedPromptTotal,
 } from "@molis-ai/molis-work-service-agent-host";
 
 /**
@@ -73,4 +75,24 @@ test("能不能由我们打开缓存断点，以 Prologue 的申报为准", () =
       `${format} 这一侧对缓存断点的判断和 Prologue 说的不一致`,
     );
   }
+});
+
+test("PRL-14: promptIncludesCache reads SDK ProtocolCapabilities rather than matching protocol name prefixes", () => {
+  assert.equal(promptIncludesCache("openai-compatible"), true);
+  assert.equal(promptIncludesCache("anthropic-compatible"), false);
+  // A non-built-in protocol whose name happens to start with "openai" must not match a hardcoded prefix check.
+  assert.equal(promptIncludesCache("openai-custom-unregistered"), false);
+  assert.equal(promptIncludesCache("unknown-protocol"), false);
+  const receipt = (promptIncludesCacheFlag?: boolean) => ({
+    input: { source: "reported" as const, tokens: 1000 },
+    output: { source: "reported" as const, tokens: 100 },
+    cacheRead: { source: "reported" as const, tokens: 400 },
+    cacheWrite: { source: "reported" as const, tokens: 200 },
+    cost: { source: "unknown" as const, amount: undefined, currency: undefined },
+    ...(promptIncludesCacheFlag === undefined ? {} : { promptIncludesCache: promptIncludesCacheFlag }),
+  });
+  assert.equal(reportedPromptTotal([receipt(true)], false), 1000);
+  assert.equal(reportedPromptTotal([receipt(false)], true), 1600);
+  assert.equal(reportedPromptTotal([receipt()], true), 1000);
+  assert.equal(reportedPromptTotal([receipt()], false), 1600);
 });

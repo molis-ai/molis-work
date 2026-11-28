@@ -1967,6 +1967,10 @@ export declare const goalEntryActions: {
                 readonly input_type: string;
                 readonly output_type: string;
             }[];
+            input_subject?: {
+                readonly id: string;
+                readonly expected_revision?: string;
+            };
             result_subject?: {
                 readonly id: string;
                 readonly revision?: string;
@@ -2051,6 +2055,10 @@ export declare const goalEntryActions: {
                 readonly input_type: string;
                 readonly output_type: string;
             }[];
+            input_subject?: {
+                readonly id: string;
+                readonly expected_revision?: string;
+            };
             result_subject?: {
                 readonly id: string;
                 readonly revision?: string;
@@ -2151,6 +2159,10 @@ export declare const goalEntryActions: {
                 readonly input_type: string;
                 readonly output_type: string;
             }[];
+            input_subject?: {
+                readonly id: string;
+                readonly expected_revision?: string;
+            };
             result_subject?: {
                 readonly id: string;
                 readonly revision?: string;
@@ -2235,6 +2247,10 @@ export declare const goalEntryActions: {
                 readonly input_type: string;
                 readonly output_type: string;
             }[];
+            input_subject?: {
+                readonly id: string;
+                readonly expected_revision?: string;
+            };
             result_subject?: {
                 readonly id: string;
                 readonly revision?: string;
@@ -2330,6 +2346,10 @@ export declare const goalEntryActions: {
                 readonly input_type: string;
                 readonly output_type: string;
             }[];
+            readonly input_subject?: {
+                readonly id: string;
+                readonly expected_revision?: string;
+            };
             readonly result_subject?: {
                 readonly id: string;
                 readonly revision?: string;
@@ -2420,6 +2440,10 @@ export declare const goalEntryActions: {
                 readonly input_type: string;
                 readonly output_type: string;
             }[];
+            readonly input_subject?: {
+                readonly id: string;
+                readonly expected_revision?: string;
+            };
             readonly result_subject?: {
                 readonly id: string;
                 readonly revision?: string;
@@ -2444,15 +2468,15 @@ export declare const goalEntryActions: {
         readonly __types__?: {
             input: {
                 readonly binding_id: string;
-                readonly goal_id: string;
                 readonly decision: "adopt_latest";
+                readonly goal_id: string;
                 readonly expected_old_digest: string;
                 readonly observed_new_digest: string;
                 readonly note?: string | undefined;
             } | {
                 readonly binding_id: string;
-                readonly goal_id: string;
                 readonly decision: "remove";
+                readonly goal_id: string;
                 readonly expected_old_digest: string;
                 readonly note?: string | undefined;
                 readonly observed_new_digest?: string | undefined;

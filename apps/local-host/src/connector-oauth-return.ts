@@ -1,4 +1,14 @@
-import { contextJourneyId, withContextJourneys } from "./context-onboarding-store.js";
+import { builtinMailboxDrivers, mailboxDriver } from "./builtin-drivers.js";
+import { contextJourneyId, withContextJourneys, type ContextJourney } from "./context-onboarding-store.js";
+
+/** User-facing expiry notice naming whichever mailbox provider the journey selected. */
+export function expiredMailOAuthMessage(journey: Pick<ContextJourney, "sources">): string {
+  const mailSource = journey.sources.find(source => source.kind === "mail");
+  const driver = (mailSource?.service_id ? mailboxDriver(mailSource.service_id) : undefined) ?? builtinMailboxDrivers()[0];
+  const account = driver?.account_title ?? "邮箱账号";
+  const title = driver?.title ?? "邮箱";
+  return `${account} 授权已过期，已选材料仍在。请重新连接，或跳过 ${title}。`;
+}
 
 /**
  * Where an OAuth authorization returns the person to (W5-11 §2.4). The entry that starts it writes this into the pending record; the
@@ -40,7 +50,7 @@ export function assertOAuthReturnPending(home: string, back: OAuthReturn | undef
 }
 
 /** The authorization ended; the journey changes only while it still waits for this state. */
-export function finishOAuthReturn(home: string, back: OAuthReturn | undefined, state: string, outcome: { connected: string } | { ended: "cancelled" | "failed" }): void {
+export function finishOAuthReturn(home: string, back: OAuthReturn | undefined, state: string, outcome: { connected: string; service?: string } | { ended: "cancelled" | "failed" }): void {
   const onboarding = back?.onboarding;
   if (!onboarding) return;
   withContextJourneys(home, store => {
@@ -48,10 +58,17 @@ export function finishOAuthReturn(home: string, back: OAuthReturn | undefined, s
     if ((journey.oauth_state && journey.oauth_state !== state) || journey.oauth_status !== "pending") return;
     if ("connected" in outcome) {
       if (journey.phase !== "selecting") return;
-      const gmail = journey.sources.find(source => source.kind === "gmail");
-      if (gmail) gmail.connection_id = outcome.connected;
+      const mail = journey.sources.find(source =>
+        source.kind === "mail" && (!outcome.service || !source.service_id || source.service_id === outcome.service));
+      if (mail) {
+        mail.connection_id = outcome.connected;
+        if (outcome.service && !mail.service_id) mail.service_id = outcome.service;
+      }
       journey.oauth_status = "connected";
-    } else { journey.auto_start = false; journey.oauth_status = outcome.ended; }
+    } else {
+      journey.auto_start = false;
+      journey.oauth_status = outcome.ended;
+    }
     store.save(journey);
   });
 }
@@ -64,7 +81,9 @@ export function expiredOAuthReturn(home: string, state: string): OAuthReturn | u
   return withContextJourneys(home, store => {
     const journey = store.waitingForOAuth(state);
     if (!journey || (journey.oauth_expires_at ?? 0) > Date.now()) return undefined;
-    journey.auto_start = false; journey.oauth_status = "failed"; journey.error = "Google 授权已过期，已选材料仍在。请重新连接，或跳过 Gmail。";
+    journey.auto_start = false;
+    journey.oauth_status = "failed";
+    journey.error = expiredMailOAuthMessage(journey);
     store.save(journey);
     return { onboarding: { id: journey.id, desktop: journey.oauth_desktop === true } };
   });

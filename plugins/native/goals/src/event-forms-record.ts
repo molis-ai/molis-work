@@ -69,7 +69,7 @@ export function createRecordForms(primitives: GoalsDocumentUiPrimitives, shared:
     return `<form class="event-form mw-form" data-event-form="note" hidden>
       <header class="event-form-heading"><h2>${uiText("goals.event-forms-record.note")}</h2>
       <p class="form-lead">${uiText("goals.event-forms-record.save-note-timeline-continue-work-ai-send-instructions")}</p></header>
-      <div class="event-form-body">${doc?.types.length ? `<details class="record-templates"><summary>${uiText("goals.event-forms-record.use-record-template")}</summary><div class="event-actions">${doc.types.map((type) => `<button type="button" class="mw-btn mw-btn--secondary" data-event-report="${escapeHtml(type.type_id)}">${escapeHtml(type.name)}</button>`).join("")}</div></details>` : ""}
+      <div class="event-form-body">${doc?.types.length ? `<details class="record-templates mw-disclosure"><summary>${uiText("goals.event-forms-record.use-record-template")}</summary><div class="event-actions">${doc.types.map((type) => `<button type="button" class="mw-btn mw-btn--secondary" data-event-report="${escapeHtml(type.type_id)}">${escapeHtml(type.name)}</button>`).join("")}</div></details>` : ""}
       <label for="event-note">${uiText("goals.event-forms-record.note-2")}</label>
       <textarea id="event-note" name="note" rows="3" maxlength="5000" required placeholder="${uiText("goals.event-forms-record.add-fact-idea-what-want-change")}"></textarea>
       <p class="event-form-help">${uiText("goals.event-forms-record.saves-timeline-does-not-send-message-ai-change")}</p></div>

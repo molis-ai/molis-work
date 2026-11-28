@@ -31,7 +31,8 @@ export function updateUsage(state: PrologueStreamState): void {
   const estimated = [input, output].some(item => item.coverage.includes("estimated"));
   // The window in use is the latest main call's whole prompt; compaction calls size a different request.
   const latest = state.usage_preview ?? [...state.usage_receipts.values()].at(-1);
-  const prompt = latest ? [latest.input, ...(state.prompt_includes_cache ? [] : [latest.cacheRead, latest.cacheWrite])] : [];
+  const includesCache = latest?.promptIncludesCache ?? state.prompt_includes_cache ?? false;
+  const prompt = latest ? [latest.input, ...(includesCache ? [] : [latest.cacheRead, latest.cacheWrite])] : [];
   const context = prompt.length && prompt[0]!.source !== "unknown" && prompt[0]!.tokens !== undefined ? {
     tokens: prompt.reduce((sum, count) => sum + (count.source === "unknown" || count.tokens === undefined ? 0 : count.tokens), 0),
     coverage: (prompt.every(count => count.source === "reported") ? "reported" : prompt.some(count => count.source === "unknown") ? "partial" : "estimated") as AgentUsageCoverage,
@@ -56,10 +57,14 @@ function mergeUsage(previous: PrologueUsageReceipt | undefined, next: PrologueUs
   if (!previous) return next;
   const known = (before: PrologueTokenCount, after: PrologueTokenCount) =>
     after.source === "unknown" || after.tokens === undefined ? before : after;
+  const promptIncludesCache = next.promptIncludesCache ?? previous.promptIncludesCache;
   return {
-    input: known(previous.input, next.input), output: known(previous.output, next.output),
-    cacheRead: known(previous.cacheRead, next.cacheRead), cacheWrite: known(previous.cacheWrite, next.cacheWrite),
+    input: known(previous.input, next.input),
+    output: known(previous.output, next.output),
+    cacheRead: known(previous.cacheRead, next.cacheRead),
+    cacheWrite: known(previous.cacheWrite, next.cacheWrite),
     cost: next.cost.source === "unknown" || next.cost.amount === undefined ? previous.cost : next.cost,
+    ...(promptIncludesCache === undefined ? {} : { promptIncludesCache }),
   };
 }
 

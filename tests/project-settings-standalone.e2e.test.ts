@@ -141,7 +141,7 @@ test("settings serve complete category pages; the project gear opens them in the
     const state = await command("Runtime.evaluate", { expression: "(()=>({surface:document.body?.dataset.desktopSurface,panes:[...document.querySelectorAll('[data-tab-pane]')].map(p=>({id:p.dataset.tabPane,current:p.querySelector('.tab-item[aria-current]')?.outerHTML.slice(0,200),goal:p.querySelector('[data-goal-frame-surface]:not([hidden])')?.dataset.frameGoal}))}))()", returnByValue: true }, sessionId, 1500).catch(observation => ({ unavailable: String(observation) }));
     t.diagnostic("T405 settings after split " + JSON.stringify({ paneReads, state })); throw error;
   }
-  await waitFor("document.querySelector('#goal-tree-pane')?.dataset.desktopDirectory==='project-settings' && document.querySelector('[data-tab-workspace]')?.dataset.exclusive==='project-settings' && !!document.querySelector('[data-work-surface=project-settings] [data-project-rename]') && !document.body.dataset.navigationPending");
+  await waitFor("document.querySelector('#shell-directory-pane')?.dataset.desktopDirectory==='project-settings' && document.querySelector('[data-tab-workspace]')?.dataset.exclusive==='project-settings' && !!document.querySelector('[data-work-surface=project-settings] [data-project-rename]') && !document.body.dataset.navigationPending");
   assert.equal(await evaluate(`document.querySelector('${PROJECT_SETTINGS}').hasAttribute('aria-busy')`), false);
   assert.equal(await evaluate("location.pathname.includes('/settings')"), false);
   assert.equal(await evaluate("document.body.classList.contains('settings-page')"), false);
@@ -220,7 +220,7 @@ test("settings serve complete category pages; the project gear opens them in the
     assert.equal(await evaluate(`!!document.querySelector('[data-directory-panel=project-settings] ${selector}')`), false);
   }
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
-  await waitFor("document.querySelector('#goal-tree-pane')?.dataset.desktopDirectory==='root' && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty') && !document.querySelector('[data-tab-workspace]').dataset.exclusive");
+  await waitFor("document.querySelector('#shell-directory-pane')?.dataset.desktopDirectory==='root' && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty') && !document.querySelector('[data-tab-workspace]').dataset.exclusive");
   assert.equal(await evaluate("document.querySelectorAll('[data-tab-pane]').length"), 2);
   assert.equal(await evaluate(`document.querySelector('${PROJECT_SETTINGS}').hasAttribute('aria-current')`), false);
   const afterLeave = await evaluate(readState);
@@ -229,7 +229,7 @@ test("settings serve complete category pages; the project gear opens them in the
   await click(PROJECT_SETTINGS);
   await waitFor("document.querySelector('[data-tab-workspace]')?.dataset.exclusive==='project-settings' && !!document.querySelector('[data-work-surface=project-settings] [data-project-rename]') && !document.body.dataset.navigationPending");
   await reloadPage();
-  await waitFor("document.querySelector('#goal-tree-pane')?.dataset.desktopDirectory==='project-settings' && document.querySelector('[data-tab-workspace]')?.dataset.exclusive==='project-settings' && !!document.querySelector('[data-work-surface=project-settings] [data-project-rename]')");
+  await waitFor("document.querySelector('#shell-directory-pane')?.dataset.desktopDirectory==='project-settings' && document.querySelector('[data-tab-workspace]')?.dataset.exclusive==='project-settings' && !!document.querySelector('[data-work-surface=project-settings] [data-project-rename]')");
   assert.equal(await evaluate("document.querySelectorAll('[data-tab-pane]').length"), 2);
   // A settings address opened directly (address bar, bookmark) opens the workbench on that page (specs/artifact-positioning S6).
   await navigate(() => command("Page.navigate", { url: origin + prefix + "/settings/general" }, sessionId));

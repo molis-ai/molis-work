@@ -8,10 +8,11 @@ import { HOST_SURFACE_REGISTRATIONS } from "./host-surfaces.js";
  * The `plugin_id` of every plugin this build ships (S-75, ac-trust T6). A Runtime is given this set so that an install of any other
  * trust level cannot take one of these ids or nest under one, whichever project or Home the plugin is installed in.
  */
-export const HOST_PLUGIN_IDS: ReadonlySet<string> = new Set([...PLATFORM_PLUGIN_REGISTRATIONS.map(entry => entry.manifest.plugin_id), ...HOST_SURFACE_REGISTRATIONS.map(entry => entry.manifest.plugin_id), ...PLATFORM_SURFACES.map(surface => surface.provider_id),
-  // Files retired in batch 06 (its content is the platform materials service now). Homes it ran in still hold its install rows, event
-  // cursors and history under this id until their deletion step, so no other package may take the id or nest under it.
-  "io.molis.work.files"]);
+export const HOST_PLUGIN_IDS: ReadonlySet<string> = new Set([
+  ...PLATFORM_PLUGIN_REGISTRATIONS.map(entry => entry.manifest.plugin_id),
+  ...HOST_SURFACE_REGISTRATIONS.map(entry => entry.manifest.plugin_id),
+  ...PLATFORM_SURFACES.map(surface => surface.provider_id),
+]);
 
 /**
  * The release's own bundled packages under the Host's prefix (the official Skill packs, signed by this Home until the release has a

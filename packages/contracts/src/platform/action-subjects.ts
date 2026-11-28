@@ -133,6 +133,31 @@ export function actionResultSubject(action: Pick<ActionDefinition["action"], "ki
   return named ? { subject: { kind, id: String(named.id) }, revision: null } : null;
 }
 
+/**
+ * The expected target revision a command's input declared for `expectedId` (`CORE-14`).
+ * Declared, `input_subject` names the dot paths to the target id and expected revision in `input`.
+ * Undeclared, falls back to `{ id, expected_revision }` or `{ id, expected_version }`.
+ * Returns `undefined` when the target id does not match `expectedId` or no valid numeric/string revision is present.
+ */
+export function actionInputRevision(
+  action: Pick<ActionDefinition["action"], "input_subject">,
+  input: unknown,
+  expectedId: string,
+): string | number | undefined {
+  if (!input || typeof input !== "object" || Array.isArray(input) || !expectedId) return undefined;
+  const at = (value: unknown, path: string): unknown =>
+    path.split(".").reduce<unknown>((node, key) => node && typeof node === "object" ? (node as Record<string, unknown>)[key] : undefined, value);
+  const rev = (value: unknown): string | number | undefined =>
+    typeof value === "number" && Number.isFinite(value) ? value : typeof value === "string" && value ? value : undefined;
+  if (action.input_subject) {
+    if (at(input, action.input_subject.id) !== expectedId) return undefined;
+    return action.input_subject.expected_revision ? rev(at(input, action.input_subject.expected_revision)) : undefined;
+  }
+  const record = input as Record<string, unknown>;
+  if (record.id !== expectedId) return undefined;
+  return rev(record.expected_revision ?? record.expected_version);
+}
+
 /** An action that reads one object's context by the shared subject protocol. */
 export function isSubjectReader(action: Pick<ActionDefinition["action"], "input_type" | "output_type">): boolean {
   return action.input_type === SUBJECT_REFERENCE_TYPE && action.output_type === SUBJECT_CONTEXT_TYPE;

@@ -1,0 +1,37 @@
+{
+  "schema": "prologue-sdk-package-provenance-v1",
+  "package": {
+    "name": "@prologue/sdk",
+    "version": "0.1.0-rc.4",
+    "private": true,
+    "license": null
+  },
+  "source": {
+    "repository": "git+https://github.com/molis-ai/molis-prologue.git",
+    "path": "packages/sdk",
+    "commit": "8c80bab37a8c63c3a4bd461c7e67b413322b3179",
+    "dirty": false,
+    "dirtyPaths": [],
+    "patches": [],
+    "note": "Official main commit 8c80bab3 (Prologue PR #146, tree 4fd58be62d4fa6979e8e08243dc7a11f13592548, on top of PR #142 96d2ee91, PR #143 18838190, PR #144 9859b93f, PR #145 69f05e12): KV-cache / two-zone system prompt / attachment anchor / microCompaction stepTurns=4 primitives (#142-#144), settled network call & idle session lifecycle retention fixes (#145-#146), fail-closed stream tool-call truncation under max-tokens, ProtocolCapabilities.promptIncludesCache & UsageReceipt.promptIncludesCache, cacheSafeFork same-root/read-only enforcement, and 0.1.0-rc.4 release bump. No vendor patch."
+  },
+  "artifact": {
+    "file": "prologue-sdk-0.1.0-rc.4.tgz",
+    "bytes": 1514408,
+    "sha256": "6cfa39ce90e2c38f15fce3b90988bbe203778a618986f6162ecf3f97a03d5039",
+    "integrity": "sha512-AN+zUioZdV4uRbjJDoVB75NNALddVtHbuCExe6fI984QPefN/zbyCc7mUwsVF5CjopWJZ+oX/zeYvphsrdXlAg=="
+  },
+  "build": {
+    "node": "24.15.0",
+    "pnpm": "11.9.0",
+    "platform": "darwin",
+    "architecture": "arm64",
+    "steps": [
+      "Extract two independent clean archives from official main commit 8c80bab37a8c63c3a4bd461c7e67b413322b3179 (Prologue PR #146) via git archive.",
+      "Run pnpm install --frozen-lockfile --offline --ignore-scripts, pnpm build, and pnpm -C packages/sdk pack in both clean archives using Node 24.15.0 and pnpm 11.9.0.",
+      "Confirm both produced prologue-sdk-0.1.0-rc.4.tgz tarballs are byte-identical via cmp -s and record exact bytes, SHA-256, and SHA-512 integrity."
+    ],
+    "packedOn": "2026-11-27",
+    "note": "Official 0.1.0-rc.4 package verified by full local pnpm quality (440/440 SDK Vitest files / 5,547 tests, clean-consumer, Rust fmt/clippy/test 117/117). GitHub Actions run 46105289409 did not start steps due to account billing/spending limit."
+  }
+}

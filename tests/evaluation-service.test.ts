@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
-import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionInputRevision, bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   EVALUATION_PROVIDER_ID,
   evaluationActions,
@@ -2174,4 +2174,103 @@ test("F-horiz-runtime-20: evidence_text forbids_any returns unknown when any mat
   assert.equal(run.expectation_results[0]!.effective_verdict, "unknown");
   assert.equal(run.effective_verdict, "unknown");
   assert.ok(run.expectation_results[0]!.unknown_reasons.includes("evidence_missing"));
+});
+
+test("CORE-14 actionInputRevision and no_self_certifying_success honor declared input_subject paths and expected_version fallback", async t => {
+  // Unit coverage of actionInputRevision: declared nested/custom paths, opaque strings, mismatch guard, and fallback fields.
+  assert.equal(
+    actionInputRevision({ input_subject: { id: "target.doc_id", expected_revision: "target.base_etag" } }, { target: { doc_id: "doc-1", base_etag: "etag-1" } }, "doc-1"),
+    "etag-1",
+  );
+  assert.equal(
+    actionInputRevision({ input_subject: { id: "target.doc_id", expected_revision: "target.base_etag" } }, { target: { doc_id: "doc-2", base_etag: "etag-1" } }, "doc-1"),
+    undefined,
+  );
+  assert.equal(actionInputRevision({}, { id: "doc-1", expected_revision: 4 }, "doc-1"), 4);
+  assert.equal(actionInputRevision({}, { id: "doc-1", expected_version: "v4" }, "doc-1"), "v4");
+  assert.equal(actionInputRevision({}, { id: "doc-1", expected_revision: "" }, "doc-1"), undefined);
+
+  // Integration through Observation -> Evaluation retry receipt matching with non-default input field names.
+  const fx = createEvaluationFixture(t);
+  fx.service.registerProvider({
+    provider: { provider_id: "io.molis.work.custom-rev", title: "自定义修订路径对象", kind: "plugin" },
+    definitions: [{
+      capability_id: "custom.note.save",
+      version: 1,
+      operation: "command",
+      action: {
+        title: "保存笔记",
+        description: "使用声明的 input_subject 定位目标与预期版本",
+        kind: "operation",
+        scope: "project",
+        effect: "write",
+        audiences: ["user", "agent"],
+        permissions: [],
+        subject_kinds: ["custom_note"],
+        input_subject: { id: "note_id", expected_revision: "base_cursor" },
+        result_subject: { id: "note.id", revision: "note.cursor" },
+        input_schema: {
+          type: "object",
+          properties: { note_id: { type: "string" }, base_cursor: { type: "string" } },
+          required: ["note_id", "base_cursor"],
+          additionalProperties: false,
+        },
+        output_schema: {
+          type: "object",
+          properties: { note: { type: "object", properties: { id: { type: "string" }, cursor: { type: "string" } }, required: ["id", "cursor"] } },
+          required: ["note"],
+          additionalProperties: false,
+        },
+      },
+    }],
+    handlers: [{
+      capability_id: "custom.note.save",
+      version: 1,
+      handle: async (_caller, raw) => {
+        const record = typeof raw === "object" && raw !== null ? raw as Record<string, unknown> : {};
+        return { note: { id: String(record.note_id ?? "n1"), cursor: "cur-2" } };
+      },
+    }],
+  });
+
+  for (const [label, inputNoteId, baseCursor, nextCursor, expectedVerdict] of [
+    ["advanced", "note-1", "cur-1", "cur-2", "passed"],
+    ["unchanged", "note-1", "cur-1", "cur-1", "unknown"],
+    ["mismatched-input-id", "note-2", "cur-1", "cur-2", "unknown"],
+  ] as const) {
+    const call_id = `call-core14-${label}`;
+    fx.layer.observed(
+      person({ project_id: "p1", audience: "agent", actor_id: "agent:assistant", call_id }),
+      { capability_id: "custom.note.save", version: 1, provider_id: "io.molis.work.custom-rev", operation: "command" },
+      { invocation_id: `inv-fail-${label}`, started_at: 100, ended_at: 110, handler_started: true, outcome: { ok: false, code: "custom.conflict" }, aborted: false },
+    );
+    fx.layer.observed(
+      person({ project_id: "p1", audience: "agent", actor_id: "agent:assistant", call_id }),
+      { capability_id: "custom.note.save", version: 1, provider_id: "io.molis.work.custom-rev", operation: "command" },
+      {
+        invocation_id: `inv-retry-${label}`,
+        started_at: 120,
+        ended_at: 130,
+        handler_started: true,
+        input: { note_id: inputNoteId, base_cursor: baseCursor },
+        result: { note: { id: "note-1", cursor: nextCursor } },
+        outcome: { ok: true },
+        aborted: false,
+      },
+    );
+    fx.layer.sink("agent").bind({ kind: "background", actor_id: "agent:assistant", project_id: "p1", entry: "agent", call_id })
+      .record({ fact: "agent.run", stage: "ended", outcome: "succeeded", work: { work_ref: `work-core14-${label}` } });
+    fx.layer.flush();
+    await fx.user.invoke(evaluationActions.samplesPut, workEvaluationSample(`core14-${label}`, { call_id }, {
+      expectations: [{
+        expectation_id: "honest",
+        stage: "execution",
+        source: "deterministic",
+        description: "通过 input_subject 核对重试版本推进",
+        rule: { check: "no_self_certifying_success", subject_id: "note-1", subject_kind: "custom_note" },
+      }],
+    }));
+    const runResult = await fx.user.invoke(evaluationActions.runsExecute, { sample_id: `core14-${label}` });
+    assert.equal(runResult.effective_verdict, expectedVerdict, `${label}: ${JSON.stringify(runResult.expectation_results)}`);
+  }
 });

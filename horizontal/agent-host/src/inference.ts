@@ -1,4 +1,4 @@
-import type { ExactRef, ModelEvent, StructuredRequest, TerminalRunState, UsageReceipt } from "@prologue/sdk";
+import { listBuiltInProtocols, type ExactRef, type ModelEvent, type StructuredRequest, type TerminalRunState, type UsageReceipt } from "@prologue/sdk";
 
 export { decodeJsonOutput as decodePrologueJsonOutput } from "@prologue/sdk";
 
@@ -84,8 +84,14 @@ export function reportedTokenTotal(receipts: readonly PrologueUsageReceipt[], di
   return total;
 }
 
-/** OpenAI-compatible protocols report the whole prompt as input, cache reads inside it; the others report cache reads and writes apart. */
-export function promptIncludesCache(protocol: string): boolean { return protocol.startsWith("openai"); }
+const PROTOCOL_INCLUDES_CACHE: ReadonlyMap<string, boolean> = new Map(
+  listBuiltInProtocols().map((descriptor) => [descriptor.protocol, descriptor.promptIncludesCache]),
+);
+
+/** Whether this protocol's reported `input` token count already includes cached prompt tokens, per SDK protocol capabilities. */
+export function promptIncludesCache(protocol: string): boolean {
+  return PROTOCOL_INCLUDES_CACHE.get(protocol) ?? false;
+}
 
 /**
  * The whole prompt these calls paid for, each cached token counted once: the input alone where it already includes the cache,
@@ -94,9 +100,12 @@ export function promptIncludesCache(protocol: string): boolean { return protocol
  */
 export function reportedPromptTotal(receipts: readonly PrologueUsageReceipt[], includesCache: boolean): number | undefined {
   const input = reportedTokenTotal(receipts, "input");
-  if (input === undefined || includesCache) return input;
-  return receipts.reduce((total, receipt) => total + [receipt.cacheRead, receipt.cacheWrite]
-    .reduce((sum, count) => sum + (count.source === "reported" && count.tokens !== undefined ? count.tokens : 0), 0), input);
+  if (input === undefined) return undefined;
+  return receipts.reduce((total, receipt) => {
+    if (receipt.promptIncludesCache ?? includesCache) return total;
+    return total + [receipt.cacheRead, receipt.cacheWrite]
+      .reduce((sum, count) => sum + (count.source === "reported" && count.tokens !== undefined ? count.tokens : 0), 0);
+  }, input);
 }
 
 // A registry symbol, so a refusal still reads as one when two copies of this module are loaded (source and build).

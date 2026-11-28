@@ -525,7 +525,8 @@ test("RAC-1680 RAC-1681 S-84 a package whose plugin id the Host's build ships, o
   const h = await harness(undefined, true);
   try {
     // The plugin studio left the plugin catalog for a platform package (47-1 C); its id stays the Host's, so no package takes its page grants.
-    for (const id of ["io.molis.work.todo", "io.molis.work.git", "io.molis.work.files", "io.molis.work.native.workflows", "io.molis.work.plugin-builder"]) assert.ok(HOST_PLUGIN_IDS.has(id), `${id} is one of the Host's`);
+    for (const id of ["io.molis.work.todo", "io.molis.work.git", "io.molis.work.native.workflows", "io.molis.work.plugin-builder"]) assert.ok(HOST_PLUGIN_IDS.has(id), `${id} is one of the Host's`);
+    assert.equal(HOST_PLUGIN_IDS.has("io.molis.work.files"), false, "retired Files id is refused by S-reserved-host-prefix without a HOST_PLUGIN_IDS entry");
     const publisher = newPublisher();
     const cases: Array<[string, PluginPackageBundle]> = [
       ["RAC-1680 a Home package with a Home plugin's id", homeBundle(publisher, { pluginId: "io.molis.work.todo" })],

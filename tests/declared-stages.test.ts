@@ -90,7 +90,7 @@ test("T405-FULL-15: the first paint reserves only the active, enabled and actual
     const html = renderMolisWorkWeb({ ...emptyView(), shown_plugins: [id], plugin_directory: directory, plugin_panels: panel, page_stage: page, ...overrides });
     const workspace = html.match(/<main class="immersive-workspace[^>]*>/u)![0];
     assert.equal(workspace.includes("is-plugin-directory-empty"), expected === "root", `${name}: initial column width`);
-    assert.ok(html.includes(`id="goal-tree-pane" data-desktop-directory="${expected}"`), `${name}: initial aside selection`);
+    assert.ok(html.includes(`id="shell-directory-pane" data-desktop-directory="${expected}"`), `${name}: initial aside selection`);
     const section = html.match(new RegExp(`<section[^>]*data-plugin-section="${id}"[^>]*>`, "u"));
     assert.equal(Boolean(section && !/\shidden(?:\s|>)/u.test(section[0])), expected === id, `${name}: the same directory starts active`);
   }

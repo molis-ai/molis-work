@@ -8,12 +8,13 @@ import { createHash, randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { judgmentRecommendationKeys, subjectOfferCompatibilityReason } from "@molis-ai/molis-work-kernel";
 import { ActionError, exactActionView, requireSynchronous, ACTION_SUBJECT_SCHEMA, resolveActionSubject, type ActionSubject, retainActionAuthority, type ActionExecutionContext, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionProviderRegistration, type ActionReference,
-  type ActionSceneBinding, type ActionSceneClient, type ActionSceneDefinition, type ActionSceneHandlerBinding, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+  type ActionSceneBinding, type ActionSceneClient, type ActionSceneDefaultRule, type ActionSceneDefinition, type ActionSceneHandlerBinding, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { HOME_DOCK_SCENE_ID, SYSTEM_HOME_DOCK_FUNCTION_KEY, type JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 import { HOME_PAGE_CONTENT_TYPE, HOME_PAGE_DRAFT_SCHEMA, homePageActions } from "@molis-ai/molis-work-contracts/services/home";
 import { homePageActionHandlers, type HomePagesPorts } from "@molis-ai/molis-work-service-home";
 import { publishedFunctionAction, publishedFunctionKey, type FunctionsActionPorts } from "@molis-ai/molis-work-module-judgment-rules";
 import { withFunctionsService, type FunctionsHostOptions } from "./judgment-rules-host.js";
+import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 
 export const HOME_PROVIDER_ID = "system.home";
 const actionRef = ({ capability_id, version }: ActionDefinition) => ({ capability_id, version });
@@ -40,6 +41,39 @@ const judgmentProperties = { judgment_id: text, function_key: text, function_ver
   suggested_behavior_ids: { type: "array", items: text }, error_code: { type: ["string", "null"] }, created_at: text };
 const resultSchema = { type: "object", properties: { judgments: { type: "array", items: { type: "object", properties: judgmentProperties, required: Object.keys(judgmentProperties) } } }, required: ["judgments"] };
 
+function homeDockDefaultRule(): ActionSceneDefaultRule | undefined {
+  const subject_kinds: string[] = [];
+  const options: { readonly key: string; readonly description: string }[] = [];
+  const seenKinds = new Set<string>();
+  const seenKeys = new Set<string>();
+  for (const entry of PLATFORM_PLUGIN_REGISTRATIONS) {
+    const contributed = entry.home_dock_default;
+    if (!contributed) continue;
+    for (const kind of contributed.subject_kinds) {
+      if (!seenKinds.has(kind)) {
+        seenKinds.add(kind);
+        subject_kinds.push(kind);
+      }
+    }
+    for (const option of contributed.options) {
+      if (!seenKeys.has(option.key)) {
+        seenKeys.add(option.key);
+        options.push(option);
+      }
+    }
+  }
+  if (!options.length) return undefined;
+  return {
+    function_key: SYSTEM_HOME_DOCK_FUNCTION_KEY,
+    name: "首页事项处理建议",
+    instructions: "根据事项原文，在当前可用动作中推荐完成或忽略，由用户决定是否执行。",
+    subject_kinds,
+    options,
+  };
+}
+
+const HOME_DOCK_DEFAULT_RULE = homeDockDefaultRule();
+
 export const homeDockScene: ActionSceneDefinition = {
   scene_id: HOME_DOCK_SCENE_ID, version: /* @version scene.home.dock */ 1, title: "首页下一步",
   description: "根据首页事项内容推荐下一步，保留判断记录，由用户选择执行。",
@@ -47,10 +81,7 @@ export const homeDockScene: ActionSceneDefinition = {
   permissions: ["home:read", "model:invoke"], configuration_permissions: ["home:write"], event_schema: subjectSchema,
   input_schema: { type: "object", properties: { content: { type: "string", minLength: 1, maxLength: 8000 } }, required: ["content"], additionalProperties: false },
   result_type: /* @version type.molis.behavior-recommendation "molis.behavior-recommendation.v{version}" */ "molis.behavior-recommendation.v1", recommendation_source: "subject-offers",
-  default_rule: { function_key: SYSTEM_HOME_DOCK_FUNCTION_KEY, name: "首页事项处理建议", instructions: "根据事项原文，在当前可用动作中推荐完成或忽略，由用户决定是否执行。",
-    // The out-of-the-box Home rule judges the waiting items a plugin offers "done" and "dismiss" on; which plugin contributes the rule
-    // instead of the Home naming its option ids is BL-b44-home-dock-default-rule.
-    subject_kinds: ["inbox_entry"], options: [{ key: "inbox.done", description: "做完了" }, { key: "inbox.dismiss", description: "忽略" }] },
+  ...(HOME_DOCK_DEFAULT_RULE ? { default_rule: HOME_DOCK_DEFAULT_RULE } : {}),
   // The shared scene service checks the rule's complete finite set against the
   // current declared choices. The consumer checks actual object inputs as well.
   result_schema: { type: "object", properties: { status: { enum: ["ok", "needs_review"] },

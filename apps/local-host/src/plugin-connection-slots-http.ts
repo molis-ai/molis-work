@@ -4,7 +4,6 @@ import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/p
 import type { PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { CONNECTOR_REQUEST_SERVICES } from "@molis-ai/molis-work-contracts/services/connector-host";
 import type { MolisWorkSettingsView } from "@molis-ai/molis-work-app-workbench";
-import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { connectorPluginSlotActions } from "./connector-plugin-slot-actions.js";
 import { bindLocalWebActions } from "./local-web-actions.js";
 import { localWebActionContext } from "./local-web-actions.js";
@@ -14,6 +13,7 @@ import { pluginPageRequest } from "./plugin-page-authority.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { installedPluginManifest } from "./plugin-installation-directory.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
+import { localizeActionErrorResponse, readErrorWord, readWorkbenchText } from "./ui-error-words.js";
 import { readLocalWebBody, sendLocalWebJson as sendJson } from "./web-http.js";
 
 // 服务连接 › 插件用的账号 (BL-350, S0b-2b): the installation slots that the Home's plugins and the chosen project's declare, each with
@@ -34,13 +34,20 @@ type TrustedPage = NonNullable<ReturnType<typeof pluginPageRequest>>;
  */
 export function scopedContextPage(context: WebRequestContext, project: LocalHostProjectReference | undefined): TrustedPage {
   const page = pluginPageRequest(context.request);
-  if (!page || !context.request.headers["x-molis-context-page"] || (project?.project_id ?? null) !== page.project_id)
-    throw new ActionError("actions.forbidden", "连接卡需要当前页面的可信控件");
+  if (!page || !context.request.headers["x-molis-context-page"] || (project?.project_id ?? null) !== page.project_id) {
+    throw new ActionError("actions.forbidden", readWorkbenchText("workbench.plugin-slots.error.card-needs-trusted-control"), {
+      text_key: "workbench.plugin-slots.error.card-needs-trusted-control",
+    });
+  }
   return page;
 }
 
 export function trustedPluginPage(context: WebRequestContext, project: LocalHostProjectReference | undefined): { page: TrustedPage; project: LocalHostProjectReference } {
-  if (!project) throw new ActionError("actions.forbidden", "账号选择需要当前项目的可信控件");
+  if (!project) {
+    throw new ActionError("actions.forbidden", readWorkbenchText("workbench.plugin-slots.error.account-picker-needs-project"), {
+      text_key: "workbench.plugin-slots.error.account-picker-needs-project",
+    });
+  }
   return { page: scopedContextPage(context, project), project };
 }
 
@@ -61,13 +68,21 @@ export async function pageOwnerClient(context: WebRequestContext, project: Local
 export async function pageConnectionSlot(context: WebRequestContext, reference: LocalHostProjectReference | undefined, body: Record<string, unknown>) {
   const { page, project } = trustedPluginPage(context, reference);
   if (!body || !["read", "bind"].includes(String(body.mode)) || typeof body.slot_id !== "string" || typeof body.record_key !== "string"
-    || Object.keys(body).some(key => !["mode", "slot_id", "record_key", ...(body.mode === "bind" ? ["connection_id"] : [])].includes(key)))
-    throw new ActionError("actions.input_invalid", "连接槽请求无效");
+    || Object.keys(body).some(key => !["mode", "slot_id", "record_key", ...(body.mode === "bind" ? ["connection_id"] : [])].includes(key))) {
+    throw new ActionError("actions.input_invalid", readWorkbenchText("workbench.plugin-slots.error.invalid-slot-request"), {
+      text_key: "workbench.plugin-slots.error.invalid-slot-request",
+    });
+  }
   const { install_id, plugin_id, slot } = page.connectionSlot(body.slot_id);
   await page.beforeEffect();
-  const client = await pageOwnerClient(context, project, page), record = { install_id, plugin_id, slot_id: slot.slot_id, record_key: body.record_key };
+  const client = await pageOwnerClient(context, project, page);
+  const record = { install_id, plugin_id, slot_id: slot.slot_id, record_key: body.record_key };
   if (body.mode === "bind") {
-    if (typeof body.connection_id !== "string") throw new ActionError("actions.input_invalid", "请选择账号");
+    if (typeof body.connection_id !== "string") {
+      throw new ActionError("actions.input_invalid", readWorkbenchText("workbench.plugin-slots.error.choose-account"), {
+        text_key: "workbench.plugin-slots.error.choose-account",
+      });
+    }
     const result = await client.invoke(connectorPluginSlotActions.bindRecord, { ...record, service_id: slot.service_id, connection_id: body.connection_id });
     await page.beforeEffect();
     return { service_id: slot.service_id, connection: connectionChoice(result.connection) };
@@ -113,16 +128,25 @@ export async function handlePluginSlotsHttp(request: IncomingMessage, response: 
   projectReference: (projectId: string) => Promise<LocalHostProjectReference | null>): Promise<boolean> {
   if (url.pathname === RECORD_PATH) return await handleRecordSlotHttp(request, response, url, host, projectReference);
   if (url.pathname !== SLOTS_PATH) return false;
-  if (request.method !== "POST") { sendJson(response, 405, { error: "不支持的操作" }); return true; }
+  if (request.method !== "POST") {
+    sendJson(response, 405, { error: readErrorWord("common.error.method-not-allowed") });
+    return true;
+  }
   try {
     const projectId = url.searchParams.get("project");
     const reference = projectId ? await projectReference(projectId) : undefined;
-    if (reference === null) { sendJson(response, 404, { error: "找不到所选项目" }); return true; }
+    if (reference === null) {
+      sendJson(response, 404, { error: readWorkbenchText("workbench.plugin-slots.error.project-not-found") });
+      return true;
+    }
     // The action's schema checks every field; the page names nothing else.
     const body = await readLocalWebBody(request) as { install_id: string; plugin_id: string; slot_id: string; service_id: string; connection_id?: string | null };
     sendJson(response, 200, await bindLocalWebActions(host, reference, LOCAL_OWNER_PERMISSIONS).invoke(connectorPluginSlotActions.bind, {
       install_id: body.install_id, plugin_id: body.plugin_id, slot_id: body.slot_id, service_id: body.service_id, connection_id: body.connection_id ?? null }));
-  } catch (error) { const failure = actionErrorResponse(error); sendJson(response, failure.status, failure.body); }
+  } catch (error) {
+    const failure = localizeActionErrorResponse(error);
+    sendJson(response, failure.status, failure.body);
+  }
   return true;
 }
 
@@ -137,8 +161,8 @@ async function recordSlotInstallation(host: MolisWorkLocalHost, reference: Local
   const live = (record: PluginInstanceRecord) => record.plugin_id === plugin_id && record.state !== "uninstalled";
   const project = await host.withProject(reference, runtime => pluginInstallRecords(runtime.store.db).list().filter(live));
   const found = project.length ? project : (host.homePlugins?.installations() ?? []).filter(live);
-  if (found.length > 1) return { status: 409, error: "这个项目里同一个插件有多个安装，无法确定是哪一个" };
-  return found[0]?.install_id ?? { status: 404, error: "这个项目没有安装这个插件" };
+  if (found.length > 1) return { status: 409, error: readWorkbenchText("workbench.plugin-slots.error.duplicate-installation") };
+  return found[0]?.install_id ?? { status: 404, error: readWorkbenchText("workbench.plugin-slots.error.plugin-not-installed") };
 }
 
 /**
@@ -148,16 +172,20 @@ async function recordSlotInstallation(host: MolisWorkLocalHost, reference: Local
  */
 async function handleRecordSlotHttp(request: IncomingMessage, response: ServerResponse, url: URL, host: MolisWorkLocalHost,
   projectReference: (projectId: string) => Promise<LocalHostProjectReference | null>): Promise<true> {
-  const refuse = (refusal: Refusal): true => { sendJson(response, refusal.status, { error: refusal.error }); return true; };
-  if (request.method !== "GET" && request.method !== "POST") return refuse({ status: 405, error: "不支持的操作" });
+  const refuse = (refusal: Refusal): true => {
+    sendJson(response, refusal.status, { error: refusal.error });
+    return true;
+  };
+  if (request.method !== "GET" && request.method !== "POST") return refuse({ status: 405, error: readErrorWord("common.error.method-not-allowed") });
   const names = [...url.searchParams.keys()];
-  if (new Set(names).size !== names.length || !exactly(names, request.method === "GET" ? RECORD_QUERY : ["project"])) return refuse({ status: 400, error: "请求参数无效" });
+  if (new Set(names).size !== names.length || !exactly(names, request.method === "GET" ? RECORD_QUERY : ["project"])) return refuse({ status: 400, error: readWorkbenchText("workbench.plugin-slots.error.invalid-query-params") });
   try {
     const reference = await projectReference(url.searchParams.get("project") ?? "");
-    if (!reference) return refuse({ status: 404, error: "找不到所选项目" });
+    if (!reference) return refuse({ status: 404, error: readWorkbenchText("workbench.plugin-slots.error.project-not-found") });
     const actions = bindLocalWebActions(host, reference, LOCAL_OWNER_PERMISSIONS);
     if (request.method === "GET") {
-      const plugin_id = url.searchParams.get("plugin_id") ?? "", install_id = await recordSlotInstallation(host, reference, plugin_id);
+      const plugin_id = url.searchParams.get("plugin_id") ?? "";
+      const install_id = await recordSlotInstallation(host, reference, plugin_id);
       if (typeof install_id !== "string") return refuse(install_id);
       sendJson(response, 200, await actions.invoke(connectorPluginSlotActions.readRecord, { install_id, plugin_id,
         slot_id: url.searchParams.get("slot_id") ?? "", record_key: url.searchParams.get("record_key") ?? "" }));
@@ -165,12 +193,15 @@ async function handleRecordSlotHttp(request: IncomingMessage, response: ServerRe
     }
     // The action's schema checks each value; the names are checked here, since a name the action does not take would otherwise be dropped.
     const body: unknown = await readLocalWebBody(request, 4_096);
-    if (!body || typeof body !== "object" || Array.isArray(body) || !exactly(Object.keys(body), RECORD_BODY)) return refuse({ status: 400, error: "请求内容无效" });
+    if (!body || typeof body !== "object" || Array.isArray(body) || !exactly(Object.keys(body), RECORD_BODY)) return refuse({ status: 400, error: readWorkbenchText("workbench.plugin-slots.error.invalid-request-body") });
     const input = body as { plugin_id: string; slot_id: string; service_id: string; record_key: string; connection_id: string | null };
     const install_id = await recordSlotInstallation(host, reference, String(input.plugin_id));
     if (typeof install_id !== "string") return refuse(install_id);
     const record = { install_id, plugin_id: input.plugin_id, slot_id: input.slot_id, record_key: input.record_key };
     sendJson(response, 200, await actions.invoke(connectorPluginSlotActions.bindRecord, { ...record, service_id: input.service_id, connection_id: input.connection_id }));
-  } catch (error) { const failure = actionErrorResponse(error); sendJson(response, failure.status, failure.body); }
+  } catch (error) {
+    const failure = localizeActionErrorResponse(error);
+    sendJson(response, failure.status, failure.body);
+  }
   return true;
 }

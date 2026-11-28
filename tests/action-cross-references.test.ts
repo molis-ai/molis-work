@@ -175,6 +175,19 @@ test("a result object is read from places the output declares", () => {
   assert.deepEqual(problems(subject({ id: "note.id", revision: 3 })), ["能力 notes.save@1 的结果对象位置必须写成输出里的路径"]);
 });
 
+test("CORE-14 input_subject is validated against input_schema just like result_subject", () => {
+  const inputSchema = { type: "object", properties: { doc_id: ID, expected_cursor: { type: "integer" }, target: { type: "object", properties: { id: ID, base_rev: ID } } } };
+  const withInput = (inputSubject: unknown, over: Part = {}) => defined("notes.update", "command", { input_schema: inputSchema, input_subject: inputSubject, ...over });
+  assert.deepEqual(problems(withInput({ id: "doc_id" })), []);
+  assert.deepEqual(problems(withInput({ id: "doc_id", expected_revision: "expected_cursor" })), []);
+  assert.deepEqual(problems(withInput({ id: "target.id", expected_revision: "target.base_rev" })), []);
+  assert.deepEqual(problems(withInput({ id: "missing_id" })), ["能力 notes.update@1 的输入对象位置 missing_id 不在输入合同里"]);
+  assert.deepEqual(problems(withInput({ id: "doc_id", expected_revision: "missing_rev" })), ["能力 notes.update@1 的输入对象位置 missing_rev 不在输入合同里"]);
+  assert.deepEqual(problems(withInput("doc_id")), ["能力 notes.update@1 的输入对象声明必须是对象，写明 id（可加 expected_revision）在输入里的路径"]);
+  assert.deepEqual(problems(withInput({ id: "doc_id", expected_revision: 3 })), ["能力 notes.update@1 的输入对象位置必须写成输入里的路径"]);
+  for (const absent of [undefined, null]) assert.deepEqual(problems(withInput(absent)), []);
+});
+
 test("a result object that is not an object is refused, whatever it is: nothing else reports it, and at use the string would stop the Assistant after the change was made", () => {
   const notAnObject = "能力 notes.save@1 的结果对象声明必须是对象，写明 id（可加 revision）在输出里的路径";
   for (const declared of ["note.id", "", true, false, 0, 3, ["note.id"], []]) assert.deepEqual(problems(subject(declared)), [notAnObject], JSON.stringify(declared));

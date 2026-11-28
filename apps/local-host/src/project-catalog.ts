@@ -201,6 +201,11 @@ export class MolisWorkProjectCatalog {
     ledger: ContextLedgerApi,
   ) {
     const db = storage.db;
+    this.stampQueries = {
+      changes: db.prepare("SELECT total_changes() AS n"),
+      data: db.prepare("PRAGMA data_version"),
+      schema: db.prepare("PRAGMA schema_version"),
+    };
     this.commit = createCatalogCommit(db, () => this.assertCurrentSchema());
     bindDatabaseSpace(db, ensureStorageSpace(homeDirectory));
     this.models = new ModelProviderStore({ db, secrets: createModelSecretPort(homeDirectory) });
@@ -321,6 +326,11 @@ export class MolisWorkProjectCatalog {
   }
 
   private readonly instanceId = ++nextCatalogInstance;
+  private readonly stampQueries: {
+    readonly changes: ReturnType<SqliteDatabase["prepare"]>;
+    readonly data: ReturnType<SqliteDatabase["prepare"]>;
+    readonly schema: ReturnType<SqliteDatabase["prepare"]>;
+  };
   private lastSchemaStamp: string | undefined;
   private releaseOwner?: () => void;
   private checkOwner?: () => void;
@@ -340,9 +350,9 @@ export class MolisWorkProjectCatalog {
     if (!db.open || db.inTransaction) return null;
     const stat = statSync(this.databasePath, { throwIfNoEntry: false });
     if (!stat) return null;
-    const changes = Number((db.prepare("SELECT total_changes() AS n").get() as { n: number }).n);
-    const data = Number(db.pragma("data_version", { simple: true }));
-    const schema = Number(db.pragma("schema_version", { simple: true }));
+    const changes = Number((this.stampQueries.changes.get() as { n: number }).n);
+    const data = Number(Object.values(this.stampQueries.data.get() as Record<string, unknown>)[0]);
+    const schema = Number(Object.values(this.stampQueries.schema.get() as Record<string, unknown>)[0]);
     return `${this.instanceId}:${stat.dev}:${stat.ino}:${changes}:${data}:${schema}`;
   }
 

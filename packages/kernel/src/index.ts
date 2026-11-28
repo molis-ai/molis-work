@@ -2,6 +2,7 @@ import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/action
 import type { HostCapabilityDescriptor } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { ActionError, requireSynchronous, type ActionAvailability, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inDirectoryPass } from "./directory-pass.js";
+import { freezeActionDeclaration } from "./action-schema.js";
 export { subjectOfferChoices, subjectOfferChoiceKey, judgmentRecommendationKeys, subjectOfferCompatibilityReason, type SubjectOfferChoiceView } from "./subject-offer-choices.js";
 
 export type CapabilityHandler<Context, Input, Output> = (
@@ -42,15 +43,6 @@ function normalizedDescriptor(definition: HostCapabilityDescriptor): HostCapabil
   };
 }
 
-/** All the way down: a registered descriptor is shared by every read instead of copied for each. */
-function frozen<T>(value: T): T {
-  if (value && typeof value === "object" && !Object.isFrozen(value)) {
-    Object.freeze(value);
-    for (const child of Object.values(value)) frozen(child);
-  }
-  return value;
-}
-
 type RegistryReference = Pick<HostCapabilityDescriptor, "capability_id" | "version" | "action_provider">;
 function capabilityKey(descriptor: RegistryReference): string {
   return JSON.stringify([descriptor.capability_id, descriptor.version, descriptor.action_provider?.project_id ?? null]);
@@ -61,13 +53,19 @@ export class CapabilityRegistry<Context> {
   private readonly entries = new Map<string, RegisteredCapability<Context>>();
   /** Registration order sorted once per change: every capability call looks something up here. */
   private ordered: HostCapabilityDescriptor[] | null = null;
+  private registryGeneration = 0;
+
+  /** Monotonic counter bumped whenever any capability is registered or withdrawn. */
+  generation(): number {
+    return this.registryGeneration;
+  }
 
   register<Input, Output>(
     definition: ActionDefinition<Input, Output>,
     handler: CapabilityHandler<Context, Input, Output>,
     options: { availability?: (context: Context) => ActionAvailability; metadataAvailability?: (context: Context) => ActionAvailability; synchronous?: boolean } = {},
   ): () => void {
-    const descriptor = frozen(normalizedDescriptor(definition));
+    const descriptor = freezeActionDeclaration(normalizedDescriptor(definition));
     const key = capabilityKey(descriptor);
     const overlapping = [...this.entries.values()].some(({ descriptor: current }) =>
       current.capability_id === descriptor.capability_id && current.version === descriptor.version
@@ -78,6 +76,7 @@ export class CapabilityRegistry<Context> {
     }
     const token = Symbol(key);
     this.ordered = null;
+    this.registryGeneration += 1;
     this.entries.set(key, {
       token,
       descriptor,
@@ -86,7 +85,11 @@ export class CapabilityRegistry<Context> {
     });
     return () => {
       const current = this.entries.get(key);
-      if (current?.token === token) { this.entries.delete(key); this.ordered = null; }
+      if (current?.token === token) {
+        this.entries.delete(key);
+        this.ordered = null;
+        this.registryGeneration += 1;
+      }
     };
   }
 

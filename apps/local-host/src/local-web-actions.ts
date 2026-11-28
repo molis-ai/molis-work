@@ -211,19 +211,32 @@ function buildLocalWebAuthority(host: MolisWorkLocalHost, reference: LocalHostPr
       && (owner.scope === "home" ? !view.provider.project_id : view.provider.project_id === reference?.project_id)) : undefined;
   // Only the authenticated stage can inspect the person's wider metadata; execution keeps the original cap and refs.
   const metadata = stage ? catalog.filter(view => accepted.includes(view) || accept(view, LOCAL_OWNER_PERMISSIONS)) : [];
+  const permissionSet = new Set(permissions);
+  const indexByAction = (views: readonly LocalActionMetadata[]) => {
+    const map = new Map<string, LocalActionMetadata[]>();
+    for (const view of views) {
+      const key = `${view.capability_id}@${view.version}`;
+      const bucket = map.get(key);
+      if (bucket) bucket.push(view); else map.set(key, [view]);
+    }
+    return map;
+  };
+  const acceptedByKey = indexByAction(accepted);
+  const metadataByKey = metadata.length ? indexByAction(metadata) : undefined;
   const assertAuthority = (action?: ActionReference, required: readonly string[] = []) => {
     sessionCurrent();
     entry.assertCurrent?.();
     signal?.throwIfAborted();
     owner?.assertCurrent();
-    if (!required.every(permission => permissions.includes(permission))) throw localAuthorityRefused();
+    if (!required.every(permission => permissionSet.has(permission))) throw localAuthorityRefused();
     if (!action) return;
-    const matches = accepted.filter(view => view.capability_id === action.capability_id && view.version === action.version
-      && (!action.provider_id || view.provider.provider_id === action.provider_id));
+    const key = `${action.capability_id}@${action.version}`;
+    const candidates = acceptedByKey.get(key);
+    const matches = candidates ? (action.provider_id ? candidates.filter(view => view.provider.provider_id === action.provider_id) : candidates) : [];
     let original = matches.length === 1 ? matches[0] : undefined;
     let ownerCap = builtinPermissions;
-    if (!matches.length && action.provider_id) {
-      original = metadata.find(view => view.capability_id === action.capability_id && view.version === action.version && view.provider.provider_id === action.provider_id);
+    if (!matches.length && action.provider_id && metadataByKey) {
+      original = metadataByKey.get(key)?.find(view => view.provider.provider_id === action.provider_id);
       ownerCap = LOCAL_OWNER_PERMISSIONS;
     }
     if (original) {
@@ -233,7 +246,7 @@ function buildLocalWebAuthority(host: MolisWorkLocalHost, reference: LocalHostPr
     if (original && original.provider.plugin_install_id === undefined && accept(original, ownerCap)) return;
     const installId = original?.provider.plugin_install_id;
     const install = !installId || !original ? undefined : inProject(original.provider) ? projectRepository?.get(installId)
-      : host.homePlugins?.installations().find(record => record.install_id === installId);
+      : host.homePlugins?.installationById(installId) ?? undefined;
     const held = original && installOf(original.provider);
     if (!original || !install || !held || install.state !== "running" || install.plugin_id !== original.provider.plugin_id
       || !sameInstalledRelease(held, install)
@@ -241,8 +254,8 @@ function buildLocalWebAuthority(host: MolisWorkLocalHost, reference: LocalHostPr
       throw localAuthorityRefused();
     }
   };
-  return { ...base, permissions,
-    allowed_actions: authority.map(view => ({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id })),
+  return { ...base, permissions: Object.freeze(permissions),
+    allowed_actions: Object.freeze(authority.map(view => Object.freeze({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }))),
     ...(stage && owner ? { stage_scene_metadata: Object.freeze({ actor_id: base.actor_id, audience: base.audience, project_id: base.project_id,
       entry: Object.freeze({ capability_id: stage.capability_id, version: stage.version, provider_id: stage.provider.provider_id }),
       owner: Object.freeze({ plugin_id: owner.manifest.plugin_id, install_id: owner.install_id, installation_generation: owner.installation_generation, scope: owner.scope }),

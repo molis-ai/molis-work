@@ -121,8 +121,36 @@ export function assertActionInput(schema: ActionSchema, value: unknown): void {
   validateActionValue(compileActionSchema(schema), value, "input");
 }
 
+const frozenSchemaAccepts = new WeakMap<object, WeakMap<object, boolean>>();
+const immutableDeclarations = new WeakSet<object>();
+
+/** Freeze and track the kernel's private clones, including every nested schema. */
+export function freezeActionDeclaration<T>(value: T): T {
+  if (value && typeof value === "object" && !immutableDeclarations.has(value)) {
+    Object.freeze(value);
+    immutableDeclarations.add(value);
+    for (const child of Object.values(value)) freezeActionDeclaration(child);
+  }
+  return value;
+}
+
 /** Conservative assignability. Unsupported relations require an explicit conversion. */
 export function actionSchemaAccepts(target: ActionSchema, source: ActionSchema): boolean {
+  const immutable = immutableDeclarations.has(target) && immutableDeclarations.has(source);
+  if (immutable) {
+    const hit = frozenSchemaAccepts.get(target)?.get(source);
+    if (hit !== undefined) return hit;
+  }
+  const accepted = computeSchemaAccepts(target, source);
+  if (immutable) {
+    let bySource = frozenSchemaAccepts.get(target);
+    if (!bySource) frozenSchemaAccepts.set(target, bySource = new WeakMap());
+    bySource.set(source, accepted);
+  }
+  return accepted;
+}
+
+function computeSchemaAccepts(target: ActionSchema, source: ActionSchema): boolean {
   if (same(target, source) || Object.keys(target).length === 0) return true;
   const supported = new Set(["type", "properties", "required", "additionalProperties", "items", "enum", "const", "$schema", "description", "title", "default", "examples"]);
   if ([...Object.keys(target), ...Object.keys(source)].some(k => !supported.has(k))) return false;

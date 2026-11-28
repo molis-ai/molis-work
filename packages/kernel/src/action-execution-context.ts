@@ -83,18 +83,29 @@ export function visibleAction(d: ActionDefinition, provider: ActionProvider, c: 
     && (!c.allowed_actions || allowedAction(c.allowed_actions, d, provider));
 }
 
+type AllowedIndexState = { first: string; provider: string; index: Map<string, { any: boolean; providers: Set<string> }> | undefined };
+const frozenAllowedLists = new WeakMap<readonly ActionReference[], AllowedIndexState | null>();
+
 /**
- * A directory asks many different actions of the same list, so its second distinct target builds an index for this pass.
- * Repeated checks of only one target keep scanning: they need no full index, and no answer is retained. Outside a pass every call scans.
+ * A directory asks many different actions of the same list, so its second distinct target builds an index.
+ * Immutable (frozen) allow-lists reuse their pure membership index across passes; mutable lists scope the index to the active pass.
  */
 function allowedAction(list: readonly ActionReference[], d: ActionDefinition, provider: ActionProvider): boolean {
   const key = `${d.capability_id}@${d.version}`;
-  const asked = rememberInDirectoryPass(list, allowedAction, () => ({ first: key, provider: provider.provider_id, index: undefined as Map<string, { any: boolean; providers: Set<string> }> | undefined }));
-  if (!asked.index && asked.first === key && asked.provider === provider.provider_id) return list.some(ref => ref.capability_id === d.capability_id && ref.version === d.version && (!ref.provider_id || ref.provider_id === provider.provider_id));
+  let cached = frozenAllowedLists.get(list);
+  if (cached === undefined && Object.isFrozen(list)) {
+    cached = list.every(ref => Object.isFrozen(ref)) ? { first: key, provider: provider.provider_id, index: undefined } : null;
+    frozenAllowedLists.set(list, cached);
+  }
+  const asked: AllowedIndexState = cached ?? rememberInDirectoryPass(list, allowedAction, () => ({ first: key, provider: provider.provider_id, index: undefined }));
+  if (!asked.index && asked.first === key && asked.provider === provider.provider_id) {
+    return list.some(ref => ref.capability_id === d.capability_id && ref.version === d.version && (!ref.provider_id || ref.provider_id === provider.provider_id));
+  }
   if (!asked.index) {
     asked.index = new Map();
     for (const ref of list) {
-      const key = `${ref.capability_id}@${ref.version}`, entry = asked.index.get(key) ?? asked.index.set(key, { any: false, providers: new Set() }).get(key)!;
+      const refKey = `${ref.capability_id}@${ref.version}`;
+      const entry = asked.index.get(refKey) ?? asked.index.set(refKey, { any: false, providers: new Set() }).get(refKey)!;
       if (ref.provider_id) entry.providers.add(ref.provider_id); else entry.any = true;
     }
   }

@@ -93,14 +93,12 @@ test("QEA-184: placement per plugin, Goal materials, Form to Dataset, Lingguang 
   const describe = (object: PlacedObject) => evaluate<PlacementDescription>(`globalThis.molisPlacement.describe(${text(object)}, true)`);
   const post = (path: string, body: unknown = {}) => evaluate<Record<string, unknown>>(`fetch(${text(path)}, { method: 'POST', headers: molisWorkControlHeaders(), body: ${text(JSON.stringify(body))} })
     .then(async response => { const value = await response.json(); if (!response.ok) throw new Error(value.error || response.status); return value; })`);
-  // The project home is in the list under the top strip's first place (§4「底栏第十三版」第 1 条; not a tab); a plugin tab restored from before may be in front of it.
   const projectHome = async (project: string) => {
-    await go(`/projects/${project}/`);
-    // The server initially shows Home while the workbench restores the project's previous tab.
-    // Use the mounted switcher's Home command even when the initial shell already looks like Home.
-    await waitFor("document.querySelector('[data-ml-pick-home]')", 15_000);
-    await click("[data-ml-pick-home]");
-    await waitFor("document.body.dataset.desktopSurface === 'home' && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]')", 15_000);
+    // The workbench consumes this destination while restoring the project's tabs.
+    await go(`/projects/${project}/?openPlugin=home`);
+    await waitFor(`!new URL(location.href).searchParams.has('openPlugin')
+      && document.body.dataset.desktopSurface === 'home'
+      && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]')`, 15_000);
   };
   const typeInto = (selector: string, value: string) => viewFor(selector).evaluate(`(() => { const input = ${visible(selector)}; input.focus(); input.value = ${text(value)}; input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
